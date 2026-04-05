@@ -7,9 +7,15 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def test_control_plane_keeps_repo_local_env_bootstrap_scripts() -> None:
+    repo_root = _repo_root()
+    assert (repo_root / "scripts" / "setup-env.ps1").exists()
+    assert (repo_root / "scripts" / "sync-all-to-github.ps1").exists()
+
+
 def test_interactive_azure_orchestrator_wraps_existing_scripts() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure_interactive.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_interactive.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "validate_azure_permissions.ps1" in text, (
@@ -37,7 +43,7 @@ def test_interactive_azure_orchestrator_wraps_existing_scripts() -> None:
 
 def test_interactive_azure_orchestrator_uses_child_powershell_processes() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure_interactive.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_interactive.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "Resolve-PowerShellExe" in text, (
@@ -59,7 +65,7 @@ def test_interactive_azure_orchestrator_uses_child_powershell_processes() -> Non
 
 def test_interactive_azure_orchestrator_offers_github_sync_for_env_web() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure_interactive.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_interactive.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "Sync .env.web values to GitHub vars/secrets now?" in text, (
@@ -72,7 +78,7 @@ def test_interactive_azure_orchestrator_offers_github_sync_for_env_web() -> None
 
 def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_updates() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_entra_oidc.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_entra_oidc.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert 'az ad app create' in text or '"ad", "app", "create"' in text, (
@@ -103,7 +109,7 @@ def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_upd
 
 def test_entra_oidc_provisioner_auto_resolves_and_persists_operator_user() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_entra_oidc.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_entra_oidc.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "Resolve-OperatorUserAssignment" in text, (
@@ -134,7 +140,7 @@ def test_entra_oidc_provisioner_auto_resolves_and_persists_operator_user() -> No
 
 def test_permission_validator_allows_signed_in_user_fallback_for_operator_assignment() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "validate_azure_permissions.ps1"
+    script = repo_root / "scripts" / "ops" / "validate" / "validate_azure_permissions.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "Resolve-SignedInUser" in text, (
@@ -159,7 +165,7 @@ def test_permission_validator_allows_signed_in_user_fallback_for_operator_assign
 
 def test_shared_provisioner_uses_workspace_safe_log_analytics_retention() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "[int]$LogAnalyticsRetentionInDays = 30" in text, (
@@ -170,4 +176,45 @@ def test_shared_provisioner_uses_workspace_safe_log_analytics_retention() -> Non
     )
     assert "Configuring Log Analytics retention: requested=" in text, (
         "Shared Azure provisioning must log the requested and effective Log Analytics retention"
+    )
+
+
+def test_postgres_provisioner_persists_env_outputs() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "function Set-EnvValues" in text, (
+        "Postgres provisioner must persist resolved database settings back into the active env file"
+    )
+    assert 'POSTGRES_SERVER_NAME   = $ServerName' in text, (
+        "Postgres provisioner must write the resolved server name back into the env file"
+    )
+    assert 'POSTGRES_DATABASE_NAME = $DatabaseName' in text, (
+        "Postgres provisioner must write the resolved database name back into the env file"
+    )
+    assert 'POSTGRES_ADMIN_USER    = $AdminUser' in text, (
+        "Postgres provisioner must write the admin username back into the env file"
+    )
+    assert 'Write-Host "POSTGRES_DSN source: $persistedDsnSource"' in text, (
+        "Postgres provisioner should report which credential was written into POSTGRES_DSN"
+    )
+
+
+def test_shared_provisioner_passes_env_file_to_postgres_and_syncs_github() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "function Sync-EnvWebToGitHub" in text, (
+        "Shared Azure provisioner must centralize .env.web GitHub synchronization"
+    )
+    assert "EnvFile              = $envPath" in text, (
+        "Shared Azure provisioner must pass the active env file through to the Postgres provisioner"
+    )
+    assert 'Join-Path $repoRoot "scripts\\sync-all-to-github.ps1"' in text, (
+        "Shared Azure provisioner must sync GitHub vars/secrets through the repo-local helper"
+    )
+    assert "Sync-EnvWebToGitHub -EnvPath $envPath" in text, (
+        "Shared Azure provisioner must sync GitHub after the Postgres step updates .env.web"
     )

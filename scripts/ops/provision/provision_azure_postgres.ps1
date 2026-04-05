@@ -127,6 +127,38 @@ function Get-EnvValueFirst {
   return $null
 }
 
+function Set-EnvValues {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][hashtable]$Values
+  )
+
+  $lines = [System.Collections.Generic.List[string]]::new()
+  if (Test-Path -LiteralPath $Path) {
+    foreach ($line in (Get-Content -LiteralPath $Path)) {
+      $lines.Add($line)
+    }
+  }
+
+  foreach ($key in $Values.Keys) {
+    $value = if ($null -eq $Values[$key]) { "" } else { [string]$Values[$key] }
+    $updated = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+      if ($lines[$i] -match ("^" + [regex]::Escape($key) + "=")) {
+        $lines[$i] = "$key=$value"
+        $updated = $true
+        break
+      }
+    }
+
+    if (-not $updated) {
+      $lines.Add("$key=$value")
+    }
+  }
+
+  Set-Content -LiteralPath $Path -Value $lines -Encoding utf8
+}
+
 function Parse-EnvBool {
   param(
     [Parameter(Mandatory = $true)][string]$Key,
@@ -876,6 +908,40 @@ if ($CreateAppUsers) {
   $backtestServiceDsn = "postgresql://$BacktestServiceUser`:$BacktestServicePassword@$fqdn`:5432/${DatabaseName}?sslmode=require"
 }
 
+$persistedDsn = ""
+$persistedDsnSource = ""
+if ($CreateAppUsers -and $ApplyMigrations -and (-not [string]::IsNullOrWhiteSpace($backtestServiceDsn))) {
+  $persistedDsn = $backtestServiceDsn
+  $persistedDsnSource = "backtest-service"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($adminDsn)) {
+  $persistedDsn = $adminDsn
+  $persistedDsnSource = "admin"
+}
+
+$envUpdates = [ordered]@{
+  POSTGRES_SERVER_NAME   = $ServerName
+  POSTGRES_DATABASE_NAME = $DatabaseName
+  POSTGRES_ADMIN_USER    = $AdminUser
+}
+if (-not [string]::IsNullOrWhiteSpace($AdminPassword)) {
+  $envUpdates["POSTGRES_ADMIN_PASSWORD"] = $AdminPassword
+}
+if (-not [string]::IsNullOrWhiteSpace($persistedDsn)) {
+  $envUpdates["POSTGRES_DSN"] = $persistedDsn
+}
+
+if ([string]::IsNullOrWhiteSpace($envPath)) {
+  Write-Warning "EnvFile was not resolved, so Postgres outputs were not written back to an env file."
+}
+else {
+  Set-EnvValues -Path $envPath -Values $envUpdates
+  Write-Host "Updated env file with Postgres settings: $envPath" -ForegroundColor Green
+  if (-not [string]::IsNullOrWhiteSpace($persistedDsnSource)) {
+    Write-Host "POSTGRES_DSN source: $persistedDsnSource" -ForegroundColor DarkGray
+  }
+}
+
 $outputs = [ordered]@{
   subscriptionId        = $SubscriptionId
   location              = $selectedLocation
@@ -885,6 +951,8 @@ $outputs = [ordered]@{
   databaseName          = $DatabaseName
   adminUser             = $AdminUser
   adminPassword         = if ($EmitSecrets) { $AdminPassword } else { "<redacted>" }
+  envFile               = if ($envPath) { $envPath } else { "<not_written>" }
+  persistedDsnSource    = if ($persistedDsnSource) { $persistedDsnSource } else { "<unavailable>" }
   resetBeforeMigrations = $ResetBeforeMigrations
   appUsers              = if ($CreateAppUsers) {
     [ordered]@{

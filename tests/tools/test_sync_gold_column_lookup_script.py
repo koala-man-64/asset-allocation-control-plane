@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts import sync_gold_column_lookup as sync
+from scripts.ops.data import sync_gold_column_lookup as sync
 
 
 def test_build_lookup_row_preserves_existing_curated_description_by_default() -> None:

@@ -424,6 +424,28 @@ function Assert-CommandExists {
   }
 }
 
+function Sync-EnvWebToGitHub {
+  param([Parameter(Mandatory = $true)][string]$EnvPath)
+
+  if ((Split-Path -Leaf $EnvPath) -ine ".env.web") {
+    Write-Host "Skipping GitHub env sync because the active env file is not .env.web." -ForegroundColor DarkGray
+    return
+  }
+
+  $syncScript = Join-Path $repoRoot "scripts\sync-all-to-github.ps1"
+  if (-not (Test-Path $syncScript)) {
+    throw "GitHub sync script not found at $syncScript"
+  }
+
+  Assert-CommandExists -Name "gh"
+
+  Write-Host "Syncing .env.web values to GitHub vars/secrets..." -ForegroundColor Cyan
+  & $syncScript
+  if (-not $?) {
+    throw "GitHub vars/secrets sync failed."
+  }
+}
+
 Assert-CommandExists -Name "az"
 if ($AksClusterName) {
   Assert-CommandExists -Name "kubectl"
@@ -630,6 +652,7 @@ if ($ProvisionPostgres) {
     PublicAccess         = $PostgresPublicAccess
     AllowAzureServices   = $PostgresAllowAzureServices
     AllowCurrentClientIp = $PostgresAllowCurrentClientIp
+    EnvFile              = $envPath
   }
 
   if ($PostgresAdminPassword) { $postgresArgs.AdminPassword = $PostgresAdminPassword }
@@ -644,6 +667,12 @@ if ($ProvisionPostgres) {
 
   & $postgresScript @postgresArgs
   if (-not $?) { throw "Postgres provisioning failed." }
+
+  if (Test-Path $envPath) {
+    $envLines = Get-Content $envPath
+  }
+
+  Sync-EnvWebToGitHub -EnvPath $envPath
 }
 
 $doStorage = Get-YesNo ("Ensure storage account exists: {0}?" -f $StorageAccountName) $true

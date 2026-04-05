@@ -89,6 +89,13 @@ jobs:
           cd asset-allocation-control-plane
           python -m ruff check .
 
+      - name: Run env-contract static tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python -m pytest tests/test_env_contract.py tests/test_workflow_runtime_ownership.py tests/test_azure_provisioning_scripts.py -q
+
       - name: Run control-plane test suite
         shell: bash
         run: |

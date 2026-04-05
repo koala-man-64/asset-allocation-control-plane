@@ -9,7 +9,7 @@ def _repo_root() -> Path:
 
 def test_delete_gold_tables_script_resolves_postgres_dsn_from_env_or_parameter() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "delete_gold_tables.ps1"
+    script = repo_root / "scripts" / "ops" / "data" / "delete_gold_tables.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "[string]$Dsn" in text
@@ -20,7 +20,7 @@ def test_delete_gold_tables_script_resolves_postgres_dsn_from_env_or_parameter()
 
 def test_delete_gold_tables_script_supports_dry_run_listing_for_gold_schema_tables() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "delete_gold_tables.ps1"
+    script = repo_root / "scripts" / "ops" / "data" / "delete_gold_tables.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "[switch]$DryRun" in text
@@ -32,7 +32,7 @@ def test_delete_gold_tables_script_supports_dry_run_listing_for_gold_schema_tabl
 
 def test_delete_gold_tables_script_requires_confirmation_and_drops_tables_with_cascade() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "delete_gold_tables.ps1"
+    script = repo_root / "scripts" / "ops" / "data" / "delete_gold_tables.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "[switch]$Force" in text
@@ -44,7 +44,7 @@ def test_delete_gold_tables_script_requires_confirmation_and_drops_tables_with_c
 
 def test_delete_gold_tables_script_can_use_dockerized_psql() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "delete_gold_tables.ps1"
+    script = repo_root / "scripts" / "ops" / "data" / "delete_gold_tables.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "[switch]$UseDockerPsql" in text

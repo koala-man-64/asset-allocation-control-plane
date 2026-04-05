@@ -27,4 +27,6 @@ Canonical workflows live under `.github/workflows/`.
 - `release.yml` builds the API image, exports contract artifacts, writes `release-manifest.json`, and dispatches `control_plane_released` to jobs.
 - `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`.
 - `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure runtime substrate.
-- `DEPLOYMENT_SETUP.md` is the canonical deploy/operate/rollback runbook.
+- `scripts/dev/setup-env.ps1` builds repo-local `.env.web` using contract defaults and existing values.
+- `scripts/repo/sync-all-to-github.ps1` syncs the `.env.web` surface into repo vars and secrets.
+- `DEPLOYMENT_SETUP.md` is the canonical deploy, operate, and rollback runbook.

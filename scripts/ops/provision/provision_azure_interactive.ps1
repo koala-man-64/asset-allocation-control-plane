@@ -313,7 +313,7 @@ Write-Host "Emit secrets: $([bool]$EmitSecrets)"
 Write-Host "Session logs: $script:SessionLogDir"
 Write-Host ""
 Write-Host "This orchestrator wraps the existing Azure scripts and asks before each major step." -ForegroundColor DarkGray
-Write-Host "The shared resource step still prompts for individual resources inside scripts/provision_azure.ps1." -ForegroundColor DarkGray
+Write-Host "The shared resource step still prompts for individual resources inside scripts/ops/provision/provision_azure.ps1." -ForegroundColor DarkGray
 
 if (-not (Get-YesNo "Continue with this configuration?" $true)) {
   Add-StepResult -Step "Session" -Status "Cancelled" -Notes "User cancelled before execution."

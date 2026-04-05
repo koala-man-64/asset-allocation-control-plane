@@ -41,7 +41,7 @@ def test_move_public_tables_to_core_handles_prior_public_symbols_shape() -> None
 
 def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "apply_postgres_migrations.ps1"
+    script = repo_root / "scripts" / "ops" / "data" / "apply_postgres_migrations.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert '$dockerArgs += "-f"' in text, (
@@ -177,7 +177,7 @@ def test_add_gold_finance_ratio_columns_migration_rebuilds_view_and_adds_ratio_c
 
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure_postgres.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "function ConvertTo-SqlLiteral" in text, (
@@ -196,7 +196,7 @@ def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation(
 
 def test_provision_azure_postgres_uses_unqualified_index_names_in_supporting_index_sql() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure_postgres.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "CREATE INDEX IF NOT EXISTS platinum.idx_" not in text, (
@@ -211,7 +211,7 @@ def test_provision_azure_postgres_uses_unqualified_index_names_in_supporting_ind
 
 def test_provision_azure_postgres_auto_falls_back_to_dockerized_psql_when_local_psql_is_missing() -> None:
     repo_root = _repo_root()
-    script = repo_root / "scripts" / "provision_azure_postgres.ps1"
+    script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"
     text = script.read_text(encoding="utf-8")
 
     assert "Local psql is not installed; falling back to Dockerized psql." in text, (
