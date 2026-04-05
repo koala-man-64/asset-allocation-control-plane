@@ -1,0 +1,173 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def test_interactive_azure_orchestrator_wraps_existing_scripts() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "provision_azure_interactive.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "validate_azure_permissions.ps1" in text, (
+        "interactive orchestrator must expose the existing Azure permission validation step"
+    )
+    assert "provision_azure.ps1" in text, (
+        "interactive orchestrator must route shared infra through provision_azure.ps1"
+    )
+    assert 'Add-SwitchArgument -Arguments $sharedArgs -Name "SkipPostgresPrompt" -Enabled $true' in text, (
+        "interactive orchestrator must suppress the embedded Postgres prompt when delegating shared infra"
+    )
+    assert "provision_azure_postgres.ps1" in text, (
+        "interactive orchestrator must route Postgres through the dedicated Postgres provisioner"
+    )
+    assert "configure_cost_guardrails.ps1" in text, (
+        "interactive orchestrator must expose the cost guardrails deployment step"
+    )
+    assert "provision_entra_oidc.ps1" in text, (
+        "interactive orchestrator must expose the Entra OIDC provisioning step"
+    )
+    assert "validate_acr_pull.ps1" in text, (
+        "interactive orchestrator must expose the post-provision ACR validation step"
+    )
+
+
+def test_interactive_azure_orchestrator_uses_child_powershell_processes() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "provision_azure_interactive.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "Resolve-PowerShellExe" in text, (
+        "interactive orchestrator must resolve a child PowerShell executable"
+    )
+    assert "-ExecutionPolicy Bypass -File $ScriptPath @Arguments" in text, (
+        "interactive orchestrator must launch child scripts via a separate PowerShell process"
+    )
+    assert "Continue to the next step?" in text, (
+        "interactive orchestrator must allow the operator to continue after a failed child step"
+    )
+    assert "Tee-Object -FilePath $logPath" in text, (
+        "interactive orchestrator must capture child-script output into step log files"
+    )
+    assert "Session logs:" in text, (
+        "interactive orchestrator must surface the session log directory to the operator"
+    )
+
+
+def test_interactive_azure_orchestrator_offers_github_sync_for_env_web() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "provision_azure_interactive.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "Sync .env.web values to GitHub vars/secrets now?" in text, (
+        "interactive orchestrator must offer an optional GitHub sync step"
+    )
+    assert "sync-all-to-github.ps1" in text, (
+        "interactive orchestrator must route GitHub sync through the shared helper"
+    )
+
+
+def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_updates() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "provision_entra_oidc.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert 'az ad app create' in text or '"ad", "app", "create"' in text, (
+        "Entra provisioner must create app registrations when they do not exist"
+    )
+    assert 'az ad sp create' in text or '"ad", "sp", "create"' in text, (
+        "Entra provisioner must create service principals when they do not exist"
+    )
+    assert "ENTRA_OPERATOR_USER_OBJECT_ID" in text, (
+        "Entra provisioner must assign the operator user from ENTRA_OPERATOR_USER_OBJECT_ID"
+    )
+    assert "appRoleAssignmentRequired" in text, (
+        "Entra provisioner must require app-role assignment on the API enterprise app"
+    )
+    assert "user_impersonation" in text, (
+        "Entra provisioner must expose the delegated user_impersonation scope"
+    )
+    assert "admin-consent" in text, (
+        "Entra provisioner must grant admin consent for the UI delegated permission"
+    )
+    assert "ASSET_ALLOCATION_API_SCOPE" in text, (
+        "Entra provisioner must write the managed-identity API scope back into the env file"
+    )
+    assert "UI_OIDC_REDIRECT_URI" in text, (
+        "Entra provisioner must write the resolved redirect URI into the env file"
+    )
+
+
+def test_entra_oidc_provisioner_auto_resolves_and_persists_operator_user() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "provision_entra_oidc.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "Resolve-OperatorUserAssignment" in text, (
+        "Entra provisioner must centralize operator-user resolution"
+    )
+    assert '"ad", "signed-in-user", "show"' in text, (
+        "Entra provisioner must auto-resolve the signed-in operator user when the env is blank"
+    )
+    assert "Operator user source:" in text, (
+        "Entra provisioner should report how the operator user was resolved"
+    )
+    assert "ENTRA_OPERATOR_USER_OBJECT_ID  = $OperatorUserObjectId" in text, (
+        "Entra provisioner must persist the resolved operator user object ID back into the env file"
+    )
+    assert "Invoke-WithRetry" in text, (
+        "Entra provisioner must retry eventually consistent Entra operations"
+    )
+    assert "Creating service principal for appId" in text, (
+        "Entra provisioner should log service-principal creation attempts"
+    )
+    assert '"--body", "@$tempBodyPath"' in text, (
+        "Entra provisioner must send Graph write payloads via a temp file for Windows-safe az rest calls"
+    )
+    assert "[AllowEmptyString()][string]$ExplicitRedirectUri = \"\"" in text, (
+        "Entra provisioner must allow an empty explicit redirect URI so it can derive the callback automatically"
+    )
+
+
+def test_permission_validator_allows_signed_in_user_fallback_for_operator_assignment() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "validate_azure_permissions.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "Resolve-SignedInUser" in text, (
+        "Azure permission validation must support the signed-in-user fallback"
+    )
+    assert '"ad", "signed-in-user", "show"' in text, (
+        "Azure permission validation must probe the signed-in user when ENTRA_OPERATOR_USER_OBJECT_ID is unset"
+    )
+    assert "auto-resolved from signed-in user" in text, (
+        "Azure permission validation should report when the operator user was auto-resolved"
+    )
+    assert 'applications?`$top=1' in text, (
+        "Azure permission validation must keep the Graph application read probe Windows-safe"
+    )
+    assert 'servicePrincipals?`$top=1' in text, (
+        "Azure permission validation must keep the Graph service principal read probe Windows-safe"
+    )
+    assert 'users/${OperatorUserObjectId}?`$select=' in text, (
+        "Azure permission validation must delimit the operator user variable safely in the Graph user probe"
+    )
+
+
+def test_shared_provisioner_uses_workspace_safe_log_analytics_retention() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "provision_azure.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "[int]$LogAnalyticsRetentionInDays = 30" in text, (
+        "Shared Azure provisioning must default Log Analytics retention to a valid value for the workspace SKU"
+    )
+    assert "Resolve-LogAnalyticsRetentionTarget" in text, (
+        "Shared Azure provisioning must compute an effective Log Analytics retention target"
+    )
+    assert "Configuring Log Analytics retention: requested=" in text, (
+        "Shared Azure provisioning must log the requested and effective Log Analytics retention"
+    )

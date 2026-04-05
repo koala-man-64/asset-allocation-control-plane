@@ -1,0 +1,109 @@
+name: Control Plane Infra Shared Prod
+run-name: Control Plane Infra / ${{ github.event_name }} / ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      provision_postgres:
+        description: Also provision or reconcile Postgres
+        required: true
+        default: false
+        type: boolean
+      configure_acr_pull_identity:
+        description: Reapply ACR pull identity to ACA resources
+        required: true
+        default: true
+        type: boolean
+      grant_job_start_permissions:
+        description: Reapply Contributor on the RG for ACA job identities
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: control-plane-infra-prod
+  cancel-in-progress: false
+
+jobs:
+  infra-shared-prod:
+    name: infra-shared-prod
+    runs-on: windows-2022
+    environment:
+      name: prod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Generate infrastructure env file
+        shell: pwsh
+        run: |
+          @"
+          RESOURCE_GROUP=${{ vars.RESOURCE_GROUP }}
+          AZURE_STORAGE_ACCOUNT_NAME=${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+          ACR_NAME=${{ vars.ACR_NAME }}
+          LOG_ANALYTICS_WORKSPACE_NAME=${{ vars.LOG_ANALYTICS_WORKSPACE_NAME }}
+          CONTAINER_APPS_ENVIRONMENT_NAME=${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME }}
+          SERVICE_ACCOUNT_NAME=${{ vars.SERVICE_ACCOUNT_NAME }}
+          AZURE_CONTAINER_COMMON=${{ vars.AZURE_CONTAINER_COMMON }}
+          AZURE_CONTAINER_BRONZE=${{ vars.AZURE_CONTAINER_BRONZE }}
+          AZURE_CONTAINER_SILVER=${{ vars.AZURE_CONTAINER_SILVER }}
+          AZURE_CONTAINER_GOLD=${{ vars.AZURE_CONTAINER_GOLD }}
+          AZURE_CONTAINER_PLATINUM=${{ vars.AZURE_CONTAINER_PLATINUM }}
+          AZURE_FOLDER_MARKET=${{ vars.AZURE_FOLDER_MARKET }}
+          AZURE_FOLDER_FINANCE=${{ vars.AZURE_FOLDER_FINANCE }}
+          AZURE_FOLDER_EARNINGS=${{ vars.AZURE_FOLDER_EARNINGS }}
+          AZURE_FOLDER_TARGETS=${{ vars.AZURE_FOLDER_TARGETS }}
+          SYSTEM_HEALTH_ARM_RESOURCE_GROUP=${{ vars.RESOURCE_GROUP }}
+          POSTGRES_DSN=${{ secrets.POSTGRES_DSN }}
+          "@ | Set-Content -Path infra.generated.env -Encoding utf8
+
+      - name: Provision shared Azure substrate
+        shell: pwsh
+        run: |
+          $args = @(
+            '-SubscriptionId', '${{ vars.AZURE_SUBSCRIPTION_ID }}',
+            '-ResourceGroup', '${{ vars.RESOURCE_GROUP }}',
+            '-Location', '${{ vars.AZURE_LOCATION || 'eastus' }}',
+            '-StorageAccountName', '${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}',
+            '-AcrName', '${{ vars.ACR_NAME }}',
+            '-AcrPullIdentityName', '${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}',
+            '-LogAnalyticsWorkspaceName', '${{ vars.LOG_ANALYTICS_WORKSPACE_NAME || 'asset-allocation-law' }}',
+            '-ContainerAppsEnvironmentName', '${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}',
+            '-ServiceAccountName', '${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}',
+            '-EnvFile', 'infra.generated.env',
+            '-NonInteractive',
+            '-PromptForResources:$false'
+          )
+          if ('${{ inputs.provision_postgres }}' -eq 'true') { $args += '-ProvisionPostgres' }
+          if ('${{ inputs.configure_acr_pull_identity }}' -eq 'true') {
+            $args += '-GrantAcrPullToAcaResources'
+            $args += '-ConfigureAcrPullIdentityOnAcaResources'
+          }
+          if ('${{ inputs.grant_job_start_permissions }}' -eq 'true') { $args += '-GrantJobStartToAcaResources' }
+          & .\scripts\ops\provision\provision_azure.ps1 @args
+
+      - name: Write infrastructure summary
+        shell: pwsh
+        run: |
+          @"
+          ## Shared infra reconcile
+
+          - Resource group: `${{ vars.RESOURCE_GROUP }}`
+          - ACR: `${{ vars.ACR_NAME }}`
+          - ACA environment: `${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME }}`
+          - Service account: `${{ vars.SERVICE_ACCOUNT_NAME }}`
+          - Postgres reconciled: `${{ inputs.provision_postgres }}`
+          - ACR pull identity reconciled: `${{ inputs.configure_acr_pull_identity }}`
+          - Job-start RBAC reconciled: `${{ inputs.grant_job_start_permissions }}`
+          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY

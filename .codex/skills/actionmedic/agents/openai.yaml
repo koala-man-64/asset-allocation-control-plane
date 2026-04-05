@@ -1,0 +1,4 @@
+interface:
+  display_name: "ActionMedic"
+  short_description: "Repair failing GitHub Actions runs"
+  default_prompt: "Use $actionmedic to diagnose failing GitHub Actions runs, repair the root cause, and iterate until the latest commit is green."

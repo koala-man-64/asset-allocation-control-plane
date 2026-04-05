@@ -1,0 +1,73 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "apiBaseUrl": {
+      "default": "/api",
+      "minLength": 1,
+      "title": "Apibaseurl",
+      "type": "string"
+    },
+    "authRequired": {
+      "default": false,
+      "title": "Authrequired",
+      "type": "boolean"
+    },
+    "oidcAudience": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Oidcaudience",
+      "type": "array"
+    },
+    "oidcAuthority": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Oidcauthority"
+    },
+    "oidcClientId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Oidcclientid"
+    },
+    "oidcEnabled": {
+      "default": false,
+      "title": "Oidcenabled",
+      "type": "boolean"
+    },
+    "oidcRedirectUri": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Oidcredirecturi"
+    },
+    "oidcScopes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Oidcscopes",
+      "type": "array"
+    }
+  },
+  "title": "UiRuntimeConfig",
+  "type": "object"
+}

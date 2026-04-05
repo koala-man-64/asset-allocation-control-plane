@@ -1,0 +1,108 @@
+baseline:
+  branch: main
+
+standards:
+  format: []
+  lint:
+    - "python3 scripts/automation/run_quality_gate.py lint-python"
+    - "python3 scripts/automation/run_quality_gate.py lint-ui"
+    - "python3 scripts/automation/check_ui_api_drift_guards.py"
+  typecheck:
+    - "python3 scripts/automation/run_quality_gate.py typecheck-ui"
+  test_fast:
+    - "python3 scripts/automation/run_quality_gate.py test-fast-api"
+    - "python3 scripts/automation/run_quality_gate.py test-ui"
+  test_full:
+    - "python3 scripts/automation/run_quality_gate.py test-full-api"
+    - "python3 scripts/automation/run_quality_gate.py test-ui"
+  format_fix:
+    - "python3 scripts/automation/run_quality_gate.py format-python"
+  lint_fix:
+    - "python3 scripts/automation/run_quality_gate.py lint-fix-python"
+
+architecture:
+  layers:
+    - name: "api"
+      path_glob: "api/**"
+      forbid_imports_from:
+        - "ui/**"
+    - name: "tasks"
+      path_glob: "tasks/**"
+      allow_imports_from:
+        - "core/**"
+        - "tasks/**"
+        - "monitoring/**"
+  blessed_patterns:
+    - "Idempotent storage reconciliation flows"
+    - "Environment-driven runtime configuration"
+
+dependencies:
+  denylist:
+    - "left-pad"
+  allowlist: []
+  lockfile_required: true
+
+api:
+  public_globs:
+    - "api/endpoints/**"
+    - "api/service/settings.py"
+    - "api/service/app.py"
+    - "core/runtime_config.py"
+  breaking_change_policy: "strict"
+
+thresholds:
+  drift_score_fail: 35
+  category_weights:
+    security: 40
+    api: 35
+    architecture: 25
+    behavioral: 25
+    dependency: 20
+    test: 25
+    performance: 15
+    style: 5
+    docs: 3
+    config_infra: 0
+
+auto_remediate:
+  enabled: false
+  max_files_changed: 50
+  safe_directories:
+    - "api/**"
+    - "core/**"
+    - "tasks/**"
+    - "tests/**"
+    - "docs/**"
+    - ".github/workflows/**"
+  commands:
+    - "python3 -m ruff format ."
+    - "python3 -m ruff check --fix ."
+
+risk_controls:
+  protected_globs:
+    - "deploy/sql/postgres/migrations/**"
+    - "infra/**"
+    - ".github/workflows/deploy-prod.yml"
+    - ".github/workflows/infra-shared-prod.yml"
+  require_tests_passing_before_automerge: true
+
+reporting:
+  markdown_path: "artifacts/drift_report.md"
+  json_path: "artifacts/drift_report.json"
+  patch_path: "artifacts/drift_remediation.patch"
+
+detection:
+  lookback_days: 7
+  exclude_globs:
+    - "artifacts/**"
+  speculative_safeguards:
+    enabled: true
+    patterns:
+      - '\?.*:\s*(?:None|null|False)\b'
+      - '\|\|\s*(?:null|undefined)\b'
+      - '\?\?\s*(?:null|undefined)\b'
+      - '\breturn\s+(?:None|null|False)\b'
+      - '\?.*:\s*[''"](?:N/?A|unknown|no data|no-data|unavailable|not available)[''"]'
+      - '\|\|\s*[''"](?:N/?A|unknown|no data|no-data|unavailable|not available)[''"]'
+      - '\?\?\s*[''"](?:N/?A|unknown|no data|no-data|unavailable|not available)[''"]'
+      - '\breturn\s+[''"](?:N/?A|unknown|no data|no-data|unavailable|not available)[''"]'

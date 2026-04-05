@@ -1,0 +1,75 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+*.spec
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+# --- VS Code / IDE ---
+.vscode/
+.idea/
+# --- OS ---
+.DS_Store
+Thumbs.db
+# --- Logs & Secrets ---
+# Logs
+*.log
+# Secrets (Do not commit)
+.env
+.env.*
+!.env.template
+!.env.example
+nasdaq_key.txt
+scripts/common/nasdaq_key.txt
+pw_cookies.json
+local.settings.json
+# --- Project Specific ---
+# Data Directory
+data/
+!ui/src/data/
+!ui/src/data/**
+tmp/
+artifacts/**
+
+# --- Node / Frontend ---
+node_modules/
+**/node_modules/
+package-lock.json
+**/package-lock.json
+ui/dist/
+ui/.vite/
+ui/.pnpm-store/
+ui/coverage/
+ui/.eslintcache
+pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+asset_allocation/ui2.0/dist/
+asset_allocation/ui2.0/.vite/
+asset_allocation/ui2.0/.pnpm-store/
+
+# --- Tooling / Test Artifacts ---
+docs/signoffs/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.hypothesis/
+**/playwright-report/
+**/test-results/
+**/blob-report/
+coverage/
+audit_snapshot*.json
+.pytest_blob_store/
+.direnv/
+.envrc

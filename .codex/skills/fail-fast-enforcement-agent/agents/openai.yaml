@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fail-Fast Enforcement Agent"
+  short_description: "Enforce fail-fast, typed, honest failure paths."
+  default_prompt: "Use $fail-fast-enforcement-agent to review this change for silent failure, weak contracts, vague diagnostics, and misleading success paths, then propose or implement strict fail-fast fixes."

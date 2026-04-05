@@ -1,0 +1,4 @@
+interface:
+  display_name: "Business Partner Agent"
+  short_description: "Commercial, contract, and risk judgment"
+  default_prompt: "Use $business-partner-agent to review this deal for IP, data, pricing, and liability risk."

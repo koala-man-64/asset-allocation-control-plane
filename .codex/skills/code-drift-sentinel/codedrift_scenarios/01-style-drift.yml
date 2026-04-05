@@ -1,0 +1,15 @@
+id: style-drift
+title: Style drift from formatter/linter mismatch
+setup:
+  - Introduce formatting and import-order violations in `src/domain/example.ts`.
+  - Ensure `standards.format` and `standards.lint` are configured.
+run:
+  - python3 .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py --mode audit
+expected_findings:
+  - category: style
+    severity: medium
+    evidence_contains:
+      - diff --check
+      - formatter
+expected_remediation:
+  - Run formatter/lint auto-fixes and re-run style gates.

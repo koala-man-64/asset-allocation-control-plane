@@ -1,0 +1,16 @@
+id: architecture-drift
+title: Layer rule violation via forbidden import
+setup:
+  - Add import from `src/infrastructure/**` inside `src/domain/**`.
+  - Keep `architecture.layers` rules active in `.codedrift.yml`.
+run:
+  - python3 .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py --mode audit
+expected_findings:
+  - category: architecture
+    severity: high
+    evidence_contains:
+      - Layering rule violations
+      - forbidden
+expected_remediation:
+  - Move or invert dependency to honor layer boundaries.
+  - Add tests around boundary interfaces.

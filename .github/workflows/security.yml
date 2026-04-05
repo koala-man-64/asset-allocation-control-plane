@@ -1,0 +1,110 @@
+name: Control Plane Security
+run-name: Control Plane Security / ${{ github.event_name }} / ${{ github.ref_name }}
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: control-plane-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-dependency-audit:
+    name: python-dependency-audit
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock.txt
+            requirements-dev.lock.txt
+
+      - name: Collect Python audit reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+          pip-audit -r requirements.lock.txt --format json -o artifacts/pip-audit-runtime.json || true
+          pip-audit -r requirements-dev.lock.txt --format json -o artifacts/pip-audit-dev.json || true
+
+      - name: Convert runtime audit report to SARIF
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/automation/pip_audit_to_sarif.py artifacts/pip-audit-runtime.json artifacts/pip-audit-runtime.sarif
+
+      - name: Enforce runtime dependency audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+          pip-audit --strict -r requirements.lock.txt
+
+      - name: Enforce development dependency audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+          pip-audit --strict --ignore-vuln GHSA-5239-wwwm-4pmq -r requirements-dev.lock.txt
+
+      - name: Upload Python audit SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@d4b3ca9fa7f69d38bfcd667bdc45bc373d16277e # v4
+        with:
+          sarif_file: artifacts/pip-audit-runtime.sarif
+
+      - name: Upload Python audit artifacts
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: control-plane-python-audit
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  dependency-governance:
+    name: dependency-governance
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Run dependency governance checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python scripts/repo/dependency_governance.py check --report artifacts/dependency_governance_report.json
+
+      - name: Upload governance report
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: control-plane-dependency-governance
+          path: artifacts/dependency_governance_report.json
+          if-no-files-found: error
+          retention-days: 14

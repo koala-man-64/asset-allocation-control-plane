@@ -1,0 +1,16 @@
+id: api-drift
+title: Public interface breaking change
+setup:
+  - Modify a function signature in a path matching `api.public_globs`.
+  - Remove or rename parameters to simulate a breaking change.
+run:
+  - python3 .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py --mode audit
+expected_findings:
+  - category: api
+    severity: high
+    evidence_contains:
+      - Public API surface changed
+      - removed
+expected_remediation:
+  - Add compatibility shim or version the API change.
+  - Update contract tests and API docs/changelog.

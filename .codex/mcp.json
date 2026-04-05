@@ -1,0 +1,67 @@
+{
+  "mcpServers": {
+    "desktop-commander": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander@latest"
+      ]
+    },
+    "my-mcp-server-a02e0cb0": {
+      "command": "docker",
+      "args": [
+        "mcp",
+        "gateway",
+        "run"
+      ],
+      "disabledTools": [
+        "aks",
+        "applens",
+        "code-mode",
+        "bicepschema",
+        "communication",
+        "confidentialledger",
+        "cosmos",
+        "datadog",
+        "eventgrid",
+        "eventhubs",
+        "extension_azqr",
+        "foundry",
+        "grafana",
+        "kusto",
+        "loadtesting",
+        "managedlustre",
+        "marketplace",
+        "mcp-add",
+        "mcp-config-set",
+        "mcp-create-profile",
+        "mcp-exec",
+        "mcp-find",
+        "mcp-remove",
+        "mysql",
+        "quota",
+        "search",
+        "servicebus",
+        "signalr",
+        "speech",
+        "sql",
+        "virtualdesktop",
+        "workbooks",
+        "assign_copilot_to_issue",
+        "fork_repository",
+        "get_label",
+        "get_me",
+        "get_release_by_tag",
+        "get_tag",
+        "get_team_members",
+        "get_teams",
+        "issue_read",
+        "issue_write",
+        "list_issue_types",
+        "list_issues",
+        "list_tags"
+      ],
+      "disabled": false
+    }
+  }
+}

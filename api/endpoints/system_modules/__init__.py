@@ -1,0 +1,1 @@
+"""System endpoint decomposition modules."""

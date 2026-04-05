@@ -1,0 +1,10 @@
+services:
+  asset-allocation-api:
+    ports:
+      - "5678:5678"
+    command: >
+      sh -c "pip install debugpy && 
+             python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m uvicorn api.service.app:app --host 0.0.0.0 --port 8000"
+    environment:
+      # Increase timeout for debugging stability
+      KEEP_ALIVE: 120

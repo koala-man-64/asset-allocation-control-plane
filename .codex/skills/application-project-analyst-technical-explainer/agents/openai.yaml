@@ -1,0 +1,4 @@
+interface:
+  display_name: "Application Project Analyst & Technical Explainer"
+  short_description: "Explain systems, services, and repos clearly"
+  default_prompt: "Use $application-project-analyst-technical-explainer to explain what this application does, how it works, and where its responsibilities live."

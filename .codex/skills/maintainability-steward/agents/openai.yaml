@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintainability Steward"
+  short_description: "Steward reviews for simple, supportable software."
+  default_prompt: "Use $maintainability-steward to review this proposal for simplicity, operability, maintainability, and smallest-safe-change priorities."

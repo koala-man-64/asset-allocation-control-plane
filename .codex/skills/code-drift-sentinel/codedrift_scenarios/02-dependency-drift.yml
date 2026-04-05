@@ -1,0 +1,19 @@
+id: dependency-drift
+title: Unauthorized dependency introduction
+setup:
+  - Add a new dependency not present in `dependencies.allowlist`.
+  - Optionally add a denylisted package for critical path validation.
+run:
+  - python3 .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py --mode audit
+expected_findings:
+  - category: dependency
+    severity: high
+    evidence_contains:
+      - allowlist
+  - category: dependency
+    severity: critical
+    evidence_contains:
+      - denylist
+expected_remediation:
+  - Remove unauthorized dependency or update allowlist with explicit approval.
+  - Regenerate lockfile if lockfile policy is enabled.

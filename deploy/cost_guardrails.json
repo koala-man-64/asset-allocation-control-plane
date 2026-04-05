@@ -1,0 +1,191 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "15201036732095593383"
+    }
+  },
+  "parameters": {
+    "contactEmails": {
+      "type": "array",
+      "metadata": {
+        "description": "Email recipients for budget and anomaly notifications."
+      }
+    },
+    "notificationEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Primary notification email used for unsubscribe and service messages."
+      }
+    },
+    "startDate": {
+      "type": "string",
+      "metadata": {
+        "description": "UTC budget start date. Use the first day of the month, for example 2026-03-01T00:00:00Z."
+      }
+    },
+    "endDate": {
+      "type": "string",
+      "metadata": {
+        "description": "UTC budget end date. Use a future date far enough out to keep recurring monthly budgets active."
+      }
+    },
+    "resourceGroupFilterValues": {
+      "type": "array",
+      "metadata": {
+        "description": "Resource groups included in the budget filters."
+      }
+    },
+    "budgetDefinitions": {
+      "type": "array",
+      "metadata": {
+        "description": "Per-meter-category budget definitions."
+      }
+    },
+    "anomalyAlertEnabled": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable the subscription-scoped daily anomaly insight alert."
+      }
+    },
+    "anomalyAlertName": {
+      "type": "string",
+      "defaultValue": "asset-allocation-cost-anomaly",
+      "metadata": {
+        "description": "Scheduled action resource name for the anomaly alert."
+      }
+    },
+    "anomalyAlertDisplayName": {
+      "type": "string",
+      "defaultValue": "Asset Allocation Cost Anomaly",
+      "metadata": {
+        "description": "Display name for the anomaly alert."
+      }
+    },
+    "anomalyAlertMessage": {
+      "type": "string",
+      "defaultValue": "Subscription-scoped cost anomaly alert for the Asset Allocation stack.",
+      "metadata": {
+        "description": "Message body for the anomaly alert email."
+      }
+    },
+    "anomalyAlertHourOfDay": {
+      "type": "int",
+      "defaultValue": 13,
+      "minValue": 0,
+      "maxValue": 23,
+      "metadata": {
+        "description": "UTC hour of day for the anomaly alert delivery window."
+      }
+    },
+    "anomalyAlertViewName": {
+      "type": "string",
+      "defaultValue": "ms:DailyAnomalyByResourceGroup",
+      "metadata": {
+        "description": "Built-in Cost Management view used for the anomaly alert."
+      }
+    }
+  },
+  "resources": [
+    {
+      "copy": {
+        "name": "budgets",
+        "count": "[length(parameters('budgetDefinitions'))]"
+      },
+      "type": "Microsoft.Consumption/budgets",
+      "apiVersion": "2023-11-01",
+      "name": "[string(parameters('budgetDefinitions')[copyIndex()].name)]",
+      "properties": {
+        "timePeriod": {
+          "startDate": "[parameters('startDate')]",
+          "endDate": "[parameters('endDate')]"
+        },
+        "timeGrain": "Monthly",
+        "amount": "[int(parameters('budgetDefinitions')[copyIndex()].amount)]",
+        "category": "Cost",
+        "notifications": {
+          "ActualThreshold": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": "[int(coalesce(parameters('budgetDefinitions')[copyIndex()].actualThreshold, 80))]",
+            "contactEmails": "[parameters('contactEmails')]",
+            "contactRoles": [],
+            "contactGroups": []
+          },
+          "ForecastThreshold": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": "[int(coalesce(parameters('budgetDefinitions')[copyIndex()].forecastThreshold, 100))]",
+            "thresholdType": "Forecasted",
+            "contactEmails": "[parameters('contactEmails')]",
+            "contactRoles": [],
+            "contactGroups": []
+          }
+        },
+        "filter": {
+          "and": [
+            {
+              "dimensions": {
+                "name": "ResourceGroupName",
+                "operator": "In",
+                "values": "[parameters('resourceGroupFilterValues')]"
+              }
+            },
+            {
+              "dimensions": {
+                "name": "MeterCategory",
+                "operator": "In",
+                "values": "[parameters('budgetDefinitions')[copyIndex()].meterCategories]"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[parameters('anomalyAlertEnabled')]",
+      "type": "Microsoft.CostManagement/scheduledActions",
+      "apiVersion": "2025-03-01",
+      "name": "[parameters('anomalyAlertName')]",
+      "kind": "InsightAlert",
+      "properties": {
+        "displayName": "[parameters('anomalyAlertDisplayName')]",
+        "notification": {
+          "message": "[parameters('anomalyAlertMessage')]",
+          "subject": "[format('{0} detected', parameters('anomalyAlertDisplayName'))]",
+          "to": "[parameters('contactEmails')]"
+        },
+        "notificationEmail": "[parameters('notificationEmail')]",
+        "schedule": {
+          "dayOfMonth": 0,
+          "daysOfWeek": [],
+          "endDate": "[parameters('endDate')]",
+          "frequency": "Daily",
+          "hourOfDay": "[parameters('anomalyAlertHourOfDay')]",
+          "startDate": "[parameters('startDate')]",
+          "weeksOfMonth": []
+        },
+        "scope": "[subscription().id]",
+        "status": "Enabled",
+        "viewId": "[resourceId('Microsoft.CostManagement/views', parameters('anomalyAlertViewName'))]"
+      }
+    }
+  ],
+  "outputs": {
+    "budgetIds": {
+      "type": "array",
+      "copy": {
+        "count": "[length(parameters('budgetDefinitions'))]",
+        "input": "[subscriptionResourceId('Microsoft.Consumption/budgets', string(parameters('budgetDefinitions')[copyIndex()].name))]"
+      }
+    },
+    "anomalyAlertId": {
+      "type": "string",
+      "value": "[if(parameters('anomalyAlertEnabled'), subscriptionResourceId('Microsoft.CostManagement/scheduledActions', parameters('anomalyAlertName')), '')]"
+    }
+  }
+}

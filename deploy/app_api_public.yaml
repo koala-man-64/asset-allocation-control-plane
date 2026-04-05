@@ -1,0 +1,196 @@
+location: East US
+name: asset-allocation-api
+type: Microsoft.App/containerApps
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    "${ACR_PULL_IDENTITY_RESOURCE_ID}": {}
+properties:
+  managedEnvironmentId: ${CONTAINER_APPS_ENVIRONMENT_ID}
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+      allowInsecure: false
+    registries:
+    - server: ${ACR_LOGIN_SERVER}
+      identity: "${ACR_PULL_IDENTITY_RESOURCE_ID}"
+    secrets:
+    - name: azure-storage-connection-string
+      value: "${AZURE_STORAGE_CONNECTION_STRING}"
+    - name: alpha-vantage-api-key
+      value: "${ALPHA_VANTAGE_API_KEY}"
+    - name: massive-api-key
+      value: "${MASSIVE_API_KEY}"
+    - name: backtest-pg-dsn
+      value: "${POSTGRES_DSN}"
+  template:
+    serviceAccountName: ${SERVICE_ACCOUNT_NAME}
+    containers:
+    - image: ${API_IMAGE}
+      imageType: ContainerImage
+      name: asset-allocation-api
+      env:
+      - name: AZURE_STORAGE_ACCOUNT_NAME
+        value: "${AZURE_STORAGE_ACCOUNT_NAME}"
+      - name: AZURE_STORAGE_CONNECTION_STRING
+        secretRef: azure-storage-connection-string
+      - name: AZURE_CLIENT_ID
+        value: "${ACR_PULL_IDENTITY_CLIENT_ID}"
+      - name: AZURE_CONTAINER_BRONZE
+        value: "${AZURE_CONTAINER_BRONZE}"
+      - name: AZURE_CONTAINER_SILVER
+        value: "${AZURE_CONTAINER_SILVER}"
+      - name: AZURE_CONTAINER_GOLD
+        value: "${AZURE_CONTAINER_GOLD}"
+      - name: AZURE_CONTAINER_PLATINUM
+        value: "${AZURE_CONTAINER_PLATINUM}"
+      - name: AZURE_FOLDER_MARKET
+        value: "${AZURE_FOLDER_MARKET}"
+      - name: AZURE_FOLDER_FINANCE
+        value: "${AZURE_FOLDER_FINANCE}"
+      - name: AZURE_FOLDER_EARNINGS
+        value: "${AZURE_FOLDER_EARNINGS}"
+      - name: AZURE_FOLDER_TARGETS
+        value: "${AZURE_FOLDER_TARGETS}"
+      - name: AZURE_CONTAINER_COMMON
+        value: "${AZURE_CONTAINER_COMMON}"
+      - name: ALPHA_VANTAGE_API_KEY
+        secretRef: alpha-vantage-api-key
+      - name: ALPHA_VANTAGE_RATE_LIMIT_PER_MIN
+        value: "${ALPHA_VANTAGE_RATE_LIMIT_PER_MIN}"
+      - name: ALPHA_VANTAGE_TIMEOUT_SECONDS
+        value: "${ALPHA_VANTAGE_TIMEOUT_SECONDS}"
+      - name: ALPHA_VANTAGE_RATE_WAIT_TIMEOUT_SECONDS
+        value: "${ALPHA_VANTAGE_RATE_WAIT_TIMEOUT_SECONDS}"
+      - name: ALPHA_VANTAGE_MAX_WORKERS
+        value: "${ALPHA_VANTAGE_MAX_WORKERS}"
+      - name: MASSIVE_API_KEY
+        secretRef: massive-api-key
+      - name: MASSIVE_BASE_URL
+        value: "${MASSIVE_BASE_URL}"
+      - name: MASSIVE_TIMEOUT_SECONDS
+        value: "${MASSIVE_TIMEOUT_SECONDS}"
+      - name: POSTGRES_DSN
+        secretRef: backtest-pg-dsn
+      - name: API_ROOT_PREFIX
+        value: "${API_ROOT_PREFIX}"
+      - name: API_OIDC_ISSUER
+        value: "${API_OIDC_ISSUER}"
+      - name: API_OIDC_AUDIENCE
+        value: "${API_OIDC_AUDIENCE}"
+      - name: API_OIDC_JWKS_URL
+        value: "${API_OIDC_JWKS_URL}"
+      - name: API_OIDC_REQUIRED_SCOPES
+        value: "${API_OIDC_REQUIRED_SCOPES}"
+      - name: API_OIDC_REQUIRED_ROLES
+        value: "${API_OIDC_REQUIRED_ROLES}"
+      - name: API_CSP
+        value: "${API_CSP}"
+      - name: API_CORS_ALLOW_ORIGINS
+        value: "${API_CORS_ALLOW_ORIGINS}"
+      - name: SYSTEM_HEALTH_TTL_SECONDS
+        value: "300"
+      - name: SYSTEM_HEALTH_MAX_AGE_SECONDS
+        value: "129600"
+      - name: SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON
+        value: "${SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON}"
+      - name: SYSTEM_HEALTH_MARKERS_CONTAINER
+        value: "${SYSTEM_HEALTH_MARKERS_CONTAINER}"
+      - name: SYSTEM_HEALTH_MARKERS_PREFIX
+        value: "${SYSTEM_HEALTH_MARKERS_PREFIX}"
+      - name: UI_OIDC_CLIENT_ID
+        value: "${UI_OIDC_CLIENT_ID}"
+      - name: UI_OIDC_AUTHORITY
+        value: "${UI_OIDC_AUTHORITY}"
+      - name: UI_OIDC_SCOPES
+        value: "${UI_OIDC_SCOPES}"
+      - name: UI_OIDC_REDIRECT_URI
+        value: "${UI_OIDC_REDIRECT_URI}"
+      - name: UI_API_BASE_URL
+        value: "${UI_API_BASE_URL}"
+      - name: LOG_FORMAT
+        value: "JSON"
+      - name: LOG_LEVEL
+        value: "${LOG_LEVEL}"
+      - name: SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID
+        value: "${AZURE_SUBSCRIPTION_ID}"
+      - name: SYSTEM_HEALTH_ARM_RESOURCE_GROUP
+        value: "${RESOURCE_GROUP}"
+      - name: SYSTEM_HEALTH_ARM_TIMEOUT_SECONDS
+        value: "${SYSTEM_HEALTH_ARM_TIMEOUT_SECONDS}"
+      - name: SYSTEM_HEALTH_ARM_CONTAINERAPPS
+        value: "asset-allocation-api,asset-allocation-ui"
+      - name: SYSTEM_HEALTH_ARM_JOBS
+        value: "bronze-market-job,bronze-finance-job,bronze-price-target-job,bronze-earnings-job,silver-market-job,silver-finance-job,silver-price-target-job,silver-earnings-job,gold-market-job,gold-finance-job,gold-price-target-job,gold-earnings-job,gold-regime-job,platinum-rankings-job,backtests-job"
+      - name: BACKTEST_ACA_JOB_NAME
+        value: "backtests-job"
+      - name: REGIME_ACA_JOB_NAME
+        value: "gold-regime-job"
+      - name: SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB
+        value: "${SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB}"
+      - name: SYSTEM_HEALTH_VERBOSE_IDS
+        value: "${SYSTEM_HEALTH_VERBOSE_IDS}"
+      - name: SYSTEM_HEALTH_RESOURCE_HEALTH_API_VERSION
+        value: "${SYSTEM_HEALTH_RESOURCE_HEALTH_API_VERSION}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_API_VERSION
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_API_VERSION}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_TIMESPAN_MINUTES
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_TIMESPAN_MINUTES}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_INTERVAL
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_INTERVAL}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_AGGREGATION
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_AGGREGATION}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_CONTAINERAPP_METRICS
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_CONTAINERAPP_METRICS}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_JOB_METRICS
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_JOB_METRICS}"
+      - name: SYSTEM_HEALTH_MONITOR_METRICS_THRESHOLDS_JSON
+        value: "${SYSTEM_HEALTH_MONITOR_METRICS_THRESHOLDS_JSON}"
+      - name: SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID
+        value: "${SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID}"
+      - name: SYSTEM_HEALTH_LOG_ANALYTICS_TIMEOUT_SECONDS
+        value: "${SYSTEM_HEALTH_LOG_ANALYTICS_TIMEOUT_SECONDS}"
+      - name: SYSTEM_HEALTH_LOG_ANALYTICS_TIMESPAN_MINUTES
+        value: "${SYSTEM_HEALTH_LOG_ANALYTICS_TIMESPAN_MINUTES}"
+      - name: SYSTEM_HEALTH_LOG_ANALYTICS_QUERIES_JSON
+        value: "${SYSTEM_HEALTH_LOG_ANALYTICS_QUERIES_JSON}"
+      - name: REALTIME_LOG_STREAM_POLL_SECONDS
+        value: "${REALTIME_LOG_STREAM_POLL_SECONDS}"
+      - name: REALTIME_LOG_STREAM_LOOKBACK_SECONDS
+        value: "${REALTIME_LOG_STREAM_LOOKBACK_SECONDS}"
+      - name: REALTIME_LOG_STREAM_BATCH_SIZE
+        value: "${REALTIME_LOG_STREAM_BATCH_SIZE}"
+      resources:
+        cpu: 0.75
+        memory: 1.5Gi
+      probes:
+      - type: Liveness
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 15
+        periodSeconds: 30
+        failureThreshold: 3
+        timeoutSeconds: 5
+      - type: Readiness
+        httpGet:
+          path: /readyz
+          port: 8000
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+        timeoutSeconds: 5
+      - type: Startup
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        failureThreshold: 30
+        timeoutSeconds: 5
+    scale:
+      minReplicas: 0
+      maxReplicas: 1

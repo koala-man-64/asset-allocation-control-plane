@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Testing Expert"
+  short_description: "Risk-based UI QA for web and mobile changes"
+  default_prompt: "Use $ui-testing-expert to produce a lean, risk-based UI test plan, exploratory charters, automation guidance, and accessibility coverage for this change."

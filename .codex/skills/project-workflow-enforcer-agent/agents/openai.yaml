@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Workflow Enforcer Agent"
+  short_description: "Enforce the repo's workflow, routing policy, and compliance gates."
+  default_prompt: "Classify the task, choose the correct lane, and produce a compliant workflow using the exact repo-local agent names and required ordering."

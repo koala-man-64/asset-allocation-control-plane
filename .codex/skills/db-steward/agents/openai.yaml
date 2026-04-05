@@ -1,0 +1,4 @@
+interface:
+  display_name: "DB Steward"
+  short_description: "Principal database design and execution guidance"
+  default_prompt: "Use $db-steward to design or review this database work with schema, query, migration, reliability, and security guidance."

@@ -1,0 +1,30 @@
+services:
+  asset-allocation-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.asset_allocation_api
+    ports:
+      - "9000:8000"
+    env_file:
+      - .env
+    environment:
+      TEST_MODE: ${TEST_MODE:-true}
+      LOG_FORMAT: ${LOG_FORMAT:-TEXT}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./api:/app/api
+      - ./core:/app/core
+    command: uvicorn api.service.app:app --host 0.0.0.0 --port 8000 --reload
+
+  asset-allocation-ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    environment:
+      - API_UPSTREAM=asset-allocation-api:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      - asset-allocation-api

@@ -1,0 +1,33 @@
+BEGIN;
+
+DROP VIEW IF EXISTS gold.finance_data_by_date;
+
+ALTER TABLE IF EXISTS gold.finance_data
+    ADD COLUMN IF NOT EXISTS price_to_book DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS price_to_sales DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS price_to_cash_flow DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS price_to_free_cash_flow DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS dividend_yield DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS return_on_assets DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS return_on_equity DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS debt_to_equity DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS current_ratio DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS quick_ratio DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS cash_ratio DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS ev_to_sales DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS ev_to_ebitda DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS enterprise_value DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS earnings_per_share DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS free_cash_flow DOUBLE PRECISION;
+
+CREATE OR REPLACE VIEW gold.finance_data_by_date AS
+SELECT * FROM gold.finance_data;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'backtest_service') THEN
+    GRANT SELECT ON TABLE gold.finance_data_by_date TO backtest_service;
+  END IF;
+END $$;
+
+COMMIT;

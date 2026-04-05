@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Humanizer"
+  short_description: "Make code read like thoughtful production code."
+  default_prompt: "Use $code-humanizer to make this code read like pragmatic, hand-maintained production code without changing behavior."

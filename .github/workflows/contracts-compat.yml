@@ -1,0 +1,103 @@
+name: Control Plane Contracts Compatibility
+run-name: Control Plane Contracts Compat / ${{ github.event_name }} / ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      contracts_ref:
+        description: Contracts ref or SHA to validate
+        required: false
+        default: main
+        type: string
+  repository_dispatch:
+    types:
+      - contracts_released
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-contracts-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts-compat:
+    name: contracts-compat
+    runs-on: ubuntu-22.04
+    env:
+      TEST_MODE: "1"
+      LOG_FORMAT: "TEXT"
+      LOG_LEVEL: "INFO"
+      AZURE_STORAGE_ACCOUNT_NAME: localdev
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key;EndpointSuffix=core.windows.net
+      AZURE_CONTAINER_COMMON: common
+      AZURE_CONTAINER_BRONZE: bronze
+      AZURE_CONTAINER_SILVER: silver
+      AZURE_CONTAINER_GOLD: gold
+      AZURE_CONTAINER_PLATINUM: platinum
+      AZURE_FOLDER_MARKET: market-data
+      AZURE_FOLDER_FINANCE: finance-data
+      AZURE_FOLDER_EARNINGS: earnings-data
+      AZURE_FOLDER_TARGETS: price-target-data
+      ALPHA_VANTAGE_API_KEY: test
+      MASSIVE_API_KEY: test
+      POSTGRES_DSN: postgresql://user:pass@localhost:5432/asset_allocation?sslmode=disable
+      DISPATCH_CONTRACTS_SHA: ${{ github.event.client_payload.contracts_sha }}
+      DISPATCH_CONTRACTS_REF: ${{ github.event.client_payload.contracts_ref }}
+    steps:
+      - name: Resolve contracts ref
+        id: contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref="${{ inputs.contracts_ref }}"
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            ref="${DISPATCH_CONTRACTS_SHA:-${DISPATCH_CONTRACTS_REF}}"
+          fi
+          ref="${ref:-main}"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout control-plane repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: asset-allocation-control-plane
+
+      - name: Checkout contracts repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ vars.CONTRACTS_REPOSITORY || format('{0}/asset-allocation-contracts', github.repository_owner) }}
+          ref: ${{ steps.contracts.outputs.ref }}
+          path: asset-allocation-contracts
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Install compatibility dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r asset-allocation-control-plane/requirements.lock.txt
+          python -m pip install -r asset-allocation-control-plane/requirements-dev.lock.txt
+          python -m pip install -e asset-allocation-contracts/python
+          python -m pip install -e asset-allocation-control-plane --no-deps
+
+      - name: Run compatibility suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python scripts/automation/export_contract_artifacts.py
+          python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q
+
+      - name: Write compatibility summary
+        shell: bash
+        run: |
+          {
+            echo "## Control-plane contracts compatibility"
+            echo ""
+            echo "- Contracts ref: \`${{ steps.contracts.outputs.ref }}\`"
+            echo "- Result: passed"
+          } >> "${GITHUB_STEP_SUMMARY}"

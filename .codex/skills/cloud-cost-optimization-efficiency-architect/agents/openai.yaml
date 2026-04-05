@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cloud Cost Optimization & Efficiency Architect"
+  short_description: "Audit cloud spend and safe optimization opportunities."
+  default_prompt: "Use $cloud-cost-optimization-efficiency-architect to analyze this system, IaC, cost report, or pipeline for meaningful cloud savings with clear tradeoffs, risk, and sequencing."

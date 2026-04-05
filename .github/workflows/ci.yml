@@ -1,0 +1,125 @@
+name: Control Plane CI
+run-name: Control Plane CI / ${{ github.event_name }} / ${{ github.ref_name }}
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflow-lint:
+    name: workflow-lint
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: actionlint
+        uses: rhysd/actionlint@393031adb9afb225ee52ae2ccd7a5af5525e03e8 # v1.7.11
+
+  build-test:
+    name: build-test
+    runs-on: ubuntu-22.04
+    env:
+      TEST_MODE: "1"
+      LOG_FORMAT: "TEXT"
+      LOG_LEVEL: "INFO"
+      AZURE_STORAGE_ACCOUNT_NAME: localdev
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key;EndpointSuffix=core.windows.net
+      AZURE_CONTAINER_COMMON: common
+      AZURE_CONTAINER_BRONZE: bronze
+      AZURE_CONTAINER_SILVER: silver
+      AZURE_CONTAINER_GOLD: gold
+      AZURE_CONTAINER_PLATINUM: platinum
+      AZURE_FOLDER_MARKET: market-data
+      AZURE_FOLDER_FINANCE: finance-data
+      AZURE_FOLDER_EARNINGS: earnings-data
+      AZURE_FOLDER_TARGETS: price-target-data
+      ALPHA_VANTAGE_API_KEY: test
+      MASSIVE_API_KEY: test
+      POSTGRES_DSN: postgresql://user:pass@localhost:5432/asset_allocation?sslmode=disable
+    steps:
+      - name: Checkout control-plane repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: asset-allocation-control-plane
+
+      - name: Checkout contracts repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ vars.CONTRACTS_REPOSITORY || format('{0}/asset-allocation-contracts', github.repository_owner) }}
+          ref: ${{ vars.CONTRACTS_REF || 'main' }}
+          path: asset-allocation-contracts
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            asset-allocation-control-plane/requirements.lock.txt
+            asset-allocation-control-plane/requirements-dev.lock.txt
+            asset-allocation-control-plane/pyproject.toml
+            asset-allocation-contracts/python/pyproject.toml
+
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r asset-allocation-control-plane/requirements.lock.txt
+          python -m pip install -r asset-allocation-control-plane/requirements-dev.lock.txt
+          python -m pip install -e asset-allocation-contracts/python
+          python -m pip install -e asset-allocation-control-plane --no-deps
+          python -m pip check
+
+      - name: Run ruff
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python -m ruff check .
+
+      - name: Run control-plane test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q
+
+      - name: Run startup smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python - <<'PY'
+          from api.service.app import create_app
+          app = create_app()
+          assert app.openapi()
+          print("control-plane startup smoke passed")
+          PY
+
+      - name: Export contract artifacts and fail on drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python scripts/automation/export_contract_artifacts.py
+          git diff --exit-code -- api/contracts
+
+      - name: Upload contract artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: control-plane-contract-artifacts
+          path: asset-allocation-control-plane/api/contracts/*
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Performance Bottleneck Investigator"
+  short_description: "Diagnose latency, throughput, and scaling bottlenecks."
+  default_prompt: "Use $performance-bottleneck-investigator to analyze this system, workload, incident, or telemetry for bottlenecks, likely root causes, and a prioritized remediation plan."

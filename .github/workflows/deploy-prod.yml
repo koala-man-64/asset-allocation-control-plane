@@ -1,0 +1,205 @@
+name: Control Plane Deploy Prod
+run-name: Control Plane Deploy Prod / ${{ github.event_name }} / ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_digest:
+        description: Full container image reference with digest
+        required: true
+        type: string
+      contracts_version:
+        description: Optional contracts version for the rollout summary
+        required: false
+        type: string
+      reason:
+        description: Why this rollout is being performed
+        required: false
+        type: string
+  repository_dispatch:
+    types:
+      - deploy_runtime
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: control-plane-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    name: deploy-prod
+    runs-on: ubuntu-22.04
+    environment:
+      name: prod
+    env:
+      DISPATCH_IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+      DISPATCH_CONTRACTS_VERSION: ${{ github.event.client_payload.contracts_version }}
+      DISPATCH_REASON: ${{ github.event.client_payload.reason }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_PULL_IDENTITY_NAME: ${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}
+      CONTAINER_APPS_ENVIRONMENT_NAME: ${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}
+      SERVICE_ACCOUNT_NAME: ${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}
+      API_APP_NAME: ${{ vars.API_APP_NAME || 'asset-allocation-api' }}
+      AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+      AZURE_CONTAINER_BRONZE: ${{ vars.AZURE_CONTAINER_BRONZE }}
+      AZURE_CONTAINER_SILVER: ${{ vars.AZURE_CONTAINER_SILVER }}
+      AZURE_CONTAINER_GOLD: ${{ vars.AZURE_CONTAINER_GOLD }}
+      AZURE_CONTAINER_PLATINUM: ${{ vars.AZURE_CONTAINER_PLATINUM }}
+      AZURE_FOLDER_MARKET: ${{ vars.AZURE_FOLDER_MARKET }}
+      AZURE_FOLDER_FINANCE: ${{ vars.AZURE_FOLDER_FINANCE }}
+      AZURE_FOLDER_EARNINGS: ${{ vars.AZURE_FOLDER_EARNINGS }}
+      AZURE_FOLDER_TARGETS: ${{ vars.AZURE_FOLDER_TARGETS }}
+      AZURE_CONTAINER_COMMON: ${{ vars.AZURE_CONTAINER_COMMON }}
+      ALPHA_VANTAGE_RATE_LIMIT_PER_MIN: ${{ vars.ALPHA_VANTAGE_RATE_LIMIT_PER_MIN }}
+      ALPHA_VANTAGE_TIMEOUT_SECONDS: ${{ vars.ALPHA_VANTAGE_TIMEOUT_SECONDS }}
+      ALPHA_VANTAGE_RATE_WAIT_TIMEOUT_SECONDS: ${{ vars.ALPHA_VANTAGE_RATE_WAIT_TIMEOUT_SECONDS }}
+      ALPHA_VANTAGE_MAX_WORKERS: ${{ vars.ALPHA_VANTAGE_MAX_WORKERS }}
+      MASSIVE_BASE_URL: ${{ vars.MASSIVE_BASE_URL }}
+      MASSIVE_TIMEOUT_SECONDS: ${{ vars.MASSIVE_TIMEOUT_SECONDS }}
+      API_ROOT_PREFIX: ${{ vars.API_ROOT_PREFIX }}
+      API_OIDC_ISSUER: ${{ vars.API_OIDC_ISSUER }}
+      API_OIDC_AUDIENCE: ${{ vars.API_OIDC_AUDIENCE }}
+      API_OIDC_JWKS_URL: ${{ vars.API_OIDC_JWKS_URL }}
+      API_OIDC_REQUIRED_SCOPES: ${{ vars.API_OIDC_REQUIRED_SCOPES }}
+      API_OIDC_REQUIRED_ROLES: ${{ vars.API_OIDC_REQUIRED_ROLES }}
+      API_CSP: ${{ vars.API_CSP }}
+      API_CORS_ALLOW_ORIGINS: ${{ vars.API_CORS_ALLOW_ORIGINS }}
+      SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON: ${{ vars.SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON }}
+      SYSTEM_HEALTH_MARKERS_CONTAINER: ${{ vars.SYSTEM_HEALTH_MARKERS_CONTAINER }}
+      SYSTEM_HEALTH_MARKERS_PREFIX: ${{ vars.SYSTEM_HEALTH_MARKERS_PREFIX }}
+      UI_OIDC_CLIENT_ID: ${{ vars.UI_OIDC_CLIENT_ID }}
+      UI_OIDC_AUTHORITY: ${{ vars.UI_OIDC_AUTHORITY }}
+      UI_OIDC_SCOPES: ${{ vars.UI_OIDC_SCOPES }}
+      UI_OIDC_REDIRECT_URI: ${{ vars.UI_OIDC_REDIRECT_URI }}
+      UI_API_BASE_URL: ${{ vars.UI_API_BASE_URL }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+      SYSTEM_HEALTH_ARM_TIMEOUT_SECONDS: ${{ vars.SYSTEM_HEALTH_ARM_TIMEOUT_SECONDS }}
+      SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB: ${{ vars.SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB }}
+      SYSTEM_HEALTH_VERBOSE_IDS: ${{ vars.SYSTEM_HEALTH_VERBOSE_IDS }}
+      SYSTEM_HEALTH_RESOURCE_HEALTH_API_VERSION: ${{ vars.SYSTEM_HEALTH_RESOURCE_HEALTH_API_VERSION }}
+      SYSTEM_HEALTH_MONITOR_METRICS_API_VERSION: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_API_VERSION }}
+      SYSTEM_HEALTH_MONITOR_METRICS_TIMESPAN_MINUTES: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_TIMESPAN_MINUTES }}
+      SYSTEM_HEALTH_MONITOR_METRICS_INTERVAL: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_INTERVAL }}
+      SYSTEM_HEALTH_MONITOR_METRICS_AGGREGATION: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_AGGREGATION }}
+      SYSTEM_HEALTH_MONITOR_METRICS_CONTAINERAPP_METRICS: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_CONTAINERAPP_METRICS }}
+      SYSTEM_HEALTH_MONITOR_METRICS_JOB_METRICS: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_JOB_METRICS }}
+      SYSTEM_HEALTH_MONITOR_METRICS_THRESHOLDS_JSON: ${{ vars.SYSTEM_HEALTH_MONITOR_METRICS_THRESHOLDS_JSON }}
+      SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID: ${{ vars.SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID }}
+      SYSTEM_HEALTH_LOG_ANALYTICS_TIMEOUT_SECONDS: ${{ vars.SYSTEM_HEALTH_LOG_ANALYTICS_TIMEOUT_SECONDS }}
+      SYSTEM_HEALTH_LOG_ANALYTICS_TIMESPAN_MINUTES: ${{ vars.SYSTEM_HEALTH_LOG_ANALYTICS_TIMESPAN_MINUTES }}
+      SYSTEM_HEALTH_LOG_ANALYTICS_QUERIES_JSON: ${{ vars.SYSTEM_HEALTH_LOG_ANALYTICS_QUERIES_JSON }}
+      REALTIME_LOG_STREAM_POLL_SECONDS: ${{ vars.REALTIME_LOG_STREAM_POLL_SECONDS }}
+      REALTIME_LOG_STREAM_LOOKBACK_SECONDS: ${{ vars.REALTIME_LOG_STREAM_LOOKBACK_SECONDS }}
+      REALTIME_LOG_STREAM_BATCH_SIZE: ${{ vars.REALTIME_LOG_STREAM_BATCH_SIZE }}
+      AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      POSTGRES_DSN: ${{ secrets.POSTGRES_DSN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Resolve rollout inputs
+        id: inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_digest="${{ inputs.image_digest }}"
+          contracts_version="${{ inputs.contracts_version }}"
+          reason="${{ inputs.reason }}"
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            image_digest="${DISPATCH_IMAGE_DIGEST}"
+            contracts_version="${DISPATCH_CONTRACTS_VERSION}"
+            reason="${DISPATCH_REASON}"
+          fi
+          : "${image_digest:?image_digest is required}"
+          echo "image_digest=${image_digest}" >> "$GITHUB_OUTPUT"
+          echo "contracts_version=${contracts_version}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve Azure resource identifiers
+        id: azure
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt > /dev/null
+          identity_id="$(az identity show --name "${ACR_PULL_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query id -o tsv)"
+          identity_client_id="$(az identity show --name "${ACR_PULL_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query clientId -o tsv)"
+          acr_login_server="$(az acr show --name "${ACR_NAME}" --resource-group "${RESOURCE_GROUP}" --query loginServer -o tsv)"
+          env_id="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${CONTAINER_APPS_ENVIRONMENT_NAME}"
+          previous_image="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.template.containers[0].image' -o tsv 2>/dev/null || true)"
+          echo "identity_id=${identity_id}" >> "$GITHUB_OUTPUT"
+          echo "identity_client_id=${identity_client_id}" >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=${acr_login_server}" >> "$GITHUB_OUTPUT"
+          echo "environment_id=${env_id}" >> "$GITHUB_OUTPUT"
+          echo "previous_image=${previous_image}" >> "$GITHUB_OUTPUT"
+
+      - name: Render control-plane manifest
+        env:
+          API_IMAGE: ${{ steps.inputs.outputs.image_digest }}
+          ACR_LOGIN_SERVER: ${{ steps.azure.outputs.acr_login_server }}
+          ACR_PULL_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.identity_id }}
+          ACR_PULL_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.identity_client_id }}
+          CONTAINER_APPS_ENVIRONMENT_ID: ${{ steps.azure.outputs.environment_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+
+          template = Path("deploy/app_api_public.yaml").read_text(encoding="utf-8")
+          for key, value in os.environ.items():
+              template = template.replace("${" + key + "}", value)
+          Path("rendered-app_api_public.yaml").write_text(template, encoding="utf-8")
+          PY
+
+      - name: Apply control-plane app manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          if az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" > /dev/null 2>&1; then
+            az containerapp update --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-app_api_public.yaml
+          else
+            az containerapp create --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-app_api_public.yaml
+          fi
+
+      - name: Verify deployed control-plane endpoints
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          fqdn="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.configuration.ingress.fqdn' -o tsv)"
+          actual_image="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.template.containers[0].image' -o tsv)"
+          test "${actual_image}" = "${{ steps.inputs.outputs.image_digest }}"
+          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/healthz" > /dev/null
+          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/readyz" > /dev/null
+          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/config.js" > /dev/null
+          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/api/v1/openapi.json" > /dev/null
+          echo "fqdn=${fqdn}" >> "$GITHUB_OUTPUT"
+
+      - name: Write deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## Control-plane deploy"
+            echo ""
+            echo "- Target app: \`${API_APP_NAME}\`"
+            echo "- Image: \`${{ steps.inputs.outputs.image_digest }}\`"
+            echo "- Contracts version: \`${{ steps.inputs.outputs.contracts_version || 'not provided' }}\`"
+            echo "- FQDN: https://${{ steps.verify.outputs.fqdn }}"
+            echo "- Previous image: \`${{ steps.azure.outputs.previous_image || 'none' }}\`"
+            echo "- Rollback: rerun this workflow with the previous image digest"
+            echo "- Reason: \`${{ steps.inputs.outputs.reason || 'not provided' }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

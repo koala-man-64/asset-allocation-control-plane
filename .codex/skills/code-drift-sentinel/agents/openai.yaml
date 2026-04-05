@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Drift Sentinel"
+  short_description: "Detect and remediate multi-agent code drift, including speculative safeguards."
+  default_prompt: "Use $skill-name to detect code drift, attribute causes, and propose or apply safe remediation. Treat speculative safeguards and placeholder fallbacks such as precautionary null branches or UI copy like 'N/A'/'unknown' as undesired drift unless the requirement explicitly calls for them."

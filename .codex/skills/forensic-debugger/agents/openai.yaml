@@ -1,0 +1,4 @@
+interface:
+  display_name: "Forensic Debugger"
+  short_description: "Evidence-first system failure investigator."
+  default_prompt: "Use \$skill-name to perform evidence-first root-cause analysis."

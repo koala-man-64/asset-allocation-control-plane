@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cleanup & Change Debris Auditor"
+  short_description: "Audit stale code, temp artifacts, and cleanup debt."
+  default_prompt: "Use $cleanup-change-debris-auditor to audit this diff or repo for temporary leftovers, stale compatibility code, debug residue, and safe cleanup actions."

@@ -1,0 +1,52 @@
+BEGIN;
+
+ALTER TABLE gold.market_data
+    ADD COLUMN IF NOT EXISTS donchian_high_20d DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS donchian_low_20d DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS dist_donchian_high_20d_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS dist_donchian_low_20d_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS above_donchian_high_20d INTEGER,
+    ADD COLUMN IF NOT EXISTS below_donchian_low_20d INTEGER,
+    ADD COLUMN IF NOT EXISTS crosses_above_donchian_high_20d INTEGER,
+    ADD COLUMN IF NOT EXISTS crosses_below_donchian_low_20d INTEGER,
+    ADD COLUMN IF NOT EXISTS donchian_high_55d DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS donchian_low_55d DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS dist_donchian_high_55d_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS dist_donchian_low_55d_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS above_donchian_high_55d INTEGER,
+    ADD COLUMN IF NOT EXISTS below_donchian_low_55d INTEGER,
+    ADD COLUMN IF NOT EXISTS crosses_above_donchian_high_55d INTEGER,
+    ADD COLUMN IF NOT EXISTS crosses_below_donchian_low_55d INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_support_1_mid DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_support_1_low DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_support_1_high DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_support_1_touches INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_support_1_strength DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_support_1_dist_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_resistance_1_mid DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_resistance_1_low DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_resistance_1_high DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_resistance_1_touches INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_resistance_1_strength DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_resistance_1_dist_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS sr_in_support_1_zone INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_in_resistance_1_zone INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_breaks_above_resistance_1 INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_breaks_below_support_1 INTEGER,
+    ADD COLUMN IF NOT EXISTS sr_zone_position DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_swing_direction INTEGER,
+    ADD COLUMN IF NOT EXISTS fib_anchor_low DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_anchor_high DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_level_236 DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_level_382 DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_level_500 DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_level_618 DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_level_786 DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_nearest_level DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_nearest_dist_atr DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS fib_in_value_zone INTEGER;
+
+CREATE OR REPLACE VIEW gold.market_data_by_date AS
+SELECT * FROM gold.market_data;
+
+COMMIT;

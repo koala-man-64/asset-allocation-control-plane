@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import pytest
+
+from api.endpoints import regimes as regime_endpoints
+from api.service.app import create_app
+from core.regime_repository import RegimeRepository
+from tests.api._client import get_test_client
+
+pytestmark = pytest.mark.asyncio
+
+
+async def _get_json(client, url: str) -> dict:
+    response = await client.get(url)
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, dict)
+    return payload
+
+
+async def _post_json(client, url: str, payload: dict) -> dict:
+    response = await client.post(url, json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body, dict)
+    return body
+
+
+async def test_get_current_regime_returns_snapshot(monkeypatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        RegimeRepository,
+        "get_regime_latest",
+        lambda self, **kwargs: {
+            "as_of_date": "2026-03-07",
+            "effective_from_date": "2026-03-10",
+            "model_name": kwargs["model_name"],
+            "model_version": kwargs.get("model_version") or 1,
+            "regime_code": "trending_bull",
+            "regime_status": "confirmed",
+            "halt_flag": False,
+        },
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        payload = await _get_json(client, "/api/regimes/current")
+
+    assert payload["model_name"] == "default-regime"
+    assert payload["regime_code"] == "trending_bull"
+
+
+async def test_create_regime_model_returns_saved_revision(monkeypatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        RegimeRepository,
+        "save_regime_model",
+        lambda self, **kwargs: {
+            "name": kwargs["name"],
+            "version": 2,
+            "description": kwargs["description"],
+            "config": kwargs["config"],
+        },
+    )
+    monkeypatch.setattr(
+        RegimeRepository,
+        "get_active_regime_model_revision",
+        lambda self, name: {"name": name, "version": 1, "config": {}},
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        payload = await _post_json(
+            client,
+            "/api/regimes/models",
+            {
+                "name": "default-regime",
+                "description": "Updated",
+                "config": {"highVolEnterThreshold": 28.0},
+            },
+        )
+
+    assert payload["model"]["name"] == "default-regime"
+    assert payload["model"]["version"] == 2
+    assert payload["activeRevision"]["version"] == 1
+
+
+async def test_activate_regime_model_triggers_job_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setenv("REGIME_ACA_JOB_NAME", "gold-regime-job")
+    monkeypatch.setattr(
+        RegimeRepository,
+        "activate_regime_model",
+        lambda self, **kwargs: {"name": kwargs["name"], "version": kwargs.get("version") or 1, "config": {}},
+    )
+    monkeypatch.setattr(
+        regime_endpoints,
+        "_trigger_regime_job_if_configured",
+        lambda: {"status": "queued", "executionName": "job-run-1"},
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        payload = await _post_json(client, "/api/regimes/models/default-regime/activate", {"version": 1})
+
+    assert payload["model"] == "default-regime"
+    assert payload["activatedRevision"]["version"] == 1
+    assert payload["jobTrigger"]["executionName"] == "job-run-1"

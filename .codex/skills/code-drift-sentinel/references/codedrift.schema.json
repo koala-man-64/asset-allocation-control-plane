@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/codedrift.schema.json",
+  "title": "Code Drift Sentinel Configuration",
+  "type": "object",
+  "properties": {
+    "baseline": {
+      "type": "object",
+      "properties": {
+        "branch": { "type": ["string", "null"] },
+        "tag": { "type": ["string", "null"] },
+        "commit": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "standards": {
+      "type": "object",
+      "properties": {
+        "format": { "$ref": "#/$defs/stringList" },
+        "lint": { "$ref": "#/$defs/stringList" },
+        "typecheck": { "$ref": "#/$defs/stringList" },
+        "test_fast": { "$ref": "#/$defs/stringList" },
+        "test_full": { "$ref": "#/$defs/stringList" },
+        "security": { "$ref": "#/$defs/stringList" },
+        "benchmark": { "$ref": "#/$defs/stringList" },
+        "format_fix": { "$ref": "#/$defs/stringList" },
+        "lint_fix": { "$ref": "#/$defs/stringList" }
+      },
+      "additionalProperties": true
+    },
+    "architecture": {
+      "type": "object",
+      "properties": {
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "path_glob": { "type": "string" },
+              "forbid_imports_from": { "$ref": "#/$defs/stringList" },
+              "allow_imports_from": { "$ref": "#/$defs/stringList" }
+            },
+            "required": ["name", "path_glob"],
+            "additionalProperties": true
+          }
+        },
+        "module_boundaries": { "type": "array" },
+        "blessed_patterns": { "$ref": "#/$defs/stringList" }
+      },
+      "additionalProperties": true
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "allowlist": { "$ref": "#/$defs/stringList" },
+        "denylist": { "$ref": "#/$defs/stringList" },
+        "lockfile_required": { "type": "boolean" },
+        "license_policy": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "public_globs": { "$ref": "#/$defs/stringList" },
+        "breaking_change_policy": { "type": "string", "enum": ["warn", "strict"] }
+      },
+      "additionalProperties": true
+    },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "drift_score_fail": { "type": "number" },
+        "category_weights": { "type": "object", "additionalProperties": { "type": "number" } },
+        "category_severity_fail": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "required": ["drift_score_fail"],
+      "additionalProperties": true
+    },
+    "auto_remediate": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "max_files_changed": { "type": "integer", "minimum": 1 },
+        "safe_directories": { "$ref": "#/$defs/stringList" },
+        "commands": { "$ref": "#/$defs/stringList" }
+      },
+      "required": ["enabled", "max_files_changed"],
+      "additionalProperties": true
+    },
+    "risk_controls": {
+      "type": "object",
+      "properties": {
+        "protected_globs": { "$ref": "#/$defs/stringList" },
+        "require_tests_passing_before_automerge": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "reporting": {
+      "type": "object",
+      "properties": {
+        "markdown_path": { "type": "string" },
+        "json_path": { "type": "string" },
+        "patch_path": { "type": "string" }
+      },
+      "required": ["markdown_path", "json_path"],
+      "additionalProperties": true
+    },
+    "detection": {
+      "type": "object",
+      "properties": {
+        "lookback_days": { "type": "integer", "minimum": 1 },
+        "speculative_safeguards": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "patterns": { "$ref": "#/$defs/stringList" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "baseline",
+    "standards",
+    "architecture",
+    "dependencies",
+    "api",
+    "thresholds",
+    "auto_remediate",
+    "risk_controls",
+    "reporting"
+  ],
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

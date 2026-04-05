@@ -1,0 +1,19 @@
+id: test-drift
+title: Behavioral change with missing or removed tests
+setup:
+  - Modify business logic in source files.
+  - Remove or skip corresponding tests, or do not add tests for changed paths.
+run:
+  - python3 .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py --mode audit
+expected_findings:
+  - category: test
+    severity: medium
+    evidence_contains:
+      - Code changed without nearby test updates
+  - category: behavioral
+    severity: high
+    evidence_contains:
+      - Regression signal
+expected_remediation:
+  - Restore/add tests for changed behavior and edge cases.
+  - Re-run fast and full test gates.

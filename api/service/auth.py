@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
+import jwt
+from jwt.exceptions import InvalidTokenError
+from jwt.algorithms import RSAAlgorithm
+import requests
+
+from api.service.settings import AuthMode, ServiceSettings
+
+
+logger = logging.getLogger("api.service.auth")
+
+
+@dataclass(frozen=True)
+class AuthContext:
+    mode: AuthMode
+    subject: Optional[str]
+    claims: Dict[str, Any]
+
+
+class AuthError(Exception):
+    def __init__(self, *, status_code: int, detail: str, www_authenticate: Optional[str] = None):
+        super().__init__(detail)
+        self.status_code = int(status_code)
+        self.detail = str(detail)
+        self.www_authenticate = www_authenticate
+
+
+def _fetch_openid_configuration(issuer: str) -> Dict[str, Any]:
+    url = f"{issuer.rstrip('/')}/.well-known/openid-configuration"
+    resp = requests.get(url, timeout=(2, 10))
+    resp.raise_for_status()
+    data = resp.json()
+    if not isinstance(data, dict):
+        raise ValueError("OIDC discovery document is not a JSON object.")
+    return data
+
+
+def _is_bearer_auth(header_value: str) -> bool:
+    return header_value.strip().lower().startswith("bearer ")
+
+
+def _extract_bearer_token(header_value: str) -> str:
+    token = header_value.strip()[len("bearer ") :].strip()
+    if not token:
+        raise AuthError(status_code=401, detail="Missing bearer token.", www_authenticate="Bearer")
+    return token
+
+
+def _claim_text(claims: Dict[str, Any], *names: str) -> str:
+    for name in names:
+        value = claims.get(name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "-"
+
+
+class AuthManager:
+    def __init__(self, settings: ServiceSettings):
+        self._settings = settings
+        self._jwks_client_lock = threading.RLock()
+        self._jwks_url: Optional[str] = None
+        self._jwks_cache: Optional[Dict[str, Any]] = None
+        self._jwks_cached_at: float = 0.0
+
+    def _get_jwks_url(self) -> str:
+        if self._jwks_url is not None:
+            return self._jwks_url
+
+        with self._jwks_client_lock:
+            if self._jwks_url is not None:
+                return self._jwks_url
+
+            issuer = self._settings.oidc_issuer or ""
+            jwks_url = self._settings.oidc_jwks_url
+            if not jwks_url:
+                discovery = _fetch_openid_configuration(issuer)
+                jwks_url = str(discovery.get("jwks_uri") or "").strip() or None
+            if not jwks_url:
+                raise ValueError("OIDC jwks_url could not be resolved (set API_OIDC_JWKS_URL).")
+
+            self._jwks_url = jwks_url
+            return self._jwks_url
+
+    def _fetch_jwks(self) -> Dict[str, Any]:
+        url = self._get_jwks_url()
+        resp = requests.get(url, timeout=(2, 10))
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict) or not isinstance(data.get("keys"), list):
+            raise ValueError("OIDC JWKS endpoint did not return a JSON object with a 'keys' array.")
+        return data
+
+    def _get_jwks(self, *, force_refresh: bool = False) -> Dict[str, Any]:
+        ttl_s = 600.0
+        now = time.time()
+        with self._jwks_client_lock:
+            if (
+                force_refresh
+                or self._jwks_cache is None
+                or (now - float(self._jwks_cached_at)) > ttl_s
+            ):
+                self._jwks_cache = self._fetch_jwks()
+                self._jwks_cached_at = now
+            return self._jwks_cache
+
+    def _get_public_key_for_token(self, token: str):
+        header = jwt.get_unverified_header(token)
+        kid = str(header.get("kid") or "").strip()
+
+        def _find_key(jwks: Dict[str, Any]):
+            keys = jwks.get("keys") or []
+            if kid:
+                for item in keys:
+                    if str(item.get("kid") or "").strip() == kid:
+                        return item
+                return None
+            if len(keys) == 1:
+                return keys[0]
+            return None
+
+        jwks = self._get_jwks(force_refresh=False)
+        jwk = _find_key(jwks)
+        if jwk is None:
+            jwks = self._get_jwks(force_refresh=True)
+            jwk = _find_key(jwks)
+        if jwk is None:
+            raise AuthError(status_code=401, detail="Signing key not found for bearer token.", www_authenticate="Bearer")
+
+        return RSAAlgorithm.from_jwk(json.dumps(jwk))
+
+    def _verify_bearer_token(self, token: str) -> AuthContext:
+        issuer = self._settings.oidc_issuer or ""
+        audience = list(self._settings.oidc_audience or [])
+        if not issuer or not audience:
+            raise AuthError(status_code=500, detail="OIDC is not configured.")
+
+        try:
+            signing_key = self._get_public_key_for_token(token)
+            claims = jwt.decode(
+                token,
+                signing_key,
+                algorithms=["RS256"],
+                issuer=issuer,
+                audience=audience,
+            )
+        except InvalidTokenError as exc:
+            raise AuthError(status_code=401, detail="Invalid bearer token.", www_authenticate="Bearer") from exc
+        except Exception as exc:
+            logger.exception("OIDC verification failed.")
+            raise AuthError(status_code=502, detail="Failed to verify bearer token.", www_authenticate="Bearer") from exc
+
+        required_scopes = set(self._settings.oidc_required_scopes or [])
+        if required_scopes:
+            raw_scopes = str(claims.get("scp") or "").strip()
+            token_scopes = {s for s in raw_scopes.split(" ") if s}
+            missing = sorted(required_scopes - token_scopes)
+            if missing:
+                raise AuthError(status_code=403, detail=f"Missing required scopes: {', '.join(missing)}.")
+
+        required_roles = set(self._settings.oidc_required_roles or [])
+        if required_roles:
+            roles_claim = claims.get("roles") or []
+            if not isinstance(roles_claim, list):
+                roles_claim = []
+            token_roles = {str(r) for r in roles_claim if str(r).strip()}
+            missing = sorted(required_roles - token_roles)
+            if missing:
+                raise AuthError(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
+
+        subject = str(claims.get("sub") or claims.get("oid") or "") or None
+        return AuthContext(mode="oidc", subject=subject, claims=dict(claims))
+
+    def authenticate_headers(self, headers: Dict[str, str]) -> AuthContext:
+        normalized = {str(k).lower(): str(v) for k, v in headers.items()}
+        if self._settings.oidc_auth_enabled:
+            authorization = (normalized.get("authorization") or "").strip()
+            if authorization and _is_bearer_auth(authorization):
+                token = _extract_bearer_token(authorization)
+                ctx = self._verify_bearer_token(token)
+                logger.info(
+                    "Auth success via oidc: subject=%s oid=%s tid=%s azp=%s",
+                    ctx.subject or "-",
+                    _claim_text(ctx.claims, "oid"),
+                    _claim_text(ctx.claims, "tid"),
+                    _claim_text(ctx.claims, "azp", "appid"),
+                )
+                return ctx
+
+        if self._settings.anonymous_local_auth_enabled:
+            return AuthContext(mode="anonymous", subject=None, claims={})
+
+        raise AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer")
