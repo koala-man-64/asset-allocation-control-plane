@@ -96,6 +96,40 @@ function Get-ResourceLeafName {
     return $ResourceId.Trim()
 }
 
+function Get-ObjectPropertyValue {
+    param(
+        [AllowNull()]$Object,
+        [Parameter(Mandatory = $true)][string]$PropertyName
+    )
+    if ($null -eq $Object -or $null -eq $Object.PSObject) { return $null }
+    $property = $Object.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
+function Get-ObjectStringProperty {
+    param(
+        [AllowNull()]$Object,
+        [Parameter(Mandatory = $true)][string]$PropertyName
+    )
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ($null -eq $value) { return "" }
+    return [string]$value
+}
+
+function Get-NestedObjectPropertyValue {
+    param(
+        [AllowNull()]$Object,
+        [Parameter(Mandatory = $true)][string[]]$PropertyPath
+    )
+    $current = $Object
+    foreach ($propertyName in $PropertyPath) {
+        $current = Get-ObjectPropertyValue -Object $current -PropertyName $propertyName
+        if ($null -eq $current) { return $null }
+    }
+    return $current
+}
+
 $overrideMap = @{}
 foreach ($entry in $Set) {
     if ($entry -match "^([^=]+)=(.*)$") {
@@ -387,14 +421,17 @@ function Select-PreferredItem {
     $list = @($Items)
     if ($list.Count -eq 0) { return $null }
     if (-not [string]::IsNullOrWhiteSpace($Preferred)) {
-        $exact = @($list | Where-Object { $_.name -eq $Preferred } | Select-Object -First 1)
+        $exact = @($list | Where-Object { (Get-ObjectStringProperty -Object $_ -PropertyName "name") -eq $Preferred } | Select-Object -First 1)
         if ($exact.Count -gt 0) { return $exact[0] }
     }
     foreach ($needle in $Contains) {
-        $match = @($list | Where-Object { $_.name -like "*$needle*" } | Select-Object -First 1)
+        $match = @($list | Where-Object { (Get-ObjectStringProperty -Object $_ -PropertyName "name") -like "*$needle*" } | Select-Object -First 1)
         if ($match.Count -gt 0) { return $match[0] }
     }
-    if ($AllowSingleItemFallback -and $list.Count -eq 1) { return $list[0] }
+    if ($AllowSingleItemFallback -and $list.Count -eq 1) {
+        $singleName = Get-ObjectStringProperty -Object $list[0] -PropertyName "name"
+        if (-not [string]::IsNullOrWhiteSpace($singleName)) { return $list[0] }
+    }
     return $null
 }
 
@@ -429,8 +466,9 @@ function Get-ContainerApp {
 
 function Get-ContainerAppIdentityName {
     param([AllowNull()]$App, [string]$PreferredName = "")
-    if ($null -eq $App -or $null -eq $App.identity -or $null -eq $App.identity.userAssignedIdentities) { return "" }
-    $entries = @($App.identity.userAssignedIdentities.PSObject.Properties)
+    $userAssignedIdentities = Get-NestedObjectPropertyValue -Object $App -PropertyPath @("identity", "userAssignedIdentities")
+    if ($null -eq $userAssignedIdentities) { return "" }
+    $entries = @($userAssignedIdentities.PSObject.Properties)
     if (-not [string]::IsNullOrWhiteSpace($PreferredName)) {
         foreach ($entry in $entries) {
             $name = Get-ResourceLeafName -ResourceId ([string]$entry.Name)
@@ -443,8 +481,9 @@ function Get-ContainerAppIdentityName {
 
 function Get-ContainerAppIdentityClientId {
     param([AllowNull()]$App, [string]$IdentityName = "")
-    if ($null -eq $App -or $null -eq $App.identity -or $null -eq $App.identity.userAssignedIdentities) { return "" }
-    $entries = @($App.identity.userAssignedIdentities.PSObject.Properties)
+    $userAssignedIdentities = Get-NestedObjectPropertyValue -Object $App -PropertyPath @("identity", "userAssignedIdentities")
+    if ($null -eq $userAssignedIdentities) { return "" }
+    $entries = @($userAssignedIdentities.PSObject.Properties)
     if (-not [string]::IsNullOrWhiteSpace($IdentityName)) {
         foreach ($entry in $entries) {
             $name = Get-ResourceLeafName -ResourceId ([string]$entry.Name)
@@ -460,8 +499,7 @@ function Get-ContainerAppIdentityClientId {
 
 function Get-ContainerAppRedirectUri {
     param([AllowNull()]$App)
-    if ($null -eq $App -or $null -eq $App.properties -or $null -eq $App.properties.configuration -or $null -eq $App.properties.configuration.ingress) { return "" }
-    $fqdn = [string]$App.properties.configuration.ingress.fqdn
+    $fqdn = [string](Get-NestedObjectPropertyValue -Object $App -PropertyPath @("properties", "configuration", "ingress", "fqdn"))
     if ([string]::IsNullOrWhiteSpace($fqdn)) { return "" }
     return "https://$fqdn/auth/callback"
 }
@@ -470,10 +508,11 @@ function Get-ContainerAppEnvironmentName {
     if ($null -eq $script:ContainerAppEnvironmentName) {
         $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
         $environmentName = ""
-        if ($app -and $app.properties) {
-            $environmentName = Get-ResourceLeafName -ResourceId ([string]$app.properties.managedEnvironmentId)
+        $appProperties = Get-ObjectPropertyValue -Object $app -PropertyName "properties"
+        if ($null -ne $appProperties) {
+            $environmentName = Get-ResourceLeafName -ResourceId (Get-ObjectStringProperty -Object $appProperties -PropertyName "managedEnvironmentId")
             if ([string]::IsNullOrWhiteSpace($environmentName)) {
-                $environmentName = Get-ResourceLeafName -ResourceId ([string]$app.properties.environmentId)
+                $environmentName = Get-ResourceLeafName -ResourceId (Get-ObjectStringProperty -Object $appProperties -PropertyName "environmentId")
             }
         }
         if ([string]::IsNullOrWhiteSpace($environmentName)) {
@@ -503,10 +542,9 @@ function Get-ContainerAppEnvironment {
 
 function Get-ManagedEnvironmentWorkspaceId {
     $environment = Get-ContainerAppEnvironment
-    if ($environment -and $environment.properties -and $environment.properties.appLogsConfiguration -and $environment.properties.appLogsConfiguration.logAnalyticsConfiguration -and $environment.properties.appLogsConfiguration.logAnalyticsConfiguration.customerId) {
-        return [string]$environment.properties.appLogsConfiguration.logAnalyticsConfiguration.customerId
-    }
-    return ""
+    $customerId = Get-NestedObjectPropertyValue -Object $environment -PropertyPath @("properties", "appLogsConfiguration", "logAnalyticsConfiguration", "customerId")
+    if ($null -eq $customerId) { return "" }
+    return [string]$customerId
 }
 
 function Get-PreferredLogAnalyticsWorkspace {
@@ -514,7 +552,7 @@ function Get-PreferredLogAnalyticsWorkspace {
         $workspace = $null
         $workspaceId = Get-ManagedEnvironmentWorkspaceId
         if (-not [string]::IsNullOrWhiteSpace($workspaceId)) {
-            $match = @((Get-LogAnalyticsWorkspaces) | Where-Object { $_.customerId -eq $workspaceId } | Select-Object -First 1)
+            $match = @((Get-LogAnalyticsWorkspaces) | Where-Object { (Get-ObjectStringProperty -Object $_ -PropertyName "customerId") -eq $workspaceId } | Select-Object -First 1)
             if ($match.Count -gt 0) { $workspace = $match[0] }
         }
         if ($null -eq $workspace) {
@@ -557,13 +595,14 @@ function Get-ContainerAppRuntimeEnvMap {
     if ($null -eq $script:ContainerAppRuntimeEnv) {
         $map = @{}
         $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
-        if ($app -and $app.properties -and $app.properties.template) {
+        $template = Get-NestedObjectPropertyValue -Object $app -PropertyPath @("properties", "template")
+        if ($null -ne $template) {
             # Use deployed runtime env as a high-signal bootstrap source for repo vars.
-            foreach ($container in @($app.properties.template.containers)) {
-                $envEntries = if ($container.PSObject.Properties["env"]) { @($container.env) } else { @() }
+            foreach ($container in @(Get-ObjectPropertyValue -Object $template -PropertyName "containers")) {
+                $envEntries = @(Get-ObjectPropertyValue -Object $container -PropertyName "env")
                 foreach ($entry in $envEntries) {
-                    $name = if ($entry.PSObject.Properties["name"]) { [string]$entry.name } else { "" }
-                    $value = if ($entry.PSObject.Properties["value"] -and $null -ne $entry.value) { Normalize-EnvValue -Value ([string]$entry.value) } else { "" }
+                    $name = Get-ObjectStringProperty -Object $entry -PropertyName "name"
+                    $value = Normalize-EnvValue -Value (Get-ObjectStringProperty -Object $entry -PropertyName "value")
                     if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrWhiteSpace($value)) { continue }
                     if (-not $map.ContainsKey($name)) { $map[$name] = $value }
                 }
@@ -591,7 +630,7 @@ function Get-EntraApp {
         $selected = $null
         $apps = Invoke-JsonCommand -FilePath "az" -ArgumentList @("ad", "app", "list", "--display-name", $DisplayName, "-o", "json")
         if ($apps) {
-            $exact = @($apps | Where-Object { $_.displayName -eq $DisplayName } | Select-Object -First 1)
+            $exact = @($apps | Where-Object { (Get-ObjectStringProperty -Object $_ -PropertyName "displayName") -eq $DisplayName } | Select-Object -First 1)
             if ($exact.Count -gt 0) {
                 $selected = $exact[0]
             } elseif (@($apps).Count -eq 1) {
@@ -829,8 +868,10 @@ foreach ($row in $contractRows) {
 
     if (-not $isSecret) {
         $discovered = Resolve-DiscoveredValue -Key $name
-        if (-not [string]::IsNullOrWhiteSpace($discovered.Value)) {
-            $results.Add([pscustomobject]@{ Name = $name; Value = $discovered.Value; SuggestedValue = $discovered.Value; Requirement = $requirement; Source = $discovered.Source; IsSecret = $false; PromptRequired = $false })
+        $discoveredValue = Get-ObjectStringProperty -Object $discovered -PropertyName "Value"
+        $discoveredSource = Get-ObjectStringProperty -Object $discovered -PropertyName "Source"
+        if (-not [string]::IsNullOrWhiteSpace($discoveredValue)) {
+            $results.Add([pscustomobject]@{ Name = $name; Value = $discoveredValue; SuggestedValue = $discoveredValue; Requirement = $requirement; Source = $discoveredSource; IsSecret = $false; PromptRequired = $false })
             continue
         }
         if ($DryRun) {

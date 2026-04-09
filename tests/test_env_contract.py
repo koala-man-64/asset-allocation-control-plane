@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import os
 import re
+import stat
 import subprocess
 from pathlib import Path
 
@@ -57,6 +59,34 @@ def powershell_exe() -> str:
         except Exception:
             continue
     raise AssertionError("PowerShell executable not found for setup-env dry-run test")
+
+
+def write_stub_command(directory: Path, name: str, python_body: str) -> None:
+    script_path = directory / f"{name}_stub.py"
+    script_path.write_text(
+        "import json\n"
+        "import sys\n"
+        "args = sys.argv[1:]\n"
+        f"{python_body}\n",
+        encoding="utf-8",
+    )
+
+    if os.name == "nt":
+        wrapper_path = directory / f"{name}.cmd"
+        wrapper_path.write_text(
+            f'@echo off\r\npython "%~dp0{name}_stub.py" %*\r\n',
+            encoding="utf-8",
+        )
+        return
+
+    wrapper_path = directory / name
+    wrapper_path.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f'python3 "$(dirname "$0")/{name}_stub.py" "$@"\n',
+        encoding="utf-8",
+    )
+    wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC)
 
 
 def test_contract_rows_are_well_formed() -> None:
@@ -179,3 +209,102 @@ def test_setup_env_can_read_dispatch_private_key_from_file(tmp_path: Path) -> No
     assert "DISPATCH_APP_PRIVATE_KEY=<redacted>" in stdout
     assert "source=file" in stdout
     assert "prompt_required=false" in stdout
+
+
+def test_setup_env_dry_run_tolerates_mixed_shape_discovery_results(tmp_path: Path) -> None:
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+
+    write_stub_command(
+        stub_dir,
+        "gh",
+        """
+if args[:2] == ["repo", "view"]:
+    print(json.dumps({
+        "name": "asset-allocation-control-plane",
+        "nameWithOwner": "koala-man-64/asset-allocation-control-plane",
+        "owner": {"login": "koala-man-64"},
+        "defaultBranchRef": {"name": "main"},
+    }))
+elif args[:2] == ["variable", "list"]:
+    print("[]")
+else:
+    print("[]")
+""".strip(),
+    )
+
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["account", "show"]:
+    print(json.dumps({"tenantId": "tenant-id", "id": "subscription-id"}))
+elif args[:2] == ["group", "show"]:
+    print(json.dumps({"name": "AssetAllocationRG", "location": "eastus"}))
+elif args[:2] == ["acr", "list"]:
+    print(json.dumps([{"name": "assetallocationacr"}]))
+elif args[:2] == ["identity", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-acr-pull-mi"}]))
+elif args[:3] == ["containerapp", "env", "show"]:
+    print(json.dumps({
+        "name": "asset-allocation-env",
+        "properties": {
+            "appLogsConfiguration": {
+                "logAnalyticsConfiguration": {"customerId": "workspace-id"}
+            }
+        },
+    }))
+elif args[:3] == ["containerapp", "env", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-env"}]))
+elif args[:2] == ["containerapp", "show"]:
+    print(json.dumps({
+        "name": "asset-allocation-api",
+        "properties": {
+            "configuration": {"ingress": {"fqdn": "asset-allocation-api.example.test"}},
+            "template": {"containers": [{"env": [{"name": "API_ROOT_PREFIX", "value": "asset-allocation"}]}]},
+        },
+    }))
+elif args[:2] == ["containerapp", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-api"}]))
+elif args[:4] == ["monitor", "log-analytics", "workspace", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-law", "customerId": "workspace-id"}]))
+elif args[:3] == ["storage", "account", "list"]:
+    print(json.dumps([{"name": "assetallocstorage001"}]))
+elif args[:4] == ["postgres", "flexible-server", "db", "list"]:
+    print(json.dumps([{"name": "asset_allocation"}]))
+elif args[:3] == ["postgres", "flexible-server", "list"]:
+    print(json.dumps([{"name": "pg-asset-allocation", "administratorLogin": "assetallocadmin"}]))
+elif args[:3] == ["ad", "app", "list"]:
+    display_name = args[args.index("--display-name") + 1] if "--display-name" in args else "unknown"
+    print(json.dumps([{"id": "missing-display-name"}, {"displayName": display_name, "appId": f"{display_name}-app-id"}]))
+else:
+    print("[]")
+""".strip(),
+    )
+
+    missing_env_file = tmp_path / "missing.env.web"
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-DryRun",
+            "-EnvFilePath",
+            str(missing_env_file),
+        ],
+        cwd=repo_root(),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    stdout = completed.stdout
+    assert "API_APP_NAME=" in stdout
+    assert "UI_OIDC_CLIENT_ID=" in stdout
+    assert "LOG_ANALYTICS_WORKSPACE_NAME=" in stdout
