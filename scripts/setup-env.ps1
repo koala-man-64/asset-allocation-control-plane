@@ -379,7 +379,7 @@ function Get-PostgresServers {
 
 function Select-PreferredItem {
     param(
-        [Parameter(Mandatory = $true)]$Items,
+        [AllowNull()]$Items,
         [string]$Preferred = "",
         [string[]]$Contains = @(),
         [switch]$AllowSingleItemFallback
