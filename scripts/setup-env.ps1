@@ -211,9 +211,16 @@ function Get-GitHubVariables {
         $map = @{}
         $variables = Invoke-JsonCommand -FilePath "gh" -ArgumentList @("variable", "list", "--json", "name,value")
         foreach ($entry in @($variables)) {
-            $name = [string]$entry.name
+            if ($null -eq $entry) { continue }
+            $name = if ($entry.PSObject.Properties["name"]) { [string]$entry.name } else { "" }
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
-            $map[$name] = Normalize-EnvValue -Value ([string]$entry.value)
+            $value = if ($entry.PSObject.Properties["value"] -and $null -ne $entry.value) {
+                Normalize-EnvValue -Value ([string]$entry.value)
+            }
+            else {
+                ""
+            }
+            $map[$name] = $value
         }
         $script:GitHubVariables = $map
     }
