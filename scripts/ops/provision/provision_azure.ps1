@@ -82,6 +82,20 @@ function Resolve-RepoRoot {
 
 $repoRoot = Resolve-RepoRoot
 
+function Get-GitHubRepositorySlug {
+  $originUrl = git -C $repoRoot remote get-url origin 2>$null
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($originUrl)) {
+    return ""
+  }
+
+  $trimmed = $originUrl.Trim()
+  if ($trimmed -match "github\.com[:/](?<slug>[^/]+/[^/.]+?)(?:\.git)?$") {
+    return $Matches["slug"]
+  }
+
+  return ""
+}
+
 $envPath = $EnvFile
 if ([string]::IsNullOrWhiteSpace($envPath)) {
   $candidateWeb = Join-Path $repoRoot ".env.web"
@@ -569,39 +583,61 @@ if ($AzureClientId) {
 }
 
 if ($AzureClientId -and $doFederatedCredential) {
-  Write-Host "Checking for existing Federated Credential 'github-actions-production'..."
-  $paramsFile = "credential.json"
-  $subject = "repo:koala-man-64/asset-allocation:environment:production"
-    
-  # Check if exists
-  $creds = az ad app federated-credential list --id $AzureClientId --query "[?name=='github-actions-production']" -o json | ConvertFrom-Json
-    
-  if (-not $creds) {
-    Write-Host "Creating Federated Credential 'github-actions-production'..."
-    $json = @{
-      name        = "github-actions-production"
-      issuer      = "https://token.actions.githubusercontent.com"
-      subject     = $subject
-      description = "GitHub Actions Production Environment"
-      audiences   = @("api://AzureADTokenExchange")
-    } | ConvertTo-Json -Compress
-
-    Set-Content -Path $paramsFile -Value $json
-        
-    try {
-      az ad app federated-credential create --id $AzureClientId --parameters $paramsFile 2>&1
-      Write-Host "Successfully created federated credential."
-    }
-    catch {
-      Write-Error "Failed to create federated credential: $_"
-      if (Test-Path $paramsFile) { Remove-Item $paramsFile }
-      throw
-    }
-        
-    if (Test-Path $paramsFile) { Remove-Item $paramsFile }
+  $repoSlug = Get-GitHubRepositorySlug
+  if ([string]::IsNullOrWhiteSpace($repoSlug)) {
+    throw "Unable to resolve GitHub repository slug from origin remote. Set AZURE_CLIENT_ID manually and provision federated credentials separately."
   }
-  else {
-    Write-Host "Federated Credential 'github-actions-production' already exists."
+  $repoName = ($repoSlug -split "/", 2)[1]
+  if ([string]::IsNullOrWhiteSpace($repoName)) {
+    throw "Unable to derive GitHub repository name from '$repoSlug'."
+  }
+  $credentialPrefix = ("github-actions-" + ($repoName -replace "[^A-Za-z0-9-]", "-")).TrimEnd("-")
+
+  $federatedCredentials = @(
+    @{
+      Name        = "$credentialPrefix-main"
+      Subject     = "repo:$repoSlug:ref:refs/heads/main"
+      Description = "GitHub Actions OIDC for main branch"
+    },
+    @{
+      Name        = "$credentialPrefix-prod"
+      Subject     = "repo:$repoSlug:environment:prod"
+      Description = "GitHub Actions OIDC for prod environment"
+    }
+  )
+
+  foreach ($credential in $federatedCredentials) {
+    Write-Host "Checking for existing Federated Credential '$($credential.Name)'..."
+    $creds = az ad app federated-credential list --id $AzureClientId --query "[?name=='$($credential.Name)']" -o json | ConvertFrom-Json
+
+    if (-not $creds) {
+      Write-Host "Creating Federated Credential '$($credential.Name)'..."
+      $paramsFile = Join-Path $env:TEMP "$($credential.Name).json"
+      $json = @{
+        name        = $credential.Name
+        issuer      = "https://token.actions.githubusercontent.com"
+        subject     = $credential.Subject
+        description = $credential.Description
+        audiences   = @("api://AzureADTokenExchange")
+      } | ConvertTo-Json -Compress
+
+      Set-Content -Path $paramsFile -Value $json
+
+      try {
+        az ad app federated-credential create --id $AzureClientId --parameters $paramsFile 2>&1
+        Write-Host "Successfully created federated credential '$($credential.Name)'."
+      }
+      catch {
+        Write-Error "Failed to create federated credential '$($credential.Name)': $_"
+        if (Test-Path $paramsFile) { Remove-Item $paramsFile }
+        throw
+      }
+
+      if (Test-Path $paramsFile) { Remove-Item $paramsFile }
+    }
+    else {
+      Write-Host "Federated Credential '$($credential.Name)' already exists."
+    }
   }
 }
 

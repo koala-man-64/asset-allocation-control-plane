@@ -6,7 +6,6 @@ from typing import List, Callable, Optional, Set, Any
 import pandas as pd
 
 from . import core as mdc
-from asset_allocation_contracts.paths import DataPaths
 
 logger = logging.getLogger(__name__)
 

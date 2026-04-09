@@ -561,11 +561,6 @@ function Get-ContainerAppRuntimeEnvMap {
                     if (-not $map.ContainsKey($name)) { $map[$name] = $value }
                 }
             }
-            if (-not $map.ContainsKey("AZURE_CLIENT_ID")) {
-                $identityName = Get-ContainerAppIdentityName -App $app -PreferredName (Get-ConfiguredValue -Keys @("ACR_PULL_IDENTITY_NAME") -Fallback "asset-allocation-acr-pull-mi")
-                $clientId = Get-ContainerAppIdentityClientId -App $app -IdentityName $identityName
-                if (-not [string]::IsNullOrWhiteSpace($clientId)) { $map["AZURE_CLIENT_ID"] = $clientId }
-            }
             if (-not $map.ContainsKey("UI_OIDC_REDIRECT_URI")) {
                 $redirectUri = Get-ContainerAppRedirectUri -App $app
                 if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { $map["UI_OIDC_REDIRECT_URI"] = $redirectUri }
@@ -702,13 +697,7 @@ function Resolve-DiscoveredValue {
             if ($server -and $server.administratorLogin) { return (New-Resolution -Value ([string]$server.administratorLogin) -Source "azure") }
         }
         "AZURE_CLIENT_ID" {
-            $identityResolution = Resolve-DiscoveredValue -Key "ACR_PULL_IDENTITY_NAME"
-            $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
-            $clientId = Get-ContainerAppIdentityClientId -App $app -IdentityName $identityResolution.Value
-            if (-not [string]::IsNullOrWhiteSpace($clientId)) { return (New-Resolution -Value $clientId -Source "azure") }
-            foreach ($identity in @(Get-UserAssignedIdentities)) {
-                if ($identity.clientId) { return (New-Resolution -Value ([string]$identity.clientId) -Source "azure") }
-            }
+            return $null
         }
         "API_APP_NAME" {
             $appName = Get-ApiContainerAppName
