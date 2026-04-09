@@ -1,28 +1,28 @@
-name: Control Plane Contracts Compatibility
-run-name: Control Plane Contracts Compat / ${{ github.event_name }} / ${{ github.ref_name }}
+name: Control Plane Runtime Common Compatibility
+run-name: Control Plane Runtime Common Compat / ${{ github.event_name }} / ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
-      contracts_ref:
-        description: Contracts ref or SHA to validate
+      runtime_common_ref:
+        description: Runtime-common ref or SHA to validate
         required: false
         default: main
         type: string
   repository_dispatch:
     types:
-      - contracts_released
+      - runtime_common_released
 
 permissions:
   contents: read
 
 concurrency:
-  group: control-plane-contracts-compat-${{ github.ref }}
+  group: control-plane-runtime-common-compat-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  contracts-compat:
-    name: contracts-compat
+  runtime-common-compat:
+    name: runtime-common-compat
     runs-on: ubuntu-22.04
     env:
       TEST_MODE: "1"
@@ -42,17 +42,17 @@ jobs:
       ALPHA_VANTAGE_API_KEY: test
       MASSIVE_API_KEY: test
       POSTGRES_DSN: postgresql://user:pass@localhost:5432/asset_allocation?sslmode=disable
-      DISPATCH_CONTRACTS_SHA: ${{ github.event.client_payload.contracts_sha }}
-      DISPATCH_CONTRACTS_REF: ${{ github.event.client_payload.contracts_ref }}
+      DISPATCH_RUNTIME_COMMON_SHA: ${{ github.event.client_payload.runtime_common_sha }}
+      DISPATCH_RUNTIME_COMMON_REF: ${{ github.event.client_payload.runtime_common_ref }}
     steps:
-      - name: Resolve contracts ref
-        id: contracts
+      - name: Resolve runtime-common ref
+        id: runtime-common
         shell: bash
         run: |
           set -euo pipefail
-          ref="${{ inputs.contracts_ref }}"
+          ref="${{ inputs.runtime_common_ref }}"
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            ref="${DISPATCH_CONTRACTS_SHA:-${DISPATCH_CONTRACTS_REF}}"
+            ref="${DISPATCH_RUNTIME_COMMON_SHA:-${DISPATCH_RUNTIME_COMMON_REF}}"
           fi
           ref="${ref:-main}"
           echo "ref=${ref}" >> "$GITHUB_OUTPUT"
@@ -62,12 +62,12 @@ jobs:
         with:
           path: asset-allocation-control-plane
 
-      - name: Checkout contracts repository
+      - name: Checkout runtime-common repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: ${{ vars.CONTRACTS_REPOSITORY || format('{0}/asset-allocation-contracts', github.repository_owner) }}
-          ref: ${{ steps.contracts.outputs.ref }}
-          path: asset-allocation-contracts
+          repository: ${{ format('{0}/asset-allocation-runtime-common', github.repository_owner) }}
+          ref: ${{ steps.runtime-common.outputs.ref }}
+          path: asset-allocation-runtime-common
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -104,11 +104,11 @@ jobs:
 
           pyproject = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
           for dependency in pyproject["project"]["dependencies"]:
-              if dependency.startswith("asset-allocation-") and not dependency.startswith("asset-allocation-contracts=="):
+              if dependency.startswith("asset-allocation-") and not dependency.startswith("asset-allocation-runtime-common=="):
                   print(dependency)
           PY
           python -m pip install -r asset-allocation-control-plane/shared-python-deps.txt
-          python -m pip install -e asset-allocation-contracts/python
+          python -m pip install -e asset-allocation-runtime-common/python
           python -m pip install -e asset-allocation-control-plane --no-deps
 
       - name: Run compatibility suite
@@ -116,16 +116,14 @@ jobs:
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
-          python scripts/automation/export_contract_artifacts.py
-          python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q
+          python -m pytest tests/test_multirepo_dependency_contract.py tests/api/test_internal_endpoints.py -q
 
       - name: Write compatibility summary
         shell: bash
         run: |
           {
-            echo "## Control-plane contracts compatibility"
+            echo "## Control-plane runtime-common compatibility"
             echo ""
-            echo "- Contracts ref: \`${{ steps.contracts.outputs.ref }}\`"
+            echo "- Runtime-common ref: \`${{ steps.runtime-common.outputs.ref }}\`"
             echo "- Result: passed"
           } >> "${GITHUB_STEP_SUMMARY}"
-

@@ -15,6 +15,7 @@ def test_control_plane_has_only_current_runtime_workflows() -> None:
         "deploy-prod.yml",
         "infra-shared-prod.yml",
         "release.yml",
+        "runtime-common-compat.yml",
         "security.yml",
     }
     assert {path.name for path in workflow_dir.glob("*.yml")} == expected

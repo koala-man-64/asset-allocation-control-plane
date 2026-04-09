@@ -79,6 +79,10 @@ Ensure every software task, incident, hotfix, refactor, release candidate, and r
 12. Treat `project-workflow-auditor-agent` as the repo-workflow, release-readiness, and guardrail auditor only. Do not let it replace `delivery-orchestrator-agent` or `qa-release-gate-agent`.
 13. Send the same context pack to all parallel review agents so they evaluate the same task summary, constraints, affected surfaces, and acceptance criteria.
 14. Reject non-compliant plans. Rewrite them into a compliant plan using the exact workflow and exact agent names.
+15. When a task adds, removes, renames, retypes, or changes validation, serialization, or schema semantics of a shared cross-repo data contract, treat `asset-allocation-contracts` as the contract-authoring owner.
+16. Never allow a plan to change shared contract fields directly in this repo without a prerequisite or linked work item in `asset-allocation-contracts`.
+17. Shared contract changes are at least `blast_radius: cross-system`, are never eligible for the fast lane, and breaking removals or semantic changes must be treated as critical lane unless clearly additive and backward-compatible.
+18. Correct non-compliant plans by splitting the work into `asset-allocation-contracts` contract-authoring work first and current-repo adoption, adapter, migration, or version-bump work second.
 
 ## Job Modes
 
@@ -119,6 +123,34 @@ Use when risk is `2` or `3`, or when one meaningful specialist surface is involv
 ### Critical lane
 
 Use when risk is `4` or `5`, or when the task is cross-system, migration-heavy, auth-sensitive, security-sensitive, CI/CD-sensitive, release-sensitive, incident-driven, or introduces a new architectural pattern.
+
+### Shared contract routing override
+
+Before selecting agents, determine whether the requested change is local-only or a shared cross-repo data contract change.
+
+Treat it as shared when it adds, removes, renames, retypes, or changes validation, serialization, or schema semantics for:
+
+- shared API request and response payloads
+- serialization keys or schema-backed shapes consumed across repos
+- types mirrored from `asset-allocation-contracts` or `@asset-allocation/contracts`
+
+Do not treat it as shared when it only affects:
+
+- local DB schema
+- internal-only DTOs
+- repo-private view models or helpers not exported across repos
+
+If uncertain after checking package usage plus local docs or tests that identify `asset-allocation-contracts` as the shared-contract owner, assume shared and route through `asset-allocation-contracts`.
+
+State the decision explicitly as `contracts-repo-first change` or `local-only change`.
+
+If shared:
+
+- classify at least `blast_radius: cross-system`
+- do not use fast lane
+- treat breaking removals or semantic changes as critical lane unless clearly additive and backward-compatible
+- block or correct any plan that edits shared contract fields directly in this repo without a prerequisite or linked work item in `asset-allocation-contracts`
+- require the corrected workflow to include `asset-allocation-contracts` work before or alongside current-repo adoption work
 
 ## Apply Required Routing Policy
 
@@ -238,6 +270,7 @@ Recommend cadence-based reviews so all relevant agents contribute over time with
 - Skipping `forensic-debugger` when the failure is unknown and cross-layer.
 - Omitting `technical-writer-dev-advocate` without explicitly marking the workflow slot `N/A` with a reason.
 - Renaming or paraphrasing any repo-local agent names.
+- Changing shared contract fields directly in this repo without routing through `asset-allocation-contracts`.
 
 ## Response Contract
 

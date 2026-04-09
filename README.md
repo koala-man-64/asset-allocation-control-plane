@@ -5,10 +5,11 @@ Runtime-owned control-plane repository for:
 - `monitoring/` health, status, and Azure diagnostics
 - control-plane-side `core/` runtime modules
 
-Local development assumes the shared contracts package is available:
+Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
-python -m pip install -e ../asset-allocation-contracts/python
+python -m pip install asset-allocation-contracts==0.1.0
+python -m pip install asset-allocation-runtime-common==0.1.0
 python -m pytest tests/api tests/monitoring -q
 ```
 
@@ -27,6 +28,7 @@ Canonical workflows live under `.github/workflows/`.
 - `release.yml` builds the API image, exports contract artifacts, writes `release-manifest.json`, and dispatches `control_plane_released` to jobs.
 - `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`.
 - `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure runtime substrate.
+- `runtime-common-compat.yml` is the only workflow allowed to validate against a candidate `asset-allocation-runtime-common` ref.
 - `scripts/dev/setup-env.ps1` builds repo-local `.env.web` using contract defaults and existing values.
 - `scripts/repo/sync-all-to-github.ps1` syncs the `.env.web` surface into repo vars and secrets.
 - `DEPLOYMENT_SETUP.md` is the canonical deploy, operate, and rollback runbook.

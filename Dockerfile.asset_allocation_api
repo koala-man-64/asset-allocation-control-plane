@@ -1,16 +1,20 @@
+# syntax=docker/dockerfile:1.7
 # Backtest API image (FastAPI).
-# This Dockerfile is built from the shared workspace root so it can vendor the sibling
-# contracts repo during GitHub Actions release builds.
 FROM python:3.14-slim-bookworm
 
 WORKDIR /app
+
+ARG CONTRACTS_VERSION=0.1.0
+ARG RUNTIME_COMMON_VERSION=0.1.0
 
 COPY asset-allocation-control-plane/requirements.lock.txt ./
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.lock.txt
 
-COPY asset-allocation-contracts/python/ /tmp/asset-allocation-contracts/
-RUN pip install --no-cache-dir /tmp/asset-allocation-contracts
+RUN --mount=type=secret,id=pipconfig,target=/etc/pip.conf,required=false \
+    pip install --no-cache-dir \
+    "asset-allocation-contracts==${CONTRACTS_VERSION}" \
+    "asset-allocation-runtime-common==${RUNTIME_COMMON_VERSION}"
 
 COPY asset-allocation-control-plane/pyproject.toml asset-allocation-control-plane/README.md ./
 COPY asset-allocation-control-plane/alpha_vantage/ alpha_vantage/

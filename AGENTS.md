@@ -4,6 +4,41 @@
 
 Repo-local agents live under `.codex/skills`. Keep this file aligned with that directory. Do not treat the older `.agent/` tree or user-home skill folders as part of this repository's agent contract.
 
+## Cross-Repo Contract Routing
+
+When planning or reviewing work in this repo, treat shared cross-repo data contract changes as owned by the sibling repo `asset-allocation-contracts`.
+
+A change counts as a shared data contract change when it adds, removes, renames, retypes, or changes validation, serialization, or schema semantics for:
+
+- shared API request and response payloads
+- serialization keys or schema-backed shapes consumed across repos
+- types mirrored from `asset-allocation-contracts` or `@asset-allocation/contracts`
+
+This rule does not apply to:
+
+- local DB schema
+- internal-only DTOs
+- repo-private view models or helpers not exported across repos
+
+Required routing:
+
+- Route shared contract shape changes through `asset-allocation-contracts` first.
+- Use `asset-allocation-contracts/docs/architecture/master-design.md` as the contract process reference.
+- Plan this repo only for adoption, adapters, migration, or version-bump work until an `asset-allocation-contracts` work item exists or is explicitly included as a prerequisite.
+
+Required planning decision:
+
+- State either `This is a contracts-repo-first change.` or `This is local-only and does not require contracts repo routing.`
+
+Evidence to check when unsure:
+
+- package dependency on `asset-allocation-contracts` or `@asset-allocation/contracts`
+- repo docs or tests that describe `asset-allocation-contracts` as the owner of shared contracts
+
+Default:
+
+- If the shape may be shared and ownership is still unclear after checking local evidence, assume it is shared and route through `asset-allocation-contracts`.
+
 ## Agents
 
 An agent is a repo-local instruction set stored in a `SKILL.md` file. The following agents are available in this repository.

@@ -53,13 +53,6 @@ jobs:
         with:
           path: asset-allocation-control-plane
 
-      - name: Checkout contracts repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: ${{ vars.CONTRACTS_REPOSITORY || format('{0}/asset-allocation-contracts', github.repository_owner) }}
-          ref: ${{ vars.CONTRACTS_REF || 'main' }}
-          path: asset-allocation-contracts
-
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -69,7 +62,23 @@ jobs:
             asset-allocation-control-plane/requirements.lock.txt
             asset-allocation-control-plane/requirements-dev.lock.txt
             asset-allocation-control-plane/pyproject.toml
-            asset-allocation-contracts/python/pyproject.toml
+
+      - name: Configure optional pip indexes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" ] || [ -n "${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" ]; then
+            cat > "${RUNNER_TEMP}/pip.conf" <<EOF
+          [global]
+          EOF
+            if [ -n "${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" ]; then
+              echo "index-url = ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" >> "${RUNNER_TEMP}/pip.conf"
+            fi
+            if [ -n "${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" ]; then
+              echo "extra-index-url = ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" >> "${RUNNER_TEMP}/pip.conf"
+            fi
+            echo "PIP_CONFIG_FILE=${RUNNER_TEMP}/pip.conf" >> "$GITHUB_ENV"
+          fi
 
       - name: Install test dependencies
         shell: bash
@@ -78,7 +87,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r asset-allocation-control-plane/requirements.lock.txt
           python -m pip install -r asset-allocation-control-plane/requirements-dev.lock.txt
-          python -m pip install -e asset-allocation-contracts/python
+          python - <<'PY' > asset-allocation-control-plane/shared-python-deps.txt
+          import tomllib
+          from pathlib import Path
+
+          pyproject = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
+          for dependency in pyproject["project"]["dependencies"]:
+              if dependency.startswith("asset-allocation-"):
+                  print(dependency)
+          PY
+          python -m pip install -r asset-allocation-control-plane/shared-python-deps.txt
           python -m pip install -e asset-allocation-control-plane --no-deps
           python -m pip check
 
@@ -94,7 +112,12 @@ jobs:
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
-          python -m pytest tests/test_env_contract.py tests/test_workflow_runtime_ownership.py tests/test_azure_provisioning_scripts.py -q
+          python -m pytest \
+            tests/test_env_contract.py \
+            tests/test_workflow_runtime_ownership.py \
+            tests/test_azure_provisioning_scripts.py \
+            tests/test_multirepo_dependency_contract.py \
+            -q
 
       - name: Run control-plane test suite
         shell: bash
@@ -123,10 +146,3 @@ jobs:
           python scripts/automation/export_contract_artifacts.py
           git diff --exit-code -- api/contracts
 
-      - name: Upload contract artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: control-plane-contract-artifacts
-          path: asset-allocation-control-plane/api/contracts/*
-          if-no-files-found: error
-          retention-days: 14

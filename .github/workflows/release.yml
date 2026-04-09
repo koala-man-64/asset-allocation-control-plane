@@ -32,13 +32,6 @@ jobs:
         with:
           path: asset-allocation-control-plane
 
-      - name: Checkout contracts repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: ${{ vars.CONTRACTS_REPOSITORY || format('{0}/asset-allocation-contracts', github.repository_owner) }}
-          ref: ${{ vars.CONTRACTS_REF || 'main' }}
-          path: asset-allocation-contracts
-
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -47,7 +40,45 @@ jobs:
           cache-dependency-path: |
             asset-allocation-control-plane/requirements.lock.txt
             asset-allocation-control-plane/pyproject.toml
-            asset-allocation-contracts/python/pyproject.toml
+
+      - name: Configure optional pip indexes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" ] || [ -n "${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" ]; then
+            cat > "${RUNNER_TEMP}/pip.conf" <<EOF
+          [global]
+          EOF
+            if [ -n "${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" ]; then
+              echo "index-url = ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" >> "${RUNNER_TEMP}/pip.conf"
+            fi
+            if [ -n "${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" ]; then
+              echo "extra-index-url = ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" >> "${RUNNER_TEMP}/pip.conf"
+            fi
+            echo "PIP_CONFIG_FILE=${RUNNER_TEMP}/pip.conf" >> "$GITHUB_ENV"
+          fi
+
+      - name: Resolve shared package versions
+        id: shared
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          pyproject = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
+          dependencies = {}
+          for dependency in pyproject["project"]["dependencies"]:
+              if dependency.startswith("asset-allocation-"):
+                  name, version = dependency.split("==", 1)
+                  dependencies[name] = version
+          with Path("shared-versions.txt").open("w", encoding="utf-8") as handle:
+              handle.write(f"contracts_version={dependencies['asset-allocation-contracts']}\n")
+              handle.write(f"runtime_common_version={dependencies['asset-allocation-runtime-common']}\n")
+              handle.write(f"control_plane_version={pyproject['project']['version']}\n")
+          PY
+          cat shared-versions.txt >> "$GITHUB_OUTPUT"
 
       - name: Install release dependencies
         shell: bash
@@ -55,7 +86,16 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r asset-allocation-control-plane/requirements.lock.txt
-          python -m pip install -e asset-allocation-contracts/python
+          python - <<'PY' > asset-allocation-control-plane/shared-python-deps.txt
+          import tomllib
+          from pathlib import Path
+
+          pyproject = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
+          for dependency in pyproject["project"]["dependencies"]:
+              if dependency.startswith("asset-allocation-"):
+                  print(dependency)
+          PY
+          python -m pip install -r asset-allocation-control-plane/shared-python-deps.txt
           python -m pip install -e asset-allocation-control-plane --no-deps
 
       - name: Export contract artifacts
@@ -64,6 +104,28 @@ jobs:
           set -euo pipefail
           cd asset-allocation-control-plane
           python scripts/automation/export_contract_artifacts.py
+
+      - name: Write optional Docker pip config
+        id: pipconfig
+        shell: bash
+        run: |
+          set -euo pipefail
+          path="${RUNNER_TEMP}/docker-pip.conf"
+          rm -f "${path}"
+          if [ -n "${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" ] || [ -n "${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" ]; then
+            cat > "${path}" <<EOF
+          [global]
+          EOF
+            if [ -n "${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" ]; then
+              echo "index-url = ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}" >> "${path}"
+            fi
+            if [ -n "${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" ]; then
+              echo "extra-index-url = ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}" >> "${path}"
+            fi
+          fi
+          if [ -s "${path}" ]; then
+            echo "path=${path}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Azure login
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
@@ -85,7 +147,16 @@ jobs:
           set -euo pipefail
           registry="$(az acr show --name "${{ vars.ACR_NAME }}" --resource-group "${{ vars.RESOURCE_GROUP }}" --query loginServer -o tsv)"
           image_ref="${registry}/asset-allocation-api:${GITHUB_SHA}"
-          docker build --file asset-allocation-control-plane/Dockerfile.asset_allocation_api --tag "${image_ref}" .
+          build_args=(
+            --file asset-allocation-control-plane/Dockerfile.asset_allocation_api
+            --tag "${image_ref}"
+            --build-arg "CONTRACTS_VERSION=${{ steps.shared.outputs.contracts_version }}"
+            --build-arg "RUNTIME_COMMON_VERSION=${{ steps.shared.outputs.runtime_common_version }}"
+          )
+          if [ -n "${{ steps.pipconfig.outputs.path }}" ]; then
+            build_args+=(--secret "id=pipconfig,src=${{ steps.pipconfig.outputs.path }}")
+          fi
+          DOCKER_BUILDKIT=1 docker build "${build_args[@]}" .
           docker push "${image_ref}"
           image_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "${image_ref}")"
           echo "image_ref=${image_ref}" >> "$GITHUB_OUTPUT"
@@ -98,24 +169,29 @@ jobs:
           mkdir -p artifacts
           python - <<'PY'
           import json
-          import subprocess
           import tomllib
           from pathlib import Path
           import os
 
-          contracts = tomllib.loads(Path("asset-allocation-contracts/python/pyproject.toml").read_text(encoding="utf-8"))
-          contracts_sha = subprocess.check_output(
-              ["git", "-C", "asset-allocation-contracts", "rev-parse", "HEAD"],
-              text=True,
-          ).strip()
+          project = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
+          shared = {}
+          for dependency in project["project"]["dependencies"]:
+              if dependency.startswith("asset-allocation-"):
+                  name, version = dependency.split("==", 1)
+                  shared[name] = version
           manifest = {
               "repo": os.environ["GITHUB_REPOSITORY"],
               "git_sha": os.environ["GITHUB_SHA"],
               "artifact_kind": "container-image",
               "artifact_ref": os.environ["IMAGE_REF"],
               "image_digest": os.environ["IMAGE_DIGEST"],
-              "contracts_version": contracts["project"]["version"],
-              "contracts_sha": contracts_sha,
+              "version_matrix": {
+                  "contracts": shared.get("asset-allocation-contracts"),
+                  "runtime_common": shared.get("asset-allocation-runtime-common"),
+                  "control_plane": project["project"]["version"],
+                  "jobs": None,
+                  "ui": None,
+              },
           }
           Path("artifacts/release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
@@ -150,13 +226,6 @@ jobs:
         run: |
           set -euo pipefail
           jobs_repo="${JOBS_REPOSITORY:-${GITHUB_REPOSITORY_OWNER}/asset-allocation-jobs}"
-          contracts_sha="$(git -C asset-allocation-contracts rev-parse HEAD)"
-          contracts_version="$(python - <<'PY'
-          import tomllib
-          from pathlib import Path
-          print(tomllib.loads(Path("asset-allocation-contracts/python/pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
-          PY
-          )"
           gh api "repos/${jobs_repo}/dispatches" \
             --method POST \
             --input - <<EOF
@@ -164,9 +233,10 @@ jobs:
             "event_type": "control_plane_released",
             "client_payload": {
               "control_plane_sha": "${GITHUB_SHA}",
+              "control_plane_version": "${{ steps.shared.outputs.control_plane_version }}",
               "image_digest": "${IMAGE_DIGEST}",
-              "contracts_version": "${contracts_version}",
-              "contracts_sha": "${contracts_sha}"
+              "contracts_version": "${{ steps.shared.outputs.contracts_version }}",
+              "runtime_common_version": "${{ steps.shared.outputs.runtime_common_version }}"
             }
           }
           EOF
@@ -180,6 +250,9 @@ jobs:
             echo "## Control-plane release"
             echo ""
             echo "- Image: \`${IMAGE_DIGEST}\`"
+            echo "- Contracts: \`${{ steps.shared.outputs.contracts_version }}\`"
+            echo "- Runtime common: \`${{ steps.shared.outputs.runtime_common_version }}\`"
             echo "- Manifest: \`artifacts/release-manifest.json\`"
             echo "- Downstream dispatch: \`control_plane_released\` to jobs"
           } >> "${GITHUB_STEP_SUMMARY}"
+
