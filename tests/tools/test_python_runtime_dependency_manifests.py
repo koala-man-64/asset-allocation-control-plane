@@ -34,3 +34,9 @@ def test_sqlalchemy_present_and_consistent_across_runtime_manifests() -> None:
 def test_sqlalchemy_declared_in_pyproject_runtime_dependencies() -> None:
     text = PYPROJECT.read_text(encoding="utf-8").lower()
     assert '"sqlalchemy==' in text, "pyproject runtime dependencies must include pinned sqlalchemy"
+
+
+def test_first_party_shared_packages_are_installed_outside_runtime_manifests() -> None:
+    for package_name in ("asset-allocation-contracts", "asset-allocation-runtime-common"):
+        assert _get_pinned_version(REQUIREMENTS, package_name) is None
+        assert _get_pinned_version(REQUIREMENTS_LOCK, package_name) is None

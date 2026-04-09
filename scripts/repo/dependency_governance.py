@@ -17,10 +17,32 @@ from typing import Dict, List, Tuple
 
 PINNED_REQ_RE = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s;#]+)$")
 QUOTED_VALUE_RE = re.compile(r'"([^"]+)"')
+FIRST_PARTY_SHARED_PREFIX = "asset-allocation-"
 
 
 def normalize_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def is_first_party_shared_package(name: str) -> bool:
+    return normalize_name(name).startswith(FIRST_PARTY_SHARED_PREFIX)
+
+
+def filter_installable_runtime_entries(runtime_entries: List[str]) -> List[str]:
+    installable_entries: List[str] = []
+    for entry in runtime_entries:
+        package_name = entry.split("==", 1)[0].strip()
+        if not is_first_party_shared_package(package_name):
+            installable_entries.append(entry)
+    return installable_entries
+
+
+def filter_installable_runtime_pins(runtime_pins: Dict[str, str]) -> Dict[str, str]:
+    return {
+        package_name: version
+        for package_name, version in runtime_pins.items()
+        if not is_first_party_shared_package(package_name)
+    }
 
 
 def parse_requirements_file(path: Path) -> Tuple[Dict[str, str], List[str], List[str], List[str]]:
@@ -178,16 +200,20 @@ def build_report(
     summary: Dict[str, int],
     findings: List[str],
     runtime_entries: List[str],
+    installable_runtime_entries: List[str],
     requirements_path: Path,
     lock_path: Path,
     dev_lock_path: Path,
 ) -> Dict[str, object]:
+    excluded_runtime_entries = [entry for entry in runtime_entries if entry not in installable_runtime_entries]
     return {
         "status": status,
         "summary": summary,
         "findings": findings,
         "runtime_source_of_truth": "pyproject.toml:[project].dependencies",
         "runtime_dependency_count": len(runtime_entries),
+        "installable_runtime_dependency_count": len(installable_runtime_entries),
+        "requirements_excluded_first_party_packages": excluded_runtime_entries,
         "files": {
             "requirements": str(requirements_path),
             "runtime_lock": str(lock_path),
@@ -200,6 +226,8 @@ def command_check(args: argparse.Namespace) -> int:
     runtime_entries, pyproject_pinned, pyproject_duplicates, pyproject_malformed = parse_pyproject_runtime_dependencies(
         args.pyproject
     )
+    installable_runtime_entries = filter_installable_runtime_entries(runtime_entries)
+    installable_pyproject_pinned = filter_installable_runtime_pins(pyproject_pinned)
     req_pinned, req_duplicates, req_malformed, req_unpinned = parse_requirements_file(args.requirements)
     lock_pinned, lock_duplicates, lock_malformed, lock_unpinned = parse_requirements_file(args.lock)
     dev_lock_pinned, dev_lock_duplicates, dev_lock_malformed, dev_lock_unpinned = parse_requirements_file(args.dev_lock)
@@ -219,9 +247,9 @@ def command_check(args: argparse.Namespace) -> int:
 
     findings.extend(
         diff_dependency_sets(
-            expected=pyproject_pinned,
+            expected=installable_pyproject_pinned,
             observed=req_pinned,
-            expected_label="pyproject.toml [project].dependencies",
+            expected_label="pyproject.toml [project].dependencies excluding first-party shared packages",
             observed_label=str(args.requirements),
         )
     )
@@ -248,6 +276,7 @@ def command_check(args: argparse.Namespace) -> int:
         summary=summary,
         findings=findings,
         runtime_entries=runtime_entries,
+        installable_runtime_entries=installable_runtime_entries,
         requirements_path=args.requirements,
         lock_path=args.lock,
         dev_lock_path=args.dev_lock,
@@ -273,6 +302,8 @@ def command_sync(args: argparse.Namespace) -> int:
     runtime_entries, pyproject_pinned, pyproject_duplicates, pyproject_malformed = parse_pyproject_runtime_dependencies(
         args.pyproject
     )
+    installable_runtime_entries = filter_installable_runtime_entries(runtime_entries)
+    installable_pyproject_pinned = filter_installable_runtime_pins(pyproject_pinned)
 
     findings: List[str] = []
     findings.extend(pyproject_duplicates)
@@ -284,13 +315,16 @@ def command_sync(args: argparse.Namespace) -> int:
             print(f"- {finding}")
         return 1
 
-    changed = write_runtime_requirements(runtime_entries, args.requirements, args.lock)
+    changed = write_runtime_requirements(installable_runtime_entries, args.requirements, args.lock)
     if changed:
-        print(f"Synchronized runtime requirement manifests from pyproject ({len(pyproject_pinned)} dependencies):")
+        print(
+            "Synchronized installable runtime requirement manifests from pyproject "
+            f"({len(installable_pyproject_pinned)} dependencies):"
+        )
         for path in changed:
             print(f"- {path}")
     else:
-        print("Runtime requirement manifests already synchronized.")
+        print("Installable runtime requirement manifests already synchronized.")
 
     return 0
 

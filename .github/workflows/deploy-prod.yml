@@ -117,9 +117,11 @@ jobs:
             reason="${DISPATCH_REASON}"
           fi
           : "${image_digest:?image_digest is required}"
-          echo "image_digest=${image_digest}" >> "$GITHUB_OUTPUT"
-          echo "contracts_version=${contracts_version}" >> "$GITHUB_OUTPUT"
-          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+          {
+            echo "image_digest=${image_digest}"
+            echo "contracts_version=${contracts_version}"
+            echo "reason=${reason}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Azure login
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
@@ -139,11 +141,13 @@ jobs:
           acr_login_server="$(az acr show --name "${ACR_NAME}" --resource-group "${RESOURCE_GROUP}" --query loginServer -o tsv)"
           env_id="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${CONTAINER_APPS_ENVIRONMENT_NAME}"
           previous_image="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.template.containers[0].image' -o tsv 2>/dev/null || true)"
-          echo "identity_id=${identity_id}" >> "$GITHUB_OUTPUT"
-          echo "identity_client_id=${identity_client_id}" >> "$GITHUB_OUTPUT"
-          echo "acr_login_server=${acr_login_server}" >> "$GITHUB_OUTPUT"
-          echo "environment_id=${env_id}" >> "$GITHUB_OUTPUT"
-          echo "previous_image=${previous_image}" >> "$GITHUB_OUTPUT"
+          {
+            echo "identity_id=${identity_id}"
+            echo "identity_client_id=${identity_client_id}"
+            echo "acr_login_server=${acr_login_server}"
+            echo "environment_id=${env_id}"
+            echo "previous_image=${previous_image}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Render control-plane manifest
         env:
