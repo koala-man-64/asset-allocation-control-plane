@@ -1,0 +1,112 @@
+name: Setup Control Plane Python
+description: Set up Python and install control-plane dependencies for CI, release, and compatibility workflows.
+
+inputs:
+  repo-path:
+    description: Path to the checked out control-plane repository.
+    required: false
+    default: .
+  python-version:
+    description: Python version to install.
+    required: false
+    default: "3.14"
+  cache-dependency-path:
+    description: Newline-delimited dependency files for pip cache keys.
+    required: true
+  install-dev-lockfile:
+    description: Whether to install requirements-dev.lock.txt when present.
+    required: false
+    default: "false"
+  shared-deps-exclude:
+    description: Shared package name to exclude from the generated dependency install list.
+    required: false
+    default: ""
+  extra-editable-path:
+    description: Optional extra editable install path for compatibility runs.
+    required: false
+    default: ""
+  run-pip-check:
+    description: Whether to run python -m pip check after installing dependencies.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Configure optional pip indexes
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${PYTHON_PACKAGE_INDEX_URL}" ] || [ -n "${PYTHON_PACKAGE_EXTRA_INDEX_URL}" ]; then
+          cat > "${RUNNER_TEMP}/pip.conf" <<EOF
+        [global]
+        EOF
+          if [ -n "${PYTHON_PACKAGE_INDEX_URL}" ]; then
+            echo "index-url = ${PYTHON_PACKAGE_INDEX_URL}" >> "${RUNNER_TEMP}/pip.conf"
+          fi
+          if [ -n "${PYTHON_PACKAGE_EXTRA_INDEX_URL}" ]; then
+            echo "extra-index-url = ${PYTHON_PACKAGE_EXTRA_INDEX_URL}" >> "${RUNNER_TEMP}/pip.conf"
+          fi
+          echo "PIP_CONFIG_FILE=${RUNNER_TEMP}/pip.conf" >> "$GITHUB_ENV"
+        fi
+      env:
+        PYTHON_PACKAGE_INDEX_URL: ${{ env.PYTHON_PACKAGE_INDEX_URL }}
+        PYTHON_PACKAGE_EXTRA_INDEX_URL: ${{ env.PYTHON_PACKAGE_EXTRA_INDEX_URL }}
+
+    - name: Install control-plane Python dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        repo_path="${REPO_PATH}"
+
+        python -m pip install --upgrade pip
+        python -m pip install -r "${repo_path}/requirements.lock.txt"
+
+        if [ "${INSTALL_DEV_LOCKFILE}" = "true" ] && [ -f "${repo_path}/requirements-dev.lock.txt" ]; then
+          python -m pip install -r "${repo_path}/requirements-dev.lock.txt"
+        fi
+
+        python - <<'PY' > "${repo_path}/shared-python-deps.txt"
+        import os
+        import tomllib
+        from pathlib import Path
+
+        repo_path = Path(os.environ["REPO_PATH"])
+        excluded_dependency = os.environ["SHARED_DEPS_EXCLUDE"].strip()
+        pyproject = tomllib.loads((repo_path / "pyproject.toml").read_text(encoding="utf-8"))
+
+        for dependency in pyproject["project"]["dependencies"]:
+            if not dependency.startswith("asset-allocation-"):
+                continue
+            package_name = dependency.split("==", 1)[0]
+            if excluded_dependency and package_name == excluded_dependency:
+                continue
+            print(dependency)
+        PY
+
+        if [ -s "${repo_path}/shared-python-deps.txt" ]; then
+          python -m pip install -r "${repo_path}/shared-python-deps.txt"
+        fi
+
+        if [ -n "${EXTRA_EDITABLE_PATH}" ]; then
+          python -m pip install -e "${EXTRA_EDITABLE_PATH}"
+        fi
+
+        python -m pip install -e "${repo_path}" --no-deps
+
+        if [ "${RUN_PIP_CHECK}" = "true" ]; then
+          python -m pip check
+        fi
+      env:
+        REPO_PATH: ${{ inputs.repo-path }}
+        INSTALL_DEV_LOCKFILE: ${{ inputs.install-dev-lockfile }}
+        SHARED_DEPS_EXCLUDE: ${{ inputs.shared-deps-exclude }}
+        EXTRA_EDITABLE_PATH: ${{ inputs.extra-editable-path }}
+        RUN_PIP_CHECK: ${{ inputs.run-pip-check }}

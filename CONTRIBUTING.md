@@ -39,7 +39,7 @@ pnpm exec vitest run --coverage
 pnpm build
 ```
 
-CI runs the UI checks in a Node 20 container and the backend checks on Python 3.14.
+GitHub Actions currently runs workflow lint, backend validation, and dependency governance on Python 3.14. Dependency audits and SARIF publication run separately in the scheduled or manual security workflow.
 
 ## Dependency Governance
 

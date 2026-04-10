@@ -41,7 +41,7 @@ Evidence:
 | `monitoring/` | System health collection, ARM/metrics/log analytics integration, control-plane resource inspection | `monitoring/system_health_modules/*`, `monitoring/control_plane.py`, `monitoring/*.py` | `monitoring/system_health.py` | `monitoring/system_health.py` remains the facade and patch surface | `tests/monitoring/*`, `docs/architecture/runtime-surface-ci-matrix.md` |
 | `alpha_vantage/`, `massive_provider/` | API-side provider clients and helper modules used by gateway endpoints | `alpha_vantage/*.py`, `massive_provider/*.py`, `api/service/*gateway*.py` | `/api/providers/alpha-vantage/*`, `/api/providers/massive/*` | Historical lineage overlaps with jobs-side ingestion ownership | `tests/alpha_vantage/*`, `tests/api/test_alpha_vantage_endpoints.py`, `tests/api/test_massive_endpoints.py` |
 | `api/contracts/*` | Generated API and UI runtime contract artifacts | `scripts/automation/export_contract_artifacts.py` | `control-plane.openapi.json`, `ui-runtime-config.schema.json` | None | `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `tests/api/test_config_js_contract.py` |
-| `.github/workflows/*.yml` | Validation, release, deploy, compat, infra reconcile, and security automation | `ci.yml`, `release.yml`, `deploy-prod.yml`, `infra-shared-prod.yml`, `contracts-compat.yml`, `runtime-common-compat.yml`, `security.yml` | GitHub Actions workflow entrypoints | Only compat workflows may check out sibling repos | `tests/test_multirepo_dependency_contract.py`, `tests/test_workflow_runtime_ownership.py` |
+| `.github/workflows/*.yml` | Validation, release, deploy, compat, infra reconcile, and security automation | `ci.yml`, `compat.yml`, `release.yml`, `deploy-prod.yml`, `infra-shared-prod.yml`, `security.yml` | GitHub Actions workflow entrypoints | Only `compat.yml` may check out sibling repos | `tests/test_multirepo_dependency_contract.py`, `tests/test_workflow_runtime_ownership.py` |
 | `deploy/` and repo ops scripts | API deploy manifests, shared infra bootstrap, env sync, local contract/export helpers | `deploy/app_api*.yaml`, `scripts/dev/setup-env.ps1`, `scripts/repo/sync-all-to-github.ps1`, `scripts/ops/*` | `deploy-prod.yml`, `infra-shared-prod.yml` | Legacy job manifests are still present; see observed mismatches below | `DEPLOYMENT_SETUP.md`, `tests/test_workflow_runtime_ownership.py`, `.github/workflows/deploy-prod.yml`, `.github/workflows/infra-shared-prod.yml` |
 
 Evidence:
@@ -61,7 +61,7 @@ Evidence:
 - Confirmed: this repo does not own the standalone jobs runtime. The split-system lineage assigns ETL, batch orchestration, provider ingestion, and job-side monitoring to `asset-allocation-jobs`.
 - Confirmed: this repo does not own the standalone UI application or UI deployment. `UI_DIST_DIR` support is a runtime compatibility path, not the primary UI ownership model.
 - Confirmed: this repo does not own the source trees for `asset-allocation-contracts` or `asset-allocation-runtime-common`. It consumes versioned packages and uses narrow compatibility workflows when validating candidate refs.
-- Confirmed: normal CI and release workflows are not allowed to copy or check out sibling repos except in the dedicated compat workflows.
+- Confirmed: normal CI and release workflows are not allowed to copy or check out sibling repos except in the dedicated compat workflow.
 - Confirmed: shared Azure substrate mutation is not broadly owned by all workflows in this repo. `infra-shared-prod.yml` is the only workflow allowed to mutate the shared runtime substrate.
 
 Evidence:
@@ -71,8 +71,7 @@ Evidence:
 - `DEPLOYMENT_SETUP.md`
 - `tests/test_multirepo_dependency_contract.py`
 - `tests/test_workflow_runtime_ownership.py`
-- `.github/workflows/contracts-compat.yml`
-- `.github/workflows/runtime-common-compat.yml`
+- `.github/workflows/compat.yml`
 
 ## System overview
 
@@ -140,8 +139,8 @@ Evidence:
 - Confirmed: `release.yml` is the API image and contract-artifact release path.
 - Confirmed: `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`.
 - Confirmed: `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure substrate.
-- Confirmed: `contracts-compat.yml` and `runtime-common-compat.yml` are the only sibling-repo compatibility validation workflows.
-- Confirmed: `security.yml` owns dependency audit and SARIF publication for runtime dependency findings.
+- Confirmed: `compat.yml` is the only sibling-repo compatibility validation workflow for candidate `asset-allocation-contracts` and `asset-allocation-runtime-common` refs.
+- Confirmed: `security.yml` owns scheduled or manual dependency audit and SARIF publication for runtime dependency findings.
 
 Evidence:
 - `api/service/app.py`
@@ -154,8 +153,7 @@ Evidence:
 - `.github/workflows/release.yml`
 - `.github/workflows/deploy-prod.yml`
 - `.github/workflows/infra-shared-prod.yml`
-- `.github/workflows/contracts-compat.yml`
-- `.github/workflows/runtime-common-compat.yml`
+- `.github/workflows/compat.yml`
 - `.github/workflows/security.yml`
 
 ## Compatibility facades and transitional boundaries
@@ -232,7 +230,7 @@ Evidence:
 
 - Confirmed: `tests/architecture/test_python_module_boundaries.py` enforces that `api/`, `monitoring/`, and `core/` do not import `tasks.*`.
 - Confirmed: `tests/architecture/test_system_facade_guard.py` keeps `api/endpoints/system.py` as a facade rather than allowing migrated helper ownership to grow back.
-- Confirmed: `tests/test_multirepo_dependency_contract.py` enforces pinned shared-package usage, blocks sibling-repo copying in the API Dockerfile, and constrains sibling checkouts to compat workflows.
+- Confirmed: `tests/test_multirepo_dependency_contract.py` enforces pinned shared-package usage, blocks sibling-repo copying in the API Dockerfile, and constrains sibling checkouts to `compat.yml`.
 - Confirmed: `tests/test_workflow_runtime_ownership.py` enforces the expected workflow inventory and local bootstrap path references in `DEPLOYMENT_SETUP.md`.
 
 ### Required commands for design-level changes
@@ -359,8 +357,7 @@ Evidence:
 - `.github/workflows/release.yml`
 - `.github/workflows/deploy-prod.yml`
 - `.github/workflows/infra-shared-prod.yml`
-- `.github/workflows/contracts-compat.yml`
-- `.github/workflows/runtime-common-compat.yml`
+- `.github/workflows/compat.yml`
 - `.github/workflows/security.yml`
 
 ### Tests

@@ -28,10 +28,8 @@ def test_normal_ci_and_release_workflows_do_not_checkout_sibling_repos() -> None
         assert "Checkout runtime-common repository" not in text
 
 
-def test_compatibility_workflows_are_the_only_place_cross_repo_checkout_is_allowed() -> None:
-    contracts_compat = (repo_root() / ".github" / "workflows" / "contracts-compat.yml").read_text(encoding="utf-8")
-    runtime_common_compat = (
-        repo_root() / ".github" / "workflows" / "runtime-common-compat.yml"
-    ).read_text(encoding="utf-8")
-    assert "Checkout contracts repository" in contracts_compat
-    assert "Checkout runtime-common repository" in runtime_common_compat
+def test_compatibility_workflow_is_the_only_place_cross_repo_checkout_is_allowed() -> None:
+    compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
+    assert "Checkout shared dependency repository" in compat
+    assert "asset-allocation-contracts" in compat
+    assert "asset-allocation-runtime-common" in compat

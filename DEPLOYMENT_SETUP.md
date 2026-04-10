@@ -28,9 +28,10 @@ Use only these workflow entry points:
 
 1. `.github/workflows/ci.yml`
 2. `.github/workflows/security.yml`
-3. `.github/workflows/release.yml`
-4. `.github/workflows/deploy-prod.yml`
-5. `.github/workflows/infra-shared-prod.yml`
+3. `.github/workflows/compat.yml`
+4. `.github/workflows/release.yml`
+5. `.github/workflows/deploy-prod.yml`
+6. `.github/workflows/infra-shared-prod.yml`
 
 `deploy-prod.yml` deploys only `asset-allocation-api`.
 
@@ -38,7 +39,7 @@ Use only these workflow entry points:
 
 ## Operate
 
-- Run `contracts-compat.yml` when `contracts_released` is dispatched or when validating a candidate contracts ref manually.
+- Run `compat.yml` when `contracts_released` or `runtime_common_released` is dispatched, or validate a candidate shared package ref manually with `dependency=contracts|runtime-common` and `ref=<sha-or-branch>`.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
 - Use `deploy-prod.yml` with a full image digest and verify `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json`.
 
@@ -121,7 +122,7 @@ GitHub variables:
 ## Troubleshoot
 
 - If `ci.yml` fails on artifact drift, regenerate `api/contracts/*` with `python scripts/automation/export_contract_artifacts.py` and commit the changes.
-- If `release.yml` fails to build the image, verify the runner checked out the sibling contracts repo and that Docker is building from the shared workspace root.
+- If `release.yml` fails to build the image, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
 - If `deploy-prod.yml` fails before apply, verify `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `CONTAINER_APPS_ENVIRONMENT_NAME`, and `ACR_PULL_IDENTITY_NAME`.
 - If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json` before retrying.
 - If `infra-shared-prod.yml` fails, regenerate `.env.web` with `scripts/dev/setup-env.ps1`, sync it with `scripts/repo/sync-all-to-github.ps1`, and verify the `prod` environment still has the required approvals and secrets.
