@@ -40,6 +40,7 @@ Use only these workflow entry points:
 ## Operate
 
 - Run `compat.yml` when `contracts_released` or `runtime_common_released` is dispatched, or validate a candidate shared package ref manually with `dependency=contracts|runtime-common` and `ref=<sha-or-branch>`.
+- Use `release.yml` to fail fast on missing GitHub release configuration, unpublished shared-package versions, or missing Azure release RBAC before it exports contracts or builds the image.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
 - Use `deploy-prod.yml` with a full image digest and verify `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json`.
 
@@ -98,16 +99,18 @@ GitHub variables:
 1. Publish the contracts repo first and pin the version consumed here.
 2. Run `powershell -ExecutionPolicy Bypass -File .\scripts\dev\setup-env.ps1`.
 3. Run `powershell -ExecutionPolicy Bypass -File .\scripts\repo\sync-all-to-github.ps1`.
-4. Export contract artifacts:
+4. Validate release prerequisites when preparing to ship:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate\validate_azure_permissions.ps1 -Scenario Release`
+5. Export contract artifacts:
    - `python scripts/automation/export_contract_artifacts.py`
-5. Run the repo test gates:
+6. Run the repo test gates:
    - `python -m pytest tests/test_env_contract.py tests/test_workflow_runtime_ownership.py tests/test_azure_provisioning_scripts.py -q`
    - `python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q`
-6. Build the API image from `Dockerfile.asset_allocation_api`.
-7. Deploy a single control-plane Container App:
+7. Build the API image from `Dockerfile.asset_allocation_api`.
+8. Deploy a single control-plane Container App:
    - use `deploy/app_api_public.yaml` for public ingress
    - use `deploy/app_api.yaml` for private ingress
-8. Verify:
+9. Verify:
    - `/healthz`
    - `/readyz`
    - `/config.js`
@@ -122,7 +125,11 @@ GitHub variables:
 ## Troubleshoot
 
 - If `ci.yml` fails on artifact drift, regenerate `api/contracts/*` with `python scripts/automation/export_contract_artifacts.py` and commit the changes.
-- If `release.yml` fails to build the image, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
+- If `release.yml` fails in preflight, fix the named prerequisite first:
+  - missing `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `DISPATCH_APP_ID`, or `DISPATCH_APP_PRIVATE_KEY`
+  - unpublished or unreachable `asset-allocation-contracts` or `asset-allocation-runtime-common` versions
+  - missing Azure release RBAC reported by `validate_azure_permissions.ps1 -Scenario Release`
+- If `release.yml` fails to build the image after preflight passes, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
 - If `deploy-prod.yml` fails before apply, verify `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `CONTAINER_APPS_ENVIRONMENT_NAME`, and `ACR_PULL_IDENTITY_NAME`.
 - If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json` before retrying.
 - If `infra-shared-prod.yml` fails, regenerate `.env.web` with `scripts/dev/setup-env.ps1`, sync it with `scripts/repo/sync-all-to-github.ps1`, and verify the `prod` environment still has the required approvals and secrets.
@@ -137,6 +144,7 @@ GitHub variables:
 ## Notes
 
 - Repo sync is intentionally narrow: `docs/ops/env-contract.csv` describes only GitHub vars and secrets consumed by this repo's workflows.
+- This repo currently has no npm or Node workspace, so `.github/dependabot.yml` intentionally has no npm update entry.
 - `ASSET_ALLOCATION_API_BASE_URL` is a downstream consumer concern. Keep it in the jobs and UI repos, not in this repo's deploy contract.
 - This repo is the source of truth for `/config.js` and `/openapi.json`.
 

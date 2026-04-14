@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def shared_dependencies() -> dict[str, str]:
+    pyproject = tomllib.loads((repo_root() / "pyproject.toml").read_text(encoding="utf-8"))
+    shared: dict[str, str] = {}
+    for dependency in pyproject["project"]["dependencies"]:
+        if dependency.startswith("asset-allocation-"):
+            name, version = dependency.split("==", 1)
+            shared[name] = version
+    return shared
+
+
 def test_pyproject_pins_shared_packages() -> None:
-    text = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'asset-allocation-contracts==0.1.0' in text
-    assert 'asset-allocation-runtime-common==0.1.0' in text
+    shared = shared_dependencies()
+    assert shared["asset-allocation-contracts"]
+    assert shared["asset-allocation-runtime-common"]
 
 
 def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
@@ -33,3 +44,18 @@ def test_compatibility_workflow_is_the_only_place_cross_repo_checkout_is_allowed
     assert "Checkout shared dependency repository" in compat
     assert "asset-allocation-contracts" in compat
     assert "asset-allocation-runtime-common" in compat
+
+
+def test_contracts_release_dispatch_pins_current_manifest() -> None:
+    compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
+    assert "DISPATCH_CONTRACTS_VERSION" in compat
+    assert "Pin released contracts version" in compat
+    assert "client_payload.contracts_version" in compat
+    assert "git push origin HEAD:${{ steps.target.outputs.current_repo_ref }}" in compat
+
+
+def test_compatibility_workflow_uses_defined_dispatch_action_context() -> None:
+    compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
+    assert "GITHUB_EVENT_ACTION" not in compat
+    assert "DISPATCH_EVENT_ACTION" in compat
+    assert "github.event.action" in compat

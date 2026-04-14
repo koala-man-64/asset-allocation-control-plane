@@ -23,7 +23,7 @@ on:
       - runtime_common_released
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: control-plane-compat-${{ github.ref }}
@@ -51,8 +51,10 @@ jobs:
       ALPHA_VANTAGE_API_KEY: test
       MASSIVE_API_KEY: test
       POSTGRES_DSN: postgresql://user:pass@localhost:5432/asset_allocation?sslmode=disable
+      DISPATCH_EVENT_ACTION: ${{ github.event.action }}
       DISPATCH_CONTRACTS_SHA: ${{ github.event.client_payload.contracts_sha }}
       DISPATCH_CONTRACTS_REF: ${{ github.event.client_payload.contracts_ref }}
+      DISPATCH_CONTRACTS_VERSION: ${{ github.event.client_payload.contracts_version }}
       DISPATCH_RUNTIME_COMMON_SHA: ${{ github.event.client_payload.runtime_common_sha }}
       DISPATCH_RUNTIME_COMMON_REF: ${{ github.event.client_payload.runtime_common_ref }}
     steps:
@@ -63,9 +65,11 @@ jobs:
           set -euo pipefail
           dependency="${{ inputs.dependency }}"
           ref="${{ inputs.ref }}"
+          current_repo_ref="${GITHUB_REF_NAME}"
 
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            case "${GITHUB_EVENT_ACTION}" in
+            current_repo_ref="${{ github.event.repository.default_branch }}"
+            case "${DISPATCH_EVENT_ACTION}" in
               contracts_released)
                 dependency="contracts"
                 ref="${DISPATCH_CONTRACTS_SHA:-${DISPATCH_CONTRACTS_REF}}"
@@ -75,7 +79,7 @@ jobs:
                 ref="${DISPATCH_RUNTIME_COMMON_SHA:-${DISPATCH_RUNTIME_COMMON_REF}}"
                 ;;
               *)
-                echo "Unsupported repository_dispatch action: ${GITHUB_EVENT_ACTION}" >&2
+                echo "Unsupported repository_dispatch action: ${DISPATCH_EVENT_ACTION}" >&2
                 exit 1
                 ;;
             esac
@@ -113,6 +117,7 @@ jobs:
           {
             echo "dependency=${dependency}"
             echo "ref=${ref}"
+            echo "current_repo_ref=${current_repo_ref}"
             echo "repository=${repository}"
             echo "checkout_path=${checkout_path}"
             echo "editable_path=${editable_path}"
@@ -127,6 +132,8 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: asset-allocation-control-plane
+          ref: ${{ steps.target.outputs.current_repo_ref }}
+          fetch-depth: 0
 
       - name: Checkout shared dependency repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -159,6 +166,51 @@ jobs:
             python scripts/automation/export_contract_artifacts.py
           fi
           python -m pytest ${{ steps.target.outputs.pytest_args }} -q
+
+      - name: Pin released contracts version
+        if: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.contracts_version != '' }}
+        env:
+          CONTRACTS_VERSION: ${{ github.event.client_payload.contracts_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["CONTRACTS_VERSION"]
+          path = Path("asset-allocation-control-plane/pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          updated, replacements = re.subn(
+              r'asset-allocation-contracts==[^"]+',
+              f"asset-allocation-contracts=={version}",
+              text,
+              count=1,
+          )
+          if replacements != 1:
+              raise SystemExit("Expected exactly one asset-allocation-contracts dependency in pyproject.toml.")
+          path.write_text(updated, encoding="utf-8")
+          PY
+          python -m pytest asset-allocation-control-plane/tests/test_multirepo_dependency_contract.py -q
+
+      - name: Commit pinned contracts version
+        if: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.contracts_version != '' }}
+        env:
+          CONTRACTS_VERSION: ${{ github.event.client_payload.contracts_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          if git diff --quiet -- pyproject.toml; then
+            echo "Contracts version already pinned to ${CONTRACTS_VERSION}."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: adopt contracts ${CONTRACTS_VERSION}"
+          git push origin HEAD:${{ steps.target.outputs.current_repo_ref }}
 
       - name: Write compatibility summary
         shell: bash

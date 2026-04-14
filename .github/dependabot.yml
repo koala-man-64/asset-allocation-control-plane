@@ -22,9 +22,3 @@ updates:
     patterns:
       - "*"
     multi-ecosystem-group: all-dependencies
-
-  - package-ecosystem: npm
-    directory: /ui
-    patterns:
-      - "*"
-    multi-ecosystem-group: all-dependencies

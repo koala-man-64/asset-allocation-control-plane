@@ -163,6 +163,28 @@ def test_permission_validator_allows_signed_in_user_fallback_for_operator_assign
     )
 
 
+def test_permission_validator_supports_release_scenario() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "ops" / "validate" / "validate_azure_permissions.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert '[ValidateSet("Standard", "Release")][string]$Scenario = "Standard"' in text, (
+        "Azure permission validation must expose a release-specific scenario switch"
+    )
+    assert "-Scenario <Standard|Release>" in text, (
+        "Azure permission validation usage should document the release scenario"
+    )
+    assert '$Scenario -eq "Release"' in text, (
+        "Azure permission validation must branch into a release-specific validation path"
+    )
+    assert 'Add-Result -Name "Resource group exists"' in text, (
+        "Release validation must verify resource-group visibility"
+    )
+    assert 'Add-Result -Name "Deploy SP has AcrPush"' in text, (
+        "Release validation must verify ACR push access for the release service principal"
+    )
+
+
 def test_shared_provisioner_uses_workspace_safe_log_analytics_retention() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure.ps1"

@@ -1,4 +1,5 @@
 param(
+  [ValidateSet("Standard", "Release")][string]$Scenario = "Standard",
   [string]$SubscriptionId = "",
   [string]$ResourceGroup = "",
   [string]$AcrName = "",
@@ -14,7 +15,7 @@ $ErrorActionPreference = "Stop"
 
 function Write-Usage {
   @"
-Usage: validate_azure_permissions.ps1 [-SubscriptionId <sub>] [-ResourceGroup <rg>] [-AcrName <name>] [-StorageAccountName <name>] [-AcrPullIdentityName <name>] [-AzureClientId <clientId>] [-EnvFile <path>]
+Usage: validate_azure_permissions.ps1 [-Scenario <Standard|Release>] [-SubscriptionId <sub>] [-ResourceGroup <rg>] [-AcrName <name>] [-StorageAccountName <name>] [-AcrPullIdentityName <name>] [-AzureClientId <clientId>] [-EnvFile <path>]
 
 Validates the Azure RBAC permissions required for the GitHub Actions deploy workflow and
 Container Apps managed identity operations, plus the Microsoft Graph read access needed by
@@ -331,7 +332,60 @@ Write-Host "Storage: $StorageAccountName"
 Write-Host "ACR Pull Identity: $AcrPullIdentityName"
 Write-Host "Azure Client ID: $AzureClientId"
 Write-Host "Operator User Object ID: $(if ($OperatorUserObjectId) { $OperatorUserObjectId } else { '<not set>' })"
+Write-Host "Scenario: $Scenario"
 Write-Host ""
+
+if ($Scenario -eq "Release") {
+  $releaseRgId = ""
+  try {
+    $releaseRgId = (az group show --name $ResourceGroup --query id -o tsv --only-show-errors) -replace "`r", ""
+    if ([string]::IsNullOrWhiteSpace($releaseRgId)) { throw "Resource group not found" }
+    Add-Result -Name "Resource group exists" -Ok $true -Details "$ResourceGroup ($releaseRgId)" -Remediation ""
+  }
+  catch {
+    Add-Result -Name "Resource group exists" -Ok $false -Details "Resource group '$ResourceGroup' is not visible to the signed-in principal." -Remediation "Grant the release principal access to $ResourceGroup and confirm the resource group exists."
+  }
+
+  $releaseAcrId = ""
+  try {
+    $releaseAcrId = (az acr show --name $AcrName --resource-group $ResourceGroup --query id -o tsv --only-show-errors) -replace "`r", ""
+    if ([string]::IsNullOrWhiteSpace($releaseAcrId)) { throw "ACR not found" }
+    Add-Result -Name "ACR exists" -Ok $true -Details "$AcrName ($releaseAcrId)" -Remediation ""
+  }
+  catch {
+    Add-Result -Name "ACR exists" -Ok $false -Details "ACR '$AcrName' not found in RG '$ResourceGroup'." -Remediation "Provision the ACR or update -AcrName/-ResourceGroup."
+  }
+
+  $releaseAzureSpObjectId = ""
+  if ([string]::IsNullOrWhiteSpace($AzureClientId)) {
+    Add-Result -Name "Azure client ID set" -Ok $false -Details "AZURE_CLIENT_ID not found in $envLabel or env." -Remediation "Set AZURE_CLIENT_ID to the GitHub Actions release service principal client ID."
+  }
+  else {
+    Add-Result -Name "Azure client ID set" -Ok $true -Details $AzureClientId -Remediation ""
+    try {
+      $releaseAzureSpObjectId = (az ad sp show --id $AzureClientId --query id -o tsv --only-show-errors) -replace "`r", ""
+    }
+    catch {
+      $releaseAzureSpObjectId = ""
+    }
+
+    if ([string]::IsNullOrWhiteSpace($releaseAzureSpObjectId)) {
+      Add-Result -Name "Azure client SP resolved" -Ok $false -Details "Failed to resolve service principal for clientId '$AzureClientId'." -Remediation "Ensure the Azure client ID is correct and that the signed-in principal can query Azure AD."
+    }
+    else {
+      Add-Result -Name "Azure client SP resolved" -Ok $true -Details "objectId=$releaseAzureSpObjectId" -Remediation ""
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($releaseAzureSpObjectId) -and -not [string]::IsNullOrWhiteSpace($releaseAcrId)) {
+    $assignments = Get-RoleAssignments -PrincipalId $releaseAzureSpObjectId
+    $hasAcrPush = Has-RoleAtScope -Assignments $assignments -RoleNames @("AcrPush", "Owner", "Contributor") -Scope $releaseAcrId
+    Add-Result -Name "Deploy SP has AcrPush" -Ok $hasAcrPush -Details "clientId=$AzureClientId" -Remediation "Grant AcrPush on $AcrName to the release service principal."
+  }
+
+  Write-Results
+  return
+}
 
 $rgId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup"
 
