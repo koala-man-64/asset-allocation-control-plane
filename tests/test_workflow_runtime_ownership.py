@@ -78,6 +78,23 @@ def test_dependabot_updates_only_reference_existing_manifests() -> None:
         )
 
 
+def test_dependabot_ignores_cross_repo_owned_python_runtime_bumps() -> None:
+    config = _load_dependabot_config()
+    updates = config["updates"]
+    assert isinstance(updates, list)
+
+    pip_updates = [update for update in updates if isinstance(update, dict) and update.get("package-ecosystem") == "pip"]
+    assert len(pip_updates) == 1
+
+    ignored_dependencies = {
+        entry["dependency-name"]
+        for entry in pip_updates[0].get("ignore", [])
+        if isinstance(entry, dict) and isinstance(entry.get("dependency-name"), str)
+    }
+
+    assert {"azure-identity", "pydantic"} <= ignored_dependencies
+
+
 def test_ci_preserves_dependency_governance_gate() -> None:
     text = (repo_root() / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "dependency-governance:" in text

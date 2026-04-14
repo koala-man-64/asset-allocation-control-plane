@@ -21,4 +21,7 @@ updates:
     directory: /
     patterns:
       - "*"
+    ignore:
+      - dependency-name: azure-identity
+      - dependency-name: pydantic
     multi-ecosystem-group: all-dependencies
