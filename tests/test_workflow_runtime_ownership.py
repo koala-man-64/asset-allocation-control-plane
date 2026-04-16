@@ -126,3 +126,5 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert '--repository "${RELEASE_IMAGE_REPOSITORY}"' in text
     assert 'image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"' in text
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
+    assert 'curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null' in text
+    assert "/api/v1/openapi.json" not in text

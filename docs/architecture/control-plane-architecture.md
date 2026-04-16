@@ -283,7 +283,7 @@ Evidence:
 
 2. OpenAPI verification path
    - Confirmed: `api/service/app.py` and `api/API_ENDPOINTS.md` describe OpenAPI availability under `/api/openapi.json` plus top-level redirects.
-- Confirmed: `DEPLOYMENT_SETUP.md` and `.github/workflows/deploy-prod.yml` verify `/api/v1/openapi.json`, and manual deploys no longer ask users for an image digest.
+   - Confirmed: `DEPLOYMENT_SETUP.md` and `.github/workflows/deploy-prod.yml` verify `/openapi.json`, which redirects to the active OpenAPI path, and manual deploys no longer ask users for an image digest.
    - Needs confirmation: which public path is intended to be the canonical deploy-time OpenAPI verification endpoint.
 
 3. Legacy job manifests under `deploy/`

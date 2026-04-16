@@ -205,7 +205,7 @@ jobs:
           curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/healthz" > /dev/null
           curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/readyz" > /dev/null
           curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/config.js" > /dev/null
-          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/api/v1/openapi.json" > /dev/null
+          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null
           echo "fqdn=${fqdn}" >> "$GITHUB_OUTPUT"
 
       - name: Write deployment summary
