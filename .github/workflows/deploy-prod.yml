@@ -3,19 +3,6 @@ run-name: Control Plane Deploy Prod / ${{ github.event_name }} / ${{ github.ref_
 
 on:
   workflow_dispatch:
-    inputs:
-      image_digest:
-        description: Full container image reference with digest
-        required: true
-        type: string
-      contracts_version:
-        description: Optional contracts version for the rollout summary
-        required: false
-        type: string
-      reason:
-        description: Why this rollout is being performed
-        required: false
-        type: string
   repository_dispatch:
     types:
       - deploy_runtime
@@ -40,6 +27,7 @@ jobs:
       DISPATCH_REASON: ${{ github.event.client_payload.reason }}
       RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
       ACR_NAME: ${{ vars.ACR_NAME }}
+      RELEASE_IMAGE_REPOSITORY: asset-allocation-api
       ACR_PULL_IDENTITY_NAME: ${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}
       CONTAINER_APPS_ENVIRONMENT_NAME: ${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}
       SERVICE_ACCOUNT_NAME: ${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}
@@ -103,26 +91,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Resolve rollout inputs
-        id: inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          image_digest="${{ inputs.image_digest }}"
-          contracts_version="${{ inputs.contracts_version }}"
-          reason="${{ inputs.reason }}"
-          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            image_digest="${DISPATCH_IMAGE_DIGEST}"
-            contracts_version="${DISPATCH_CONTRACTS_VERSION}"
-            reason="${DISPATCH_REASON}"
-          fi
-          : "${image_digest:?image_digest is required}"
-          {
-            echo "image_digest=${image_digest}"
-            echo "contracts_version=${contracts_version}"
-            echo "reason=${reason}"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Azure login
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
@@ -147,6 +115,53 @@ jobs:
             echo "acr_login_server=${acr_login_server}"
             echo "environment_id=${env_id}"
             echo "previous_image=${previous_image}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve rollout source and image
+        id: inputs
+        env:
+          ACR_LOGIN_SERVER: ${{ steps.azure.outputs.acr_login_server }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_digest=""
+          contracts_version=""
+          reason=""
+          trigger_source="${GITHUB_EVENT_NAME}"
+
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            image_digest="${DISPATCH_IMAGE_DIGEST}"
+            contracts_version="${DISPATCH_CONTRACTS_VERSION}"
+            reason="${DISPATCH_REASON}"
+            trigger_source="repository_dispatch deploy_runtime"
+
+            : "${image_digest:?repository_dispatch client_payload.image_digest is required}"
+          else
+            manifest_digest="$(
+              az acr repository show-manifests \
+                --name "${ACR_NAME}" \
+                --repository "${RELEASE_IMAGE_REPOSITORY}" \
+                --orderby time_desc \
+                --top 1 \
+                --query "[0].digest" \
+                -o tsv \
+                2> /dev/null || true
+            )"
+            if [ -z "${manifest_digest}" ] || [ "${manifest_digest}" = "None" ]; then
+              echo "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." >&2
+              exit 1
+            fi
+
+            image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"
+            reason="workflow_dispatch latest release by ${GITHUB_ACTOR} for ${GITHUB_REF} (run ${GITHUB_RUN_ID})"
+            trigger_source="workflow_dispatch latest release"
+          fi
+
+          {
+            echo "image_digest=${image_digest}"
+            echo "contracts_version=${contracts_version}"
+            echo "reason=${reason}"
+            echo "trigger_source=${trigger_source}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Render control-plane manifest
@@ -199,11 +214,14 @@ jobs:
           {
             echo "## Control-plane deploy"
             echo ""
+            echo "- Trigger: \`${{ steps.inputs.outputs.trigger_source }}\`"
             echo "- Target app: \`${API_APP_NAME}\`"
             echo "- Image: \`${{ steps.inputs.outputs.image_digest }}\`"
-            echo "- Contracts version: \`${{ steps.inputs.outputs.contracts_version || 'not provided' }}\`"
+            if [ -n "${{ steps.inputs.outputs.contracts_version }}" ]; then
+              echo "- Contracts version: \`${{ steps.inputs.outputs.contracts_version }}\`"
+            fi
             echo "- FQDN: https://${{ steps.verify.outputs.fqdn }}"
             echo "- Previous image: \`${{ steps.azure.outputs.previous_image || 'none' }}\`"
-            echo "- Rollback: rerun this workflow with the previous image digest"
-            echo "- Reason: \`${{ steps.inputs.outputs.reason || 'not provided' }}\`"
+            echo "- Rollback: dispatch \`deploy_runtime\` with a known-good image digest"
+            echo "- Reason: \`${{ steps.inputs.outputs.reason }}\`"
           } >> "${GITHUB_STEP_SUMMARY}"

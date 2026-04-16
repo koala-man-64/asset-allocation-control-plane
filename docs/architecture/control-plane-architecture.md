@@ -179,7 +179,7 @@ Evidence:
 ## Deployment and operational model
 
 - Confirmed: the intended deployment target is one control-plane Azure Container App named `asset-allocation-api`.
-- Confirmed: `deploy-prod.yml` resolves a full image digest, renders `deploy/app_api_public.yaml`, applies the manifest, and verifies `/healthz`, `/readyz`, `/config.js`, and an OpenAPI endpoint after rollout.
+- Confirmed: `deploy-prod.yml` auto-resolves the latest released `asset-allocation-api` image digest on manual runs, still accepts explicit digests through `deploy_runtime` repository dispatch, renders `deploy/app_api_public.yaml`, applies the manifest, and verifies `/healthz`, `/readyz`, `/config.js`, and an OpenAPI endpoint after rollout.
 - Confirmed: `infra-shared-prod.yml` is the shared Azure substrate reconcile path and runs the provisioning PowerShell entrypoint from this repo.
 - Confirmed: `release.yml` resolves pinned shared package versions from `pyproject.toml`, exports contract artifacts, builds and pushes the API image, uploads release artifacts, and dispatches the jobs repo.
 - Confirmed: the runbook requires bootstrap and sync through `scripts/dev/setup-env.ps1` and `scripts/repo/sync-all-to-github.ps1`.
@@ -283,7 +283,7 @@ Evidence:
 
 2. OpenAPI verification path
    - Confirmed: `api/service/app.py` and `api/API_ENDPOINTS.md` describe OpenAPI availability under `/api/openapi.json` plus top-level redirects.
-   - Confirmed: `DEPLOYMENT_SETUP.md` and `.github/workflows/deploy-prod.yml` verify `/api/v1/openapi.json`.
+- Confirmed: `DEPLOYMENT_SETUP.md` and `.github/workflows/deploy-prod.yml` verify `/api/v1/openapi.json`, and manual deploys no longer ask users for an image digest.
    - Needs confirmation: which public path is intended to be the canonical deploy-time OpenAPI verification endpoint.
 
 3. Legacy job manifests under `deploy/`

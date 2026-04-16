@@ -42,7 +42,8 @@ Use only these workflow entry points:
 - Run `compat.yml` when `contracts_released` or `runtime_common_released` is dispatched, or validate a candidate shared package ref manually with `dependency=contracts|runtime-common` and `ref=<sha-or-branch>`.
 - Use `release.yml` to fail fast on missing GitHub release configuration, unpublished shared-package versions, or missing Azure release RBAC before it exports contracts or builds the image.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
-- Use `deploy-prod.yml` with a full image digest and verify `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json`.
+- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json`.
+- Use `deploy_runtime` repository dispatch when automation or rollback needs to supply an explicit image digest.
 
 ## Shared Azure Foundation To Provision Once
 
@@ -110,6 +111,7 @@ GitHub variables:
 8. Deploy a single control-plane Container App:
    - use `deploy/app_api_public.yaml` for public ingress
    - use `deploy/app_api.yaml` for private ingress
+   - use a manual `deploy-prod.yml` run to deploy the latest released ACR image
 9. Verify:
    - `/healthz`
    - `/readyz`
@@ -119,7 +121,7 @@ GitHub variables:
 ## Rollback
 
 - Capture the previous `asset-allocation-api` image digest before every deployment.
-- Roll back by rerunning `.github/workflows/deploy-prod.yml` with that previous digest.
+- Roll back by dispatching `deploy_runtime` to `.github/workflows/deploy-prod.yml` with that previous digest in `client_payload.image_digest`.
 - If shared substrate changes caused the regression, rerun `.github/workflows/infra-shared-prod.yml` with the last known-good configuration inputs.
 
 ## Troubleshoot
@@ -130,6 +132,7 @@ GitHub variables:
   - unpublished or unreachable `asset-allocation-contracts` or `asset-allocation-runtime-common` versions
   - missing Azure release RBAC reported by `validate_azure_permissions.ps1 -Scenario Release`
 - If `release.yml` fails to build the image after preflight passes, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
+- If a manual `deploy-prod.yml` run fails before apply because no image can be resolved, verify ACR contains at least one released `asset-allocation-api` manifest.
 - If `deploy-prod.yml` fails before apply, verify `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `CONTAINER_APPS_ENVIRONMENT_NAME`, and `ACR_PULL_IDENTITY_NAME`.
 - If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/api/v1/openapi.json` before retrying.
 - If `infra-shared-prod.yml` fails, regenerate `.env.web` with `scripts/dev/setup-env.ps1`, sync it with `scripts/repo/sync-all-to-github.ps1`, and verify the `prod` environment still has the required approvals and secrets.

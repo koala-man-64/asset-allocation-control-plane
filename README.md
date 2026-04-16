@@ -27,7 +27,7 @@ Canonical workflows live under `.github/workflows/`.
 - `security.yml` runs scheduled or manual dependency audits and uploads SARIF for runtime dependency findings.
 - `compat.yml` is the only workflow allowed to validate candidate `asset-allocation-contracts` or `asset-allocation-runtime-common` refs.
 - `release.yml` builds the API image, exports contract artifacts, writes `release-manifest.json`, and dispatches `control_plane_released` to jobs.
-- `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`.
+- `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`; manual runs auto-resolve the latest released ACR image, while `deploy_runtime` repository dispatch remains the explicit-digest path for automation and rollback.
 - `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure runtime substrate.
 - `scripts/dev/setup-env.ps1` builds repo-local `.env.web` using contract defaults and existing values.
 - `scripts/repo/sync-all-to-github.ps1` syncs the `.env.web` surface into repo vars and secrets.

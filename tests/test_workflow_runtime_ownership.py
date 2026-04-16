@@ -115,3 +115,14 @@ def test_release_workflow_runs_preflight_before_export_and_build() -> None:
     positions = [text.index(marker) for marker in ordered_markers]
     assert positions == sorted(positions)
     assert "-Scenario Release" in text
+
+
+def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "workflow_dispatch:\n  repository_dispatch:" in text
+    assert 'trigger_source="repository_dispatch deploy_runtime"' in text
+    assert ': "${image_digest:?repository_dispatch client_payload.image_digest is required}"' in text
+    assert "az acr repository show-manifests" in text
+    assert '--repository "${RELEASE_IMAGE_REPOSITORY}"' in text
+    assert 'image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"' in text
+    assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
