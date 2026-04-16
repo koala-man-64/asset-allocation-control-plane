@@ -128,3 +128,9 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
     assert 'curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null' in text
     assert "/api/v1/openapi.json" not in text
+
+
+def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}" in text
+    assert 'template = template.replace("${" + key + "}", value)' in text

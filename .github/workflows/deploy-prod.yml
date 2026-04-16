@@ -25,6 +25,7 @@ jobs:
       DISPATCH_IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
       DISPATCH_CONTRACTS_VERSION: ${{ github.event.client_payload.contracts_version }}
       DISPATCH_REASON: ${{ github.event.client_payload.reason }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
       ACR_NAME: ${{ vars.ACR_NAME }}
       RELEASE_IMAGE_REPOSITORY: asset-allocation-api
