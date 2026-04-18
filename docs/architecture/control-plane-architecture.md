@@ -8,6 +8,7 @@ This document is the canonical, repo-specific design and ownership contract for 
 - Confirmed: this document is current-repo-first. When older lineage or refactor documents conflict with current code, tests, or workflows, current repo state wins.
 - Confirmed: subordinate documents remain authoritative for their narrower scope:
   - `docs/architecture/adr-001-runtime-surfaces.md` for boundary policy
+  - `docs/architecture/control-plane-sibling-repo-audit.md` for the sibling-repo ownership drift audit and remediation recommendations
   - `docs/architecture/runtime-surface-extraction-manifest.md` for facade and extracted-surface inventory
   - `docs/architecture/runtime-surface-ci-matrix.md` and `docs/architecture/runtime-surface-test-targets.md` for validation command references
   - `docs/architecture/runtime-surface-refactor-ledger.md` for historical execution evidence
@@ -38,10 +39,10 @@ Evidence:
 | --- | --- | --- | --- | --- | --- |
 | `api/` | HTTP transport, operator endpoints, realtime, health/config/docs surfaces | `api/service/app.py`, `api/service/*`, `api/endpoints/*` | `/healthz`, `/readyz`, `/config.js`, `/docs`, `/openapi.json`, `/api/*`, `/api/auth/session` | `api/endpoints/system.py` remains a facade and re-export surface | `tests/architecture/test_system_facade_guard.py`, `tests/api/*`, `.github/workflows/ci.yml` |
 | `core/` | Control-plane-side runtime logic, repositories, runtime config, backtest storage, storage helpers, strategy and ranking engines | `core/*.py`, `core/ranking_engine/*`, `core/strategy_engine/*` | Python package import surface used by API and monitoring layers | Historical split overlap exists, but direct `tasks.*` imports are prohibited here | `tests/architecture/test_python_module_boundaries.py`, `tests/core/*` |
-| `monitoring/` | System health collection, ARM/metrics/log analytics integration, control-plane resource inspection | `monitoring/system_health_modules/*`, `monitoring/control_plane.py`, `monitoring/*.py` | `monitoring/system_health.py` | `monitoring/system_health.py` remains the facade and patch surface | `tests/monitoring/*`, `docs/architecture/runtime-surface-ci-matrix.md` |
+| `monitoring/` | System health collection, ARM/metrics/log analytics integration, control-plane resource inspection | `monitoring/system_health_modules/*`, `monitoring/control_plane.py`, `monitoring/*.py` | `monitoring/system_health.py` | `monitoring/system_health.py` remains the facade and patch surface | `tests/architecture/test_monitoring_facade_guard.py`, `tests/monitoring/*`, `docs/architecture/runtime-surface-ci-matrix.md` |
 | `alpha_vantage/`, `massive_provider/` | API-side provider clients and helper modules used by gateway endpoints | `alpha_vantage/*.py`, `massive_provider/*.py`, `api/service/*gateway*.py` | `/api/providers/alpha-vantage/*`, `/api/providers/massive/*` | Historical lineage overlaps with jobs-side ingestion ownership | `tests/alpha_vantage/*`, `tests/api/test_alpha_vantage_endpoints.py`, `tests/api/test_massive_endpoints.py` |
 | `api/contracts/*` | Generated API and UI runtime contract artifacts | `scripts/automation/export_contract_artifacts.py` | `control-plane.openapi.json`, `ui-runtime-config.schema.json` | None | `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `tests/api/test_config_js_contract.py` |
-| `.github/workflows/*.yml` | Validation, release, deploy, compat, infra reconcile, and security automation | `ci.yml`, `compat.yml`, `release.yml`, `deploy-prod.yml`, `infra-shared-prod.yml`, `security.yml` | GitHub Actions workflow entrypoints | Only `compat.yml` may check out sibling repos | `tests/test_multirepo_dependency_contract.py`, `tests/test_workflow_runtime_ownership.py` |
+| `.github/workflows/*.yml` | Validation, release, deploy, infra reconcile, and security automation | `ci.yml`, `release.yml`, `deploy-prod.yml`, `infra-shared-prod.yml`, `security.yml` | GitHub Actions workflow entrypoints | No sibling-repo checkout path remains in the workflow contract | `tests/test_multirepo_dependency_contract.py`, `tests/test_workflow_runtime_ownership.py` |
 | `deploy/` and repo ops scripts | API deploy manifests, shared infra bootstrap, env sync, local contract/export helpers | `deploy/app_api*.yaml`, `scripts/dev/setup-env.ps1`, `scripts/repo/sync-all-to-github.ps1`, `scripts/ops/*` | `deploy-prod.yml`, `infra-shared-prod.yml` | Legacy job manifests are still present; see observed mismatches below | `DEPLOYMENT_SETUP.md`, `tests/test_workflow_runtime_ownership.py`, `.github/workflows/deploy-prod.yml`, `.github/workflows/infra-shared-prod.yml` |
 
 Evidence:
@@ -60,8 +61,8 @@ Evidence:
 
 - Confirmed: this repo does not own the standalone jobs runtime. The split-system lineage assigns ETL, batch orchestration, provider ingestion, and job-side monitoring to `asset-allocation-jobs`.
 - Confirmed: this repo does not own the standalone UI application or UI deployment. `UI_DIST_DIR` support is a runtime compatibility path, not the primary UI ownership model.
-- Confirmed: this repo does not own the source trees for `asset-allocation-contracts` or `asset-allocation-runtime-common`. It consumes versioned packages and uses narrow compatibility workflows when validating candidate refs.
-- Confirmed: normal CI and release workflows are not allowed to copy or check out sibling repos except in the dedicated compat workflow.
+- Confirmed: this repo does not own the source trees for `asset-allocation-contracts` or `asset-allocation-runtime-common`. It consumes versioned packages only.
+- Confirmed: tracked workflows in this repo do not copy or check out sibling repos.
 - Confirmed: shared Azure substrate mutation is not broadly owned by all workflows in this repo. `infra-shared-prod.yml` is the only workflow allowed to mutate the shared runtime substrate.
 
 Evidence:
@@ -71,7 +72,6 @@ Evidence:
 - `DEPLOYMENT_SETUP.md`
 - `tests/test_multirepo_dependency_contract.py`
 - `tests/test_workflow_runtime_ownership.py`
-- `.github/workflows/compat.yml`
 
 ## System overview
 
@@ -140,7 +140,6 @@ Evidence:
 - Confirmed: `release.yml` is the API image and contract-artifact release path.
 - Confirmed: `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`.
 - Confirmed: `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure substrate.
-- Confirmed: `compat.yml` is the only sibling-repo compatibility validation workflow for candidate `asset-allocation-contracts` and `asset-allocation-runtime-common` refs.
 - Confirmed: `security.yml` owns scheduled or manual dependency audit and SARIF publication for runtime dependency findings.
 
 Evidence:
@@ -154,7 +153,6 @@ Evidence:
 - `.github/workflows/release.yml`
 - `.github/workflows/deploy-prod.yml`
 - `.github/workflows/infra-shared-prod.yml`
-- `.github/workflows/compat.yml`
 - `.github/workflows/security.yml`
 
 ## Compatibility facades and transitional boundaries
@@ -215,7 +213,7 @@ Evidence:
 
 - Confirmed: lightweight readiness and liveness endpoints are separate from the richer system-health view.
 - Confirmed: deploy verification currently relies on `/healthz`, `/readyz`, `/config.js`, and an OpenAPI path.
-- Needs confirmation: whether `/readyz` should remain shallow or should eventually reflect deeper dependency readiness, such as Postgres connectivity.
+- Confirmed: `/readyz` is intentionally shallow in the current runtime and returns `{"status":"ready"}` without a dependency probe.
 
 Evidence:
 - `api/service/app.py`
@@ -231,7 +229,8 @@ Evidence:
 
 - Confirmed: `tests/architecture/test_python_module_boundaries.py` enforces that `api/`, `monitoring/`, and `core/` do not import `tasks.*`.
 - Confirmed: `tests/architecture/test_system_facade_guard.py` keeps `api/endpoints/system.py` as a facade rather than allowing migrated helper ownership to grow back.
-- Confirmed: `tests/test_multirepo_dependency_contract.py` enforces pinned shared-package usage, blocks sibling-repo copying in the API Dockerfile, and constrains sibling checkouts to `compat.yml`.
+- Confirmed: `tests/architecture/test_monitoring_facade_guard.py` keeps `monitoring/system_health.py` as a facade and blocks the old snapshot self-import seam from reappearing.
+- Confirmed: `tests/test_multirepo_dependency_contract.py` enforces pinned shared-package usage, blocks sibling-repo copying in the API Dockerfile, and rejects control-plane workflow consumption of shared package release dispatch events.
 - Confirmed: `tests/test_workflow_runtime_ownership.py` enforces the expected workflow inventory and local bootstrap path references in `DEPLOYMENT_SETUP.md`.
 
 ### Required commands for design-level changes
@@ -239,7 +238,7 @@ Evidence:
 Run these from the repository root when a change affects architecture, boundaries, workflow ownership, or public contract surfaces:
 
 ```powershell
-python -m pytest tests/architecture/test_python_module_boundaries.py tests/architecture/test_system_facade_guard.py tests/test_multirepo_dependency_contract.py tests/test_workflow_runtime_ownership.py -q
+python -m pytest tests/architecture/test_python_module_boundaries.py tests/architecture/test_system_facade_guard.py tests/architecture/test_monitoring_facade_guard.py tests/test_multirepo_dependency_contract.py tests/test_workflow_runtime_ownership.py tests/test_deploy_manifests.py -q
 ```
 
 For broader backend or runtime work, run the full suite before marking the change complete:
@@ -252,13 +251,18 @@ When shared contract artifacts or OpenAPI-facing surfaces change, regenerate art
 
 ```powershell
 python scripts/automation/export_contract_artifacts.py
+python scripts/automation/run_quality_gate.py contract-artifacts
 ```
+
+- Confirmed: OpenAPI-facing route model changes are contract changes even when runtime behavior is unchanged.
+- Confirmed: imported shared Pydantic models used directly in FastAPI route signatures can destabilize generated component names unless the control plane stabilizes those identifiers.
+- Confirmed: developers can opt into a local pre-commit guard with `python scripts/dev/install_git_hooks.py`.
 
 Use `docs/architecture/runtime-surface-ci-matrix.md` and `docs/architecture/runtime-surface-test-targets.md` as the command catalog for more targeted surface validation.
 
 ### Current enforcement gaps
 
-- Needs confirmation: `tests/architecture/*` are not currently wired into `ci.yml`, so the architecture boundary checks are enforced by local or targeted execution rather than by the required CI path.
+- Confirmed: `ci.yml` now runs the architecture boundary test plus the system and monitoring facade guards on the required CI path.
 - Needs confirmation: the runtime-surface CI matrix describes intended commands that are not all implemented as first-class workflow jobs.
 - Needs confirmation: workflow ownership tests validate workflow inventory and some path invariants, but not all workflow permissions, trigger details, or step behavior.
 - Needs confirmation: there is no dedicated test that ties `release-manifest.json` and the `control_plane_released` payload back to the pinned shared package versions beyond current workflow logic.
@@ -275,24 +279,9 @@ Evidence:
 
 ## Known ambiguities / needs confirmation
 
-### Observed mismatches
+### Remaining historical ambiguity
 
-1. `readyz` depth
-   - Confirmed: `api/API_ENDPOINTS.md` describes `/readyz` as a readiness check that checks DB connectivity.
-   - Confirmed: `api/service/app.py` currently returns a shallow `{"status":"ready"}` response without a DB connectivity check.
-   - Needs confirmation: whether the docs should be corrected to match current code, or readiness should be deepened to match the docs.
-
-2. OpenAPI verification path
-   - Confirmed: `api/service/app.py` and `api/API_ENDPOINTS.md` describe OpenAPI availability under `/api/openapi.json` plus top-level redirects.
-   - Confirmed: `DEPLOYMENT_SETUP.md` and `.github/workflows/deploy-prod.yml` verify `/openapi.json`, which redirects to the active OpenAPI path, and manual deploys no longer ask users for an image digest.
-   - Needs confirmation: which public path is intended to be the canonical deploy-time OpenAPI verification endpoint.
-
-3. Legacy job manifests under `deploy/`
-   - Confirmed: `deploy/` still contains multiple `job_*.yaml` manifests.
-   - Confirmed: `DEPLOYMENT_SETUP.md` states that this repo should not deploy jobs and that `deploy-prod.yml` deploys only `asset-allocation-api`.
-   - Needs confirmation: whether the job manifests are retained as historical artifacts, temporary shared references, or stale files that should eventually move or be removed.
-
-4. Historical docs versus current tree
+1. Historical docs versus current tree
    - Confirmed: `docs/architecture/original-monolith-and-five-repo-map.md` and some refactor-era docs describe `tasks/` and `ui/` as part of the runtime-surface story.
    - Confirmed: the current repo tree does not contain top-level `tasks/` or `ui/` directories.
    - Needs confirmation: which older docs should remain as historical lineage only versus which should be refreshed to avoid being read as current-repo structure.
@@ -302,6 +291,7 @@ Evidence:
 - Confirmed: if a change affects repo ownership, module boundaries, runtime surfaces, or compatibility seams, update this document in the same PR.
 - Confirmed: if a change affects deploy, rollback, workflow ownership, or shared-infra mutation rules, update this document, `README.md`, `DEPLOYMENT_SETUP.md`, and any affected workflow tests in the same PR.
 - Confirmed: if a change affects public contract artifacts or bootstrap surfaces, regenerate `api/contracts/*` and update this document and the affected tests in the same PR.
+- Confirmed: generated contract artifacts must ship in the same commit set as the route or response-model changes that caused them.
 - Confirmed: if a compatibility facade is narrowed or removed, update this document, the extraction manifest, and the guard tests together.
 - Confirmed: if a statement cannot be verified, do not guess. Record it as `Needs confirmation`, cite the conflicting evidence, and leave the repo in an honest state.
 - Confirmed: do not use the runtime-surface ledger or historical monolith map as the primary ownership source when they conflict with current code, tests, or workflows. Treat them as provenance and lineage only.
@@ -358,7 +348,6 @@ Evidence:
 - `.github/workflows/release.yml`
 - `.github/workflows/deploy-prod.yml`
 - `.github/workflows/infra-shared-prod.yml`
-- `.github/workflows/compat.yml`
 - `.github/workflows/security.yml`
 
 ### Tests

@@ -7,10 +7,8 @@ from typing import Any, Mapping, Optional, Sequence
 
 import pandas as pd
 
-from core import core as mdc
-from core import bronze_bucketing
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.market_data import bronze_bucketing
 ALPHABET_BUCKETS: tuple[str, ...] = bronze_bucketing.ALPHABET_BUCKETS
 
 
@@ -23,8 +21,7 @@ def normalize_sub_domain(value: Optional[str]) -> str:
 
 
 def silver_layout_mode() -> str:
-    from core import config as cfg
-
+    from asset_allocation_runtime_common.foundation import config as cfg
     mode = (os.environ.get("SILVER_LAYOUT_MODE") or str(cfg.SILVER_LAYOUT_MODE)).strip().lower()
     if mode != "alpha26":
         raise ValueError("SILVER_LAYOUT_MODE must be 'alpha26' when set.")
@@ -44,8 +41,7 @@ def silver_alpha26_force_rebuild() -> bool:
 
 
 def gold_layout_mode() -> str:
-    from core import config as cfg
-
+    from asset_allocation_runtime_common.foundation import config as cfg
     mode = (os.environ.get("GOLD_LAYOUT_MODE") or str(cfg.GOLD_LAYOUT_MODE)).strip().lower()
     if mode != "alpha26":
         raise ValueError("GOLD_LAYOUT_MODE must be 'alpha26' when set.")

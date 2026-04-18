@@ -7,11 +7,9 @@ from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 import pandas as pd
 
-from core import core as mdc
-from core.postgres import PostgresError, connect, copy_rows, get_dsn
-from core.finance_contracts import VALUATION_FINANCE_COLUMNS
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.foundation.postgres import PostgresError, connect, copy_rows, get_dsn
+from asset_allocation_contracts.finance import VALUATION_FINANCE_COLUMNS
 _MARKET_COLUMNS: tuple[str, ...] = (
     "date",
     "symbol",

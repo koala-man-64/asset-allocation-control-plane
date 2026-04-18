@@ -552,6 +552,9 @@ def _default_layer_specs() -> List[LayerProbeSpec]:
             description="Curated/derived datasets (reserved)",
             container_env="AZURE_CONTAINER_PLATINUM",
             max_age_seconds=max_age_default,
-            marker_blobs=(DomainSpec("platinum/", cron=cron_platinum, trigger_type="schedule"),),
+            marker_blobs=(
+                DomainSpec("rankings", cron=cron_platinum, trigger_type="schedule"),
+                DomainSpec("backtests", trigger_type="manual"),
+            ),
         ),
     ]

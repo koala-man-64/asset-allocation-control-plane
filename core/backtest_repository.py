@@ -7,8 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from core.postgres import connect
-
+from asset_allocation_runtime_common.foundation.postgres import connect
 logger = logging.getLogger(__name__)
 
 _RUN_COLUMNS = [
@@ -39,6 +38,8 @@ _RUN_COLUMNS = [
     "attempt_count",
     "results_ready_at",
     "results_schema_version",
+    "canonical_target_id",
+    "canonical_fingerprint",
     "submitted_by",
 ]
 _RUN_SELECT_SQL = """
@@ -70,6 +71,8 @@ _RUN_SELECT_SQL = """
         attempt_count,
         results_ready_at,
         results_schema_version,
+        canonical_target_id,
+        canonical_fingerprint,
         submitted_by
 """
 
@@ -166,6 +169,7 @@ def _map_timeseries_row(row: tuple[Any, ...]) -> dict[str, Any]:
         "turnover": row[9],
         "commission": row[10],
         "slippage_cost": row[11],
+        "trade_count": row[12],
     }
 
 
@@ -256,6 +260,8 @@ class BacktestRepository:
         universe_version: int | None = None,
         regime_model_name: str | None = None,
         regime_model_version: int | None = None,
+        canonical_target_id: str | None = None,
+        canonical_fingerprint: str | None = None,
         submitted_by: str | None = None,
     ) -> dict[str, Any]:
         dsn = self._require_dsn()
@@ -283,10 +289,12 @@ class BacktestRepository:
                         start_ts,
                         end_ts,
                         bar_size,
+                        canonical_target_id,
+                        canonical_fingerprint,
                         submitted_by
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     """,
                     (
@@ -308,6 +316,8 @@ class BacktestRepository:
                         start_ts,
                         end_ts,
                         bar_size,
+                        canonical_target_id,
+                        canonical_fingerprint,
                         submitted_by,
                     ),
                 )
@@ -448,6 +458,26 @@ class BacktestRepository:
                 )
                 rows = cur.fetchall()
         return [_hydrate_run_payload(row) for row in rows]
+
+    def find_latest_canonical_run(self, *, target_id: str, fingerprint: str) -> Optional[dict[str, Any]]:
+        dsn = self._require_dsn()
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    {_RUN_SELECT_SQL}
+                    FROM core.runs
+                    WHERE canonical_target_id = %s
+                      AND canonical_fingerprint = %s
+                    ORDER BY submitted_at DESC
+                    LIMIT 1
+                    """,
+                    (target_id, fingerprint),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+        return _hydrate_run_payload(row)
 
     def get_operational_summary(
         self,
@@ -603,9 +633,19 @@ class BacktestRepository:
                 # The completion payload still accepts summary for backward-compatible
                 # worker signaling, but typed Postgres tables are the canonical store.
                 _ = summary
-                cur.execute("SELECT 1 FROM core.runs WHERE run_id = %s", (run_id,))
-                if not cur.fetchone():
+                cur.execute(
+                    """
+                    SELECT canonical_target_id, canonical_fingerprint
+                    FROM core.runs
+                    WHERE run_id = %s
+                    """,
+                    (run_id,),
+                )
+                metadata_row = cur.fetchone()
+                if not metadata_row:
                     raise LookupError(f"Backtest run '{run_id}' not found.")
+                canonical_target_id = str(metadata_row[0] or "").strip() or None
+                canonical_fingerprint = str(metadata_row[1] or "").strip() or None
                 cur.execute(
                     """
                     UPDATE core.runs
@@ -623,6 +663,20 @@ class BacktestRepository:
                 if not cur.fetchone():
                     raise BacktestResultsNotReadyError(
                         f"Backtest run '{run_id}' cannot complete before Postgres results are published."
+                    )
+                if canonical_target_id and canonical_fingerprint:
+                    cur.execute(
+                        """
+                        UPDATE core.canonical_backtest_targets
+                        SET
+                            last_applied_fingerprint = %s,
+                            last_enqueued_fingerprint = %s,
+                            last_run_id = %s,
+                            last_completed_at = NOW(),
+                            updated_at = NOW()
+                        WHERE target_id = %s
+                        """,
+                        (canonical_fingerprint, canonical_fingerprint, run_id, canonical_target_id),
                     )
 
     def fail_run(self, run_id: str, *, error: str) -> None:
@@ -716,7 +770,8 @@ class BacktestRepository:
                 net_exposure,
                 turnover,
                 commission,
-                slippage_cost
+                slippage_cost,
+                trade_count
             FROM core.backtest_timeseries
             WHERE run_id = %s
             ORDER BY bar_ts ASC

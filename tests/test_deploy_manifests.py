@@ -36,3 +36,9 @@ def test_api_manifests_pin_single_always_on_replica() -> None:
     assert private_scale["minReplicas"] == 1
     assert private_scale["maxReplicas"] == 1
     assert public_scale == private_scale
+
+
+def test_deploy_root_contains_only_api_yaml_manifests() -> None:
+    repo_root = _repo_root()
+    manifest_names = {path.name for path in (repo_root / "deploy").glob("*.yaml")}
+    assert manifest_names == {"app_api.yaml", "app_api_public.yaml"}

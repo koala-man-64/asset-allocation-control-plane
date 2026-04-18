@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from core import finance_contracts
-
-
+from asset_allocation_contracts import finance as finance_contracts
 def test_silver_finance_subdomains_include_valuation() -> None:
     assert finance_contracts.SILVER_FINANCE_SUBDOMAINS == (
         "balance_sheet",

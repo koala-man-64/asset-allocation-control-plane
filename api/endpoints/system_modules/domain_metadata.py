@@ -14,9 +14,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from core import core as mdc
-from core import domain_metadata_snapshots
-from core.domain_metadata_snapshots import build_snapshot_miss_payload as build_snapshot_miss_payload_from_snapshots
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.market_data import domain_metadata_snapshots
+from asset_allocation_runtime_common.market_data.domain_metadata_snapshots import build_snapshot_miss_payload as build_snapshot_miss_payload_from_snapshots
 from monitoring.domain_metadata import collect_domain_metadata
 
 logger = logging.getLogger("asset-allocation.api.system.domain_metadata")

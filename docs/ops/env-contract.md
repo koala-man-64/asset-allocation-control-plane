@@ -15,6 +15,7 @@ Rules:
 - Azure-backed values are auto-discovered when `az` is installed and logged in.
 - Git and GitHub metadata are used for repo slug defaults where possible.
 - Secrets are never fetched from Azure. Existing `.env.web` secrets are reused; otherwise the script prompts securely.
+- `RUN_LIVE_MASSIVE_TESTS` is an optional local opt-in flag in the managed env surface. Leave it `false` unless you intentionally want live Massive integration tests to run.
 - `scripts/repo/sync-all-to-github.ps1` reads only `.env.web` and this repo-local env contract.
 
 Operational ownership:

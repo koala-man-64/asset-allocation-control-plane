@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from core import delta_core
-from core.pipeline import DataPaths
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.market_data.pipeline import DataPaths
 from tasks.market_data import gold_market_data as gold
 
 def test_run_market_reconciliation_cutoff_store_path_sanitizes_index_artifacts(monkeypatch, tmp_path):

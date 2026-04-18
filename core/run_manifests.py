@@ -5,10 +5,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
-from core import core as mdc
-from core.datetime_utils import parse_utc_datetime, utc_isoformat
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.foundation.datetime_utils import parse_utc_datetime, utc_isoformat
 _MANIFEST_VERSION = 1
 _ROOT_PREFIX = "system/run-manifests"
 _SILVER_FINANCE_PREFIX = f"{_ROOT_PREFIX}/silver_finance"

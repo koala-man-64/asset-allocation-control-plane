@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-from core.gold_sync_contracts import get_sync_config
-
+from asset_allocation_runtime_common.market_data.gold_sync_contracts import get_sync_config
 SUPPORTED_GOLD_LOOKUP_TABLES: Tuple[str, ...] = (
     "market_data",
     "finance_data",

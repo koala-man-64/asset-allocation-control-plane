@@ -11,8 +11,7 @@ from typing import Any, Callable, Optional
 
 import httpx
 
-from core.api_gateway_auth import build_access_token_provider
-
+from asset_allocation_runtime_common.api_gateway_auth import build_access_token_provider
 logger = logging.getLogger(__name__)
 _MIN_API_GATEWAY_TIMEOUT_SECONDS = 60.0
 _DEFAULT_API_WARMUP_ENABLED = True

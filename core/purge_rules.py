@@ -4,9 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from core.postgres import PostgresError, connect
-
-
+from asset_allocation_runtime_common.foundation.postgres import PostgresError, connect
 _ALLOWED_OPERATORS = {
     "gt",
     "gte",

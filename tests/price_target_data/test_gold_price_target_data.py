@@ -1,9 +1,9 @@
 import pandas as pd
 import pytest
 
-from core import core as core_module
-from core import delta_core
-from core.pipeline import DataPaths
+from asset_allocation_runtime_common.market_data import core as core_module
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.market_data.pipeline import DataPaths
 from tasks.price_target_data import gold_price_target_data as gold
 from tasks.common.gold_output_contracts import GOLD_PRICE_TARGET_OUTPUT_COLUMNS
 

@@ -5,6 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
+import pytest
 import yaml
 
 
@@ -12,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 UI_DIR = REPO_ROOT / "ui"
 LOCKFILE_PATH = UI_DIR / "pnpm-lock.yaml"
 PACKAGE_JSON_PATH = UI_DIR / "package.json"
+pytestmark = pytest.mark.skipif(not UI_DIR.exists(), reason="Standalone UI is owned by asset-allocation-ui.")
 
 
 def _load_yaml_mapping(path: Path) -> Dict:

@@ -10,11 +10,10 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from core import core as mdc
-from core import domain_artifacts
-from core.blob_storage import BlobStorageClient
-from core.delta_core import get_delta_schema_columns
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.market_data import domain_artifacts
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
+from asset_allocation_runtime_common.market_data.delta_core import get_delta_schema_columns
 logger = logging.getLogger("asset-allocation.api.system.domain_columns")
 
 _LAYER_CONTAINER_ENV = {

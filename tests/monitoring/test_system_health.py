@@ -236,6 +236,7 @@ def test_system_health_control_plane_redacts_resource_ids(monkeypatch: pytest.Mo
     monkeypatch.setenv("SYSTEM_HEALTH_ARM_JOBS", "myjob")
 
     monkeypatch.setattr(system_health, "_default_layer_specs", lambda: [])
+    monkeypatch.setattr(system_health, "collect_backtest_operational_summary", lambda _dsn: None)
 
     now = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
@@ -390,6 +391,7 @@ def test_system_health_derives_job_cpu_and_memory_percent_signals(
             return responses[url]
 
     monkeypatch.setattr(system_health, "AzureArmClient", FakeAzureArmClient)
+    monkeypatch.setattr(system_health, "collect_backtest_operational_summary", lambda _dsn: None)
 
     payload = system_health.collect_system_health_snapshot(now=now, include_resource_ids=False)
 

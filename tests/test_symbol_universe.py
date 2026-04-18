@@ -2,8 +2,8 @@ import pandas as pd
 import pytest
 from datetime import datetime, timedelta, timezone
 
-import core.core as core_module
-from core.core import (
+import asset_allocation_runtime_common.market_data.core as core_module
+from asset_allocation_runtime_common.market_data.core import (
     _parse_alpha_vantage_listing_status_csv,
     _symbols_refresh_due,
     merge_symbol_sources,

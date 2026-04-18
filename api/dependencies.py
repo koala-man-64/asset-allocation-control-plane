@@ -1,6 +1,5 @@
-from core import delta_core
-from core import config as cfg
-
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.foundation import config as cfg
 # Re-export DeltaTable for use in endpoints
 from deltalake import DeltaTable
 

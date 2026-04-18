@@ -28,10 +28,9 @@ Use only these workflow entry points:
 
 1. `.github/workflows/ci.yml`
 2. `.github/workflows/security.yml`
-3. `.github/workflows/compat.yml`
-4. `.github/workflows/release.yml`
-5. `.github/workflows/deploy-prod.yml`
-6. `.github/workflows/infra-shared-prod.yml`
+3. `.github/workflows/release.yml`
+4. `.github/workflows/deploy-prod.yml`
+5. `.github/workflows/infra-shared-prod.yml`
 
 `deploy-prod.yml` deploys only `asset-allocation-api`.
 
@@ -39,10 +38,9 @@ Use only these workflow entry points:
 
 ## Operate
 
-- Run `compat.yml` when `contracts_released` or `runtime_common_released` is dispatched, or validate a candidate shared package ref manually with `dependency=contracts|runtime-common` and `ref=<sha-or-branch>`.
 - Use `release.yml` to fail fast on missing GitHub release configuration, unpublished shared-package versions, or missing Azure release RBAC before it exports contracts or builds the image.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
-- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, `/openapi.json`, and the auth-session surface when OIDC is enabled.
+- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, and the `/openapi.json` redirect path.
 - Use `deploy_runtime` repository dispatch when automation or rollback needs to supply an explicit image digest.
 
 ## Shared Azure Foundation To Provision Once
@@ -104,6 +102,7 @@ GitHub variables:
    - `powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate\validate_azure_permissions.ps1 -Scenario Release`
 5. Export contract artifacts:
    - `python scripts/automation/export_contract_artifacts.py`
+   - `python scripts/automation/run_quality_gate.py contract-artifacts`
 6. Run the repo test gates:
    - `python -m pytest tests/test_env_contract.py tests/test_workflow_runtime_ownership.py tests/test_azure_provisioning_scripts.py -q`
    - `python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q`
@@ -114,11 +113,11 @@ GitHub variables:
    - use a manual `deploy-prod.yml` run to deploy the latest released ACR image
 9. Verify:
    - `/healthz`
-   - `/readyz`
+   - `/readyz` returns `{"status":"ready"}`
    - `/config.js`
    - `/config.js` exposes `oidcPostLogoutRedirectUri` whenever browser OIDC is enabled
-   - `/openapi.json`
-   - `/api/auth/session` returns `401` without a bearer token on auth-required deployments and `200` with a valid operator token
+   - `/openapi.json` redirects to the active OpenAPI document
+   - if browser OIDC is enabled, `/api/auth/session` returns `401` without a bearer token on auth-required deployments and `200` with a valid operator token
 
 ## Rollback
 
@@ -129,6 +128,9 @@ GitHub variables:
 ## Troubleshoot
 
 - If `ci.yml` fails on artifact drift, regenerate `api/contracts/*` with `python scripts/automation/export_contract_artifacts.py` and commit the changes.
+- To check artifact drift locally without rewriting files, run `python scripts/automation/run_quality_gate.py contract-artifacts`.
+- To block stale contract artifacts before commit in your local clone, run `python scripts/dev/install_git_hooks.py`.
+- Treat OpenAPI-facing route model changes as contract changes even when runtime behavior is unchanged. Imported shared Pydantic models used directly in FastAPI route signatures can change generated component names and should ship with regenerated `api/contracts/*` in the same PR.
 - If `release.yml` fails in preflight, fix the named prerequisite first:
   - missing `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `DISPATCH_APP_ID`, or `DISPATCH_APP_PRIVATE_KEY`
   - unpublished or unreachable `asset-allocation-contracts` or `asset-allocation-runtime-common` versions
@@ -136,13 +138,13 @@ GitHub variables:
 - If `release.yml` fails to build the image after preflight passes, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
 - If a manual `deploy-prod.yml` run fails before apply because no image can be resolved, verify ACR contains at least one released `asset-allocation-api` manifest.
 - If `deploy-prod.yml` fails before apply, verify `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `CONTAINER_APPS_ENVIRONMENT_NAME`, and `ACR_PULL_IDENTITY_NAME`.
-- If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, `/openapi.json`, and `/api/auth/session` before retrying.
+- If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/openapi.json` before retrying. Check `/api/auth/session` separately when auth behavior is also suspect.
 - If browser sign-out lands on a blank or broken page, rerun `.\scripts\ops\provision\provision_entra_oidc.ps1` and confirm the UI app registration now has `web.logoutUrl` set to `https://<ui-origin>/auth/logout-complete`.
 - If `infra-shared-prod.yml` fails, regenerate `.env.web` with `scripts/dev/setup-env.ps1`, sync it with `scripts/repo/sync-all-to-github.ps1`, and verify the `prod` environment still has the required approvals and secrets.
 
 ## Dependencies
 
-- Sibling contracts repo for CI, compatibility checks, and release builds
+- Published shared packages from the contracts and runtime-common repos
 - Azure OIDC credentials in GitHub variables
 - `prod` GitHub environment for deploy and infra workflows
 - Shared runtime resources in `AssetAllocationRG`

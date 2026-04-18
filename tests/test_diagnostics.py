@@ -2,8 +2,7 @@
 import os
 import logging
 from unittest.mock import patch
-from core import core as mdc
-
+from asset_allocation_runtime_common.market_data import core as mdc
 def test_log_environment_diagnostics(caplog, capsys):
     """
     Verifies that log_environment_diagnostics:

@@ -7,8 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Optional
 
-from core.postgres import PostgresError, connect
-
+from asset_allocation_runtime_common.foundation.postgres import PostgresError, connect
 logger = logging.getLogger(__name__)
 
 _LOCAL_RUNTIME_MARKER_ENV_VARS = (
@@ -186,8 +185,7 @@ def normalize_env_override(key: str, value: object) -> str:
         raise ValueError(f"{resolved_key} must be a boolean (true/false).")
 
     if resolved_key == "DEBUG_SYMBOLS":
-        from core.config import parse_debug_symbols
-
+        from asset_allocation_runtime_common.foundation.config import parse_debug_symbols
         return ",".join(parse_debug_symbols(text))
 
     if resolved_key in _JSON_ARRAY_KEYS:

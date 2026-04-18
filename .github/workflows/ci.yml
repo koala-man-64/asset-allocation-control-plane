@@ -74,14 +74,19 @@ jobs:
           cd asset-allocation-control-plane
           python -m ruff check .
 
-      - name: Run env-contract static tests
+      - name: Run architecture and repo-contract tests
         shell: bash
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
           python -m pytest \
+            tests/architecture/test_python_module_boundaries.py \
+            tests/architecture/test_system_facade_guard.py \
+            tests/architecture/test_monitoring_facade_guard.py \
             tests/test_env_contract.py \
             tests/test_workflow_runtime_ownership.py \
+            tests/test_deploy_workflow_filters.py \
+            tests/test_deploy_manifests.py \
             tests/test_azure_provisioning_scripts.py \
             tests/test_multirepo_dependency_contract.py \
             -q
@@ -105,13 +110,12 @@ jobs:
           print("control-plane startup smoke passed")
           PY
 
-      - name: Export contract artifacts and fail on drift
+      - name: Check contract artifacts are current
         shell: bash
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
-          python scripts/automation/export_contract_artifacts.py
-          git diff --exit-code -- api/contracts
+          python scripts/automation/run_quality_gate.py contract-artifacts
 
   dependency-governance:
     name: dependency-governance

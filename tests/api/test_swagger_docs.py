@@ -24,6 +24,50 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     assert openapi.status_code == 200
     body = openapi.json()
     assert body["info"]["title"] == "Asset Allocation API"
+    assert (
+        body["paths"]["/api/universes/catalog"]["get"]["responses"]["200"]["content"]["application/json"]["schema"][
+            "$ref"
+        ]
+        == "#/components/schemas/api__endpoints__universes__UniverseCatalogResponse"
+    )
+    assert (
+        body["paths"]["/api/strategies/universe/catalog"]["get"]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]["$ref"]
+        == "#/components/schemas/api__endpoints__strategies__UniverseCatalogResponse"
+    )
+    assert (
+        body["paths"]["/api/universes/preview"]["post"]["responses"]["200"]["content"]["application/json"]["schema"][
+            "$ref"
+        ]
+        == "#/components/schemas/UniversePreviewResponse"
+    )
+    assert (
+        body["paths"]["/api/strategies/universe/preview"]["post"]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]["$ref"]
+        == "#/components/schemas/UniversePreviewResponse"
+    )
+    assert (
+        body["paths"]["/api/strategies/{name}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"][
+            "$ref"
+        ]
+        == "#/components/schemas/StrategyConfig-Output"
+    )
+    assert body["components"]["schemas"]["StrategyDetailResponse"]["properties"]["config"]["$ref"] == (
+        "#/components/schemas/StrategyConfig-Output"
+    )
+    assert body["components"]["schemas"]["UniverseConfigDetailResponse"]["properties"]["config"]["$ref"] == (
+        "#/components/schemas/UniverseDefinition-Output"
+    )
+    assert "RankingRefreshClaimRequest" in body["components"]["schemas"]
+    assert "ResultsReconcileRequest" in body["components"]["schemas"]
+    assert (
+        body["paths"]["/api/internal/results/reconcile"]["post"]["requestBody"]["content"]["application/json"][
+            "schema"
+        ]["anyOf"][0]["$ref"]
+        == "#/components/schemas/ResultsReconcileRequest"
+    )
 
     assert docs_redirect.status_code == 307
     assert docs_redirect.headers.get("location") == "/api/docs"

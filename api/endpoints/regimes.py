@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from api.endpoints.backtests import _actor_from_request, _trigger_backtest_job
 from api.service.dependencies import validate_auth
-from core.regime import DEFAULT_REGIME_MODEL_NAME, RegimeModelConfig
+from asset_allocation_runtime_common.domain.regime import DEFAULT_REGIME_MODEL_NAME, RegimeModelConfig
 from core.regime_repository import RegimeRepository
 
 router = APIRouter()

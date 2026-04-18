@@ -5,10 +5,8 @@ from io import BytesIO
 import pandas as pd
 import pytest
 
-from core import bronze_bucketing
-from core import layer_bucketing
-
-
+from asset_allocation_runtime_common.market_data import bronze_bucketing
+from asset_allocation_runtime_common.market_data import layer_bucketing
 def test_bucket_letter_mapping_examples() -> None:
     assert bronze_bucketing.bucket_letter("AAPL") == "A"
     assert bronze_bucketing.bucket_letter("brk.b") == "B"

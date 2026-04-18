@@ -7,12 +7,10 @@ from typing import Any, Iterable, Optional
 
 import pandas as pd
 
-from core import core as mdc
-from core.blob_storage import BlobStorageClient
-from core import bronze_bucketing
-from core import domain_metadata_snapshots
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
+from asset_allocation_runtime_common.market_data import bronze_bucketing
+from asset_allocation_runtime_common.market_data import domain_metadata_snapshots
 logger = logging.getLogger(__name__)
 
 ARTIFACT_VERSION = 1

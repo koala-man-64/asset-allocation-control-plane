@@ -6,8 +6,7 @@ import os
 import hashlib
 from typing import Any, Optional
 
-from core.postgres import connect
-
+from asset_allocation_runtime_common.foundation.postgres import connect
 logger = logging.getLogger(__name__)
 RANKING_SCHEMAS_TABLE = "core.ranking_schemas"
 

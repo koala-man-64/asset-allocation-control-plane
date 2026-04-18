@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel
 from psycopg import Error as PsycopgError
 from asset_allocation_contracts.backtest import (
     BacktestClaimRequest,
@@ -16,15 +17,41 @@ from asset_allocation_contracts.backtest import (
 from api.service.dependencies import validate_auth
 from core.backtest_reconcile import reconcile_backtest_runs
 from core.backtest_repository import BacktestRepository, BacktestResultsNotReadyError
-from core.postgres import connect
+from asset_allocation_runtime_common.foundation.postgres import connect
 from core.ranking_repository import RankingRepository
 from core.regime_repository import RegimeRepository
+from core.results_freshness import (
+    claim_next_ranking_refresh,
+    complete_ranking_refresh,
+    fail_ranking_refresh,
+    reconcile_results_freshness,
+)
 from core.strategy_repository import StrategyRepository
 from core.universe_repository import UniverseRepository
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class ResultsReconcileRequest(BaseModel):
+    dryRun: bool = False
+
+
+class RankingRefreshClaimRequest(BaseModel):
+    executionName: str | None = None
+
+
+class RankingRefreshCompleteRequest(BaseModel):
+    claimToken: str
+    runId: str | None = None
+    dependencyFingerprint: str | None = None
+    dependencyState: dict[str, Any] | None = None
+
+
+class RankingRefreshFailRequest(BaseModel):
+    claimToken: str
+    error: str
 
 
 def _require_postgres_dsn(request: Request) -> str:
@@ -95,6 +122,58 @@ async def get_ranking_schema_revision(
     if not revision:
         raise _not_found("Ranking schema revision", name)
     return revision
+
+
+@router.post("/results/reconcile")
+async def reconcile_results(request: Request, payload: ResultsReconcileRequest | None = None) -> dict[str, Any]:
+    validate_auth(request)
+    body = payload or ResultsReconcileRequest()
+    return reconcile_results_freshness(_require_postgres_dsn(request), dry_run=body.dryRun)
+
+
+@router.post("/rankings/refresh/claim")
+async def claim_ranking_refresh(payload: RankingRefreshClaimRequest, request: Request) -> dict[str, Any]:
+    validate_auth(request)
+    work = claim_next_ranking_refresh(_require_postgres_dsn(request), execution_name=payload.executionName)
+    return {"work": work}
+
+
+@router.post("/rankings/refresh/{strategy_name}/complete")
+async def complete_ranking_refresh_work(
+    strategy_name: str,
+    payload: RankingRefreshCompleteRequest,
+    request: Request,
+) -> dict[str, Any]:
+    validate_auth(request)
+    try:
+        return complete_ranking_refresh(
+            _require_postgres_dsn(request),
+            strategy_name=strategy_name,
+            claim_token=payload.claimToken,
+            run_id=payload.runId,
+            dependency_fingerprint=payload.dependencyFingerprint,
+            dependency_state=payload.dependencyState,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/rankings/refresh/{strategy_name}/fail")
+async def fail_ranking_refresh_work(
+    strategy_name: str,
+    payload: RankingRefreshFailRequest,
+    request: Request,
+) -> dict[str, Any]:
+    validate_auth(request)
+    try:
+        return fail_ranking_refresh(
+            _require_postgres_dsn(request),
+            strategy_name=strategy_name,
+            claim_token=payload.claimToken,
+            error=payload.error,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/universes/{name}")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core import bronze_bucketing as owner_bronze_bucketing
-from core import layer_bucketing as owner_layer_bucketing
+from asset_allocation_runtime_common.market_data import bronze_bucketing as owner_bronze_bucketing
+from asset_allocation_runtime_common.market_data import layer_bucketing as owner_layer_bucketing
 from tasks.common import bronze_bucketing as legacy_bronze_bucketing
 from tasks.common import layer_bucketing as legacy_layer_bucketing
 

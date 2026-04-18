@@ -5,10 +5,16 @@ from typing import Any, List
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from api.openapi_models import StrategyConfigOutput, UniversePreviewResponse
 from api.service.dependencies import validate_auth
 
-from core.strategy_engine import StrategyConfig, UniverseDefinition
-from core.strategy_engine.universe import list_gold_universe_catalog, preview_gold_universe
+from core.strategy_engine import StrategyConfig
+from core.strategy_engine.universe import (
+    list_gold_universe_catalog,
+    preview_gold_universe,
+    _normalize_universe_definition,
+    _publicize_universe_definition,
+)
 from core.strategy_repository import StrategyRepository
 from core.universe_repository import UniverseRepository
 
@@ -26,55 +32,54 @@ class StrategySummaryResponse(BaseModel):
 
 
 class StrategyDetailResponse(StrategySummaryResponse):
-    config: StrategyConfig
+    config: StrategyConfigOutput
 
 
 class StrategyUpsertRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    config: StrategyConfig
+    config: dict[str, Any]
     description: str = ""
     type: str = "configured"
 
 
-class UniverseCatalogColumnResponse(BaseModel):
-    name: str
-    dataType: str
+class UniverseCatalogFieldResponse(BaseModel):
+    id: str
+    label: str
     valueKind: str
     operators: list[str]
 
 
-class UniverseCatalogTableResponse(BaseModel):
-    name: str
-    asOfColumn: str
-    columns: list[UniverseCatalogColumnResponse]
-
-
 class UniverseCatalogResponse(BaseModel):
     source: str
-    tables: list[UniverseCatalogTableResponse]
+    fields: list[UniverseCatalogFieldResponse]
 
 
 class UniversePreviewRequest(BaseModel):
-    universe: UniverseDefinition
+    universe: dict[str, Any]
     sampleLimit: int = Field(default=25, ge=1, le=100)
 
 
-class UniversePreviewResponse(BaseModel):
-    source: str
-    symbolCount: int
-    sampleSymbols: list[str]
-    tablesUsed: list[str]
-    warnings: list[str] = Field(default_factory=list)
-
-
 def _normalize_strategy_config(dsn: str, config: Any) -> dict[str, Any]:
-    normalized = StrategyConfig.model_validate(config or {})
+    payload = config.model_dump(exclude_none=True) if hasattr(config, "model_dump") else dict(config or {})
+    universe_payload = payload.get("universe")
+    if universe_payload is not None:
+        normalized_universe = _normalize_universe_definition(universe_payload)
+        payload["universe"] = normalized_universe.model_dump(exclude_none=True)
+    normalized = StrategyConfig.model_validate(payload)
     if not normalized.universeConfigName:
         raise ValueError("Strategy config must reference universeConfigName.")
     universe_repo = UniverseRepository(dsn)
     if not universe_repo.get_universe_config(normalized.universeConfigName):
         raise ValueError(f"Universe config '{normalized.universeConfigName}' not found.")
     return normalized.model_dump(exclude_none=True)
+
+
+def _publicize_strategy_config(config: Any) -> dict[str, Any]:
+    payload = config.model_dump(exclude_none=True) if hasattr(config, "model_dump") else dict(config or {})
+    universe_payload = payload.get("universe")
+    if universe_payload is not None:
+        payload["universe"] = _publicize_universe_definition(universe_payload)
+    return payload
 
 
 def _build_strategy_detail_response(strategy: dict[str, Any]) -> StrategyDetailResponse:
@@ -84,7 +89,7 @@ def _build_strategy_detail_response(strategy: dict[str, Any]) -> StrategyDetailR
         description=str(strategy.get("description") or ""),
         output_table_name=strategy.get("output_table_name"),
         updated_at=strategy.get("updated_at"),
-        config=StrategyConfig.model_validate(strategy.get("config") or {}),
+        config=StrategyConfigOutput.model_validate(_publicize_strategy_config(strategy.get("config") or {})),
     )
 
 
@@ -110,13 +115,11 @@ async def list_strategies(request: Request) -> List[dict[str, Any]]:
 @router.get("/universe/catalog", response_model=UniverseCatalogResponse)
 async def get_universe_catalog(request: Request) -> UniverseCatalogResponse:
     """
-    Return eligible Postgres gold tables and columns for strategy universe authoring.
+    Return eligible public universe fields for strategy universe authoring.
     """
     validate_auth(request)
     try:
-        return UniverseCatalogResponse.model_validate(
-            list_gold_universe_catalog(_require_postgres_dsn(request))
-        )
+        return UniverseCatalogResponse.model_validate(list_gold_universe_catalog(_require_postgres_dsn(request)))
     except HTTPException:
         raise
     except ValueError as exc:
@@ -165,8 +168,8 @@ async def get_strategy_detail(name: str, request: Request) -> StrategyDetailResp
     return _build_strategy_detail_response(strategy)
 
 
-@router.get("/{name}", response_model=StrategyConfig)
-async def get_strategy(name: str, request: Request) -> StrategyConfig:
+@router.get("/{name}", response_model=StrategyConfigOutput)
+async def get_strategy(name: str, request: Request) -> StrategyConfigOutput:
     """
     Get configuration for a specific strategy by name.
     """
@@ -176,7 +179,7 @@ async def get_strategy(name: str, request: Request) -> StrategyConfig:
     config = repo.get_strategy_config(name)
     if config is None:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' configuration not found")
-    return StrategyConfig.model_validate(config)
+    return StrategyConfigOutput.model_validate(config)
 
 
 @router.post("/")

@@ -186,7 +186,7 @@ Universe configurations are first-class saved objects reused by both strategies 
 
 ### Universe Definition: `core.universe_configs.config`
 
-Universe authoring is limited to the Postgres `gold.*` serving tables. The editor builds a recursive rule tree, and the preview endpoint resolves the current matching symbol set using the latest available row per symbol from each referenced gold table.
+Universe authoring is exposed through a public field catalog. The editor builds a recursive rule tree, and the preview endpoint resolves the current matching symbol set by translating stable field ids to the local gold serving tables used by the control plane.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -200,16 +200,15 @@ Universe authoring is limited to the Postgres `gold.*` serving tables. The edito
 | `kind` | enum | Discriminator. Groups use `group`; conditions use `condition`. |
 | `operator` | enum | Group operator. Supported values are `and` and `or`. |
 | `clauses` | array | Child groups or conditions. Empty groups are rejected by the backend. |
-| `table` | string | Gold table name, for example `market_data` or `finance_data`. Only `gold.*` tables exposed by the catalog endpoint are allowed. |
-| `column` | string | Scalar column name within the selected gold table. Non-scalar columns are excluded from the catalog and rejected by preview validation. |
+| `field` | string | Stable public universe field id, for example `market.close` or `quality.piotroski_f_score`. The backend resolves the field against its local gold-table map and rejects unknown ids. |
 | `operator` | enum | Condition operator. Supported values are `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `is_null`, and `is_not_null`. |
 | `value` | string, number, boolean, or null | Single-value input used by scalar operators such as `eq` or `gt`. Null operators reject both `value` and `values`. |
 | `values` | array of string, number, or boolean | Multi-value input used only by `in` and `not_in`. |
 
 ### Universe Preview
 
-- `GET /api/strategies/universe/catalog` returns eligible `gold.*` tables, their scalar columns, value kinds, and allowed operators.
-- `POST /api/strategies/universe/preview` accepts a draft `UniverseDefinition` and returns `symbolCount`, `sampleSymbols`, `tablesUsed`, and `warnings`.
+- `GET /api/strategies/universe/catalog` returns public field ids, labels, value kinds, and allowed operators.
+- `POST /api/strategies/universe/preview` accepts a draft `UniverseDefinition` and returns `symbolCount`, `sampleSymbols`, `fieldsUsed`, and `warnings`.
 - Preview is current-state only for this milestone. It evaluates each condition against the latest available row per symbol in the referenced gold table and then combines clause results with `and` intersection or `or` union.
 
 ### Exit Rule Components: `config.exits[]`

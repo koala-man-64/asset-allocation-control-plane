@@ -1,5 +1,5 @@
 from api.service.massive_gateway import MassiveGateway
-from core.market_history_contract import MARKET_HISTORY_START_DATE, MARKET_HISTORY_STATUS_NO_HISTORY, MARKET_HISTORY_STATUS_OK
+from asset_allocation_contracts.market_history import MARKET_HISTORY_START_DATE, MARKET_HISTORY_STATUS_NO_HISTORY, MARKET_HISTORY_STATUS_OK
 from massive_provider.errors import MassiveNotFoundError
 
 

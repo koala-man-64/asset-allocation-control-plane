@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from core import core as mdc
+from asset_allocation_runtime_common.shared_core import core as mdc
 
 
 class _FakeContainerClient:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from core import symbol_availability
+from asset_allocation_runtime_common.shared_core import symbol_availability
 
 
 class _FakeCursor:

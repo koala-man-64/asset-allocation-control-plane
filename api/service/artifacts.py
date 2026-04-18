@@ -5,10 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from core.blob_storage import BlobStorageClient
-from core.datetime_utils import utc_isoformat
-
-
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
+from asset_allocation_runtime_common.foundation.datetime_utils import utc_isoformat
 @dataclass(frozen=True)
 class ArtifactInfo:
     name: str

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core import layer_bucketing
+from asset_allocation_runtime_common.market_data import layer_bucketing
 from tasks.common.market_reconciliation import (
     collect_bronze_earnings_symbols_from_blob_infos,
     collect_bronze_finance_symbols_from_blob_infos,

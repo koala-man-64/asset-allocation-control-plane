@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import pandas as pd
 import pytest
 
-from core.market_symbols import REGIME_REQUIRED_MARKET_SYMBOLS
+from asset_allocation_runtime_common.market_data.market_symbols import REGIME_REQUIRED_MARKET_SYMBOLS
 from tasks.regime_data import gold_regime_data as regime_job
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core import run_manifests as owner_run_manifests
+from asset_allocation_runtime_common.foundation import run_manifests as owner_run_manifests
 from tasks.common import run_manifests as legacy_run_manifests
 
 

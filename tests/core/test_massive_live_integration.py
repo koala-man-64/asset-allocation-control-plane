@@ -17,21 +17,22 @@ def _repo_root() -> Path:
 
 
 def _read_repo_env_value(name: str) -> str:
-    env_path = _repo_root() / ".env"
-    if not env_path.exists():
-        return ""
+    for filename in (".env", ".env.web"):
+        env_path = _repo_root() / filename
+        if not env_path.exists():
+            continue
 
-    try:
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            if key.strip() != name:
-                continue
-            return value.strip().strip('"').strip("'")
-    except OSError:
-        return ""
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key.strip() != name:
+                    continue
+                return value.strip().strip('"').strip("'")
+        except OSError:
+            continue
     return ""
 
 
@@ -44,9 +45,36 @@ def _live_env(name: str, *, default: str = "") -> str:
 
 
 def _live_enabled() -> bool:
-    run_flag = str(os.getenv("RUN_LIVE_MASSIVE_TESTS", "")).strip().lower()
+    run_flag = _live_env("RUN_LIVE_MASSIVE_TESTS").strip().lower()
     api_key = _live_env("MASSIVE_API_KEY")
     return run_flag in {"1", "true", "t", "yes", "y", "on"} and bool(api_key)
+
+
+def test_live_env_reads_repo_env_web_when_process_env_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("tests.core.test_massive_live_integration._repo_root", lambda: tmp_path)
+    monkeypatch.delenv("RUN_LIVE_MASSIVE_TESTS", raising=False)
+    monkeypatch.delenv("MASSIVE_API_KEY", raising=False)
+
+    (tmp_path / ".env.web").write_text(
+        "RUN_LIVE_MASSIVE_TESTS=1\nMASSIVE_API_KEY=test-massive-key\n",
+        encoding="utf-8",
+    )
+
+    assert _live_env("RUN_LIVE_MASSIVE_TESTS") == "1"
+    assert _live_env("MASSIVE_API_KEY") == "test-massive-key"
+
+
+def test_live_enabled_accepts_repo_env_web_opt_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("tests.core.test_massive_live_integration._repo_root", lambda: tmp_path)
+    monkeypatch.delenv("RUN_LIVE_MASSIVE_TESTS", raising=False)
+    monkeypatch.delenv("MASSIVE_API_KEY", raising=False)
+
+    (tmp_path / ".env.web").write_text(
+        "RUN_LIVE_MASSIVE_TESTS=true\nMASSIVE_API_KEY=test-massive-key\n",
+        encoding="utf-8",
+    )
+
+    assert _live_enabled() is True
 
 
 def _live_config() -> MassiveConfig:
@@ -82,7 +110,7 @@ def _request_json(
 @pytest.mark.slow
 @pytest.mark.skipif(
     not _live_enabled(),
-    reason="Set RUN_LIVE_MASSIVE_TESTS=1 and MASSIVE_API_KEY (or repo .env MASSIVE_API_KEY) to run live Massive integration tests.",
+    reason="Set RUN_LIVE_MASSIVE_TESTS=1 and MASSIVE_API_KEY in the environment or repo .env/.env.web to run live Massive integration tests.",
 )
 def test_live_snapshot_and_daily_calls_succeed_without_mocking() -> None:
     cfg = _live_config()
@@ -122,7 +150,7 @@ def test_live_snapshot_and_daily_calls_succeed_without_mocking() -> None:
 @pytest.mark.slow
 @pytest.mark.skipif(
     not _live_enabled(),
-    reason="Set RUN_LIVE_MASSIVE_TESTS=1 and MASSIVE_API_KEY (or repo .env MASSIVE_API_KEY) to run live Massive integration tests.",
+    reason="Set RUN_LIVE_MASSIVE_TESTS=1 and MASSIVE_API_KEY in the environment or repo .env/.env.web to run live Massive integration tests.",
 )
 @pytest.mark.parametrize("symbol", ["I:VIX", "I:VIX3M"])
 def test_live_index_reference_and_prev_close_calls_return_data(symbol: str) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import tomllib
 
 
@@ -28,44 +29,47 @@ def test_python_dependency_manifests_stay_in_sync() -> None:
     shared = shared_dependencies()
     requirements = (repo_root() / "requirements.txt").read_text(encoding="utf-8")
     lockfile = (repo_root() / "requirements.lock.txt").read_text(encoding="utf-8")
-    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in requirements
-    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in lockfile
-    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in requirements
-    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in lockfile
+    assert shared["asset-allocation-contracts"]
+    assert shared["asset-allocation-runtime-common"]
+    assert "asset-allocation-contracts==" not in requirements
+    assert "asset-allocation-contracts==" not in lockfile
+    assert "asset-allocation-runtime-common==" not in requirements
+    assert "asset-allocation-runtime-common==" not in lockfile
 
 
 def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
+    shared = shared_dependencies()
     text = (repo_root() / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
     assert "COPY asset-allocation-contracts/" not in text
     assert "COPY asset-allocation-runtime-common/" not in text
     assert '"asset-allocation-contracts==${CONTRACTS_VERSION}"' in text
     assert '"asset-allocation-runtime-common==${RUNTIME_COMMON_VERSION}"' in text
+    contracts_arg = re.search(r"^ARG CONTRACTS_VERSION=([^\r\n]+)$", text, re.MULTILINE)
+    runtime_common_arg = re.search(r"^ARG RUNTIME_COMMON_VERSION=([^\r\n]+)$", text, re.MULTILINE)
+    assert contracts_arg is not None
+    assert runtime_common_arg is not None
+    assert contracts_arg.group(1) == shared["asset-allocation-contracts"]
+    assert runtime_common_arg.group(1) == shared["asset-allocation-runtime-common"]
 
 
 def test_normal_ci_and_release_workflows_do_not_checkout_sibling_repos() -> None:
-    for name in ("ci.yml", "release.yml"):
-        text = (repo_root() / ".github" / "workflows" / name).read_text(encoding="utf-8")
+    for path in (repo_root() / ".github" / "workflows").glob("*.yml"):
+        text = path.read_text(encoding="utf-8")
         assert "Checkout contracts repository" not in text
         assert "Checkout runtime-common repository" not in text
 
 
-def test_compatibility_workflow_is_the_only_place_cross_repo_checkout_is_allowed() -> None:
-    compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
-    assert "Checkout shared dependency repository" in compat
-    assert "asset-allocation-contracts" in compat
-    assert "asset-allocation-runtime-common" in compat
+def test_setup_action_validates_shared_package_compatibility_before_install() -> None:
+    action = (repo_root() / ".github" / "actions" / "setup-control-plane-python" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "check-shared-compat" in action
+    assert '--requirements "${repo_path}/shared-python-deps.txt"' in action
 
 
-def test_contracts_release_dispatch_pins_current_manifest() -> None:
-    compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
-    assert "DISPATCH_CONTRACTS_VERSION" in compat
-    assert "Pin released contracts version" in compat
-    assert "client_payload.contracts_version" in compat
-    assert "git push origin HEAD:${{ steps.target.outputs.current_repo_ref }}" in compat
-
-
-def test_compatibility_workflow_uses_defined_dispatch_action_context() -> None:
-    compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
-    assert "GITHUB_EVENT_ACTION" not in compat
-    assert "DISPATCH_EVENT_ACTION" in compat
-    assert "github.event.action" in compat
+def test_control_plane_workflows_do_not_consume_shared_release_dispatches() -> None:
+    forbidden_events = ("contracts" "_released", "runtime_common" "_released")
+    for path in (repo_root() / ".github" / "workflows").glob("*.yml"):
+        text = path.read_text(encoding="utf-8")
+        for event_name in forbidden_events:
+            assert event_name not in text

@@ -7,7 +7,15 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from asset_allocation_contracts.backtest import BacktestSummary, ClosedPositionListResponse, TradeRole
+from asset_allocation_contracts.backtest import (
+    BacktestSummary,
+    ClosedPositionListResponse,
+    RunListResponse,
+    RunPinsResponse,
+    RunRecordResponse,
+    RunStatusResponse,
+    TradeRole,
+)
 from pydantic import BaseModel, ConfigDict, Field
 from psycopg import Error as PsycopgError
 
@@ -31,24 +39,6 @@ class SubmitBacktestRequest(BaseModel):
     endTs: datetime
     barSize: str = Field(..., min_length=1, max_length=32)
     runName: str | None = Field(default=None, max_length=255)
-
-
-class RunRecordResponse(BaseModel):
-    run_id: str
-    status: str
-    submitted_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    run_name: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
-    error: str | None = None
-
-
-class RunListResponse(BaseModel):
-    runs: list[RunRecordResponse]
-    limit: int
-    offset: int
 
 
 class BacktestResponseMetadata(BaseModel):
@@ -79,6 +69,7 @@ class TimeseriesPointResponse(BaseModel):
     turnover: float | None = None
     commission: float | None = None
     slippage_cost: float | None = None
+    trade_count: int | None = None
 
 
 class TimeseriesResponse(BaseModel):
@@ -189,6 +180,40 @@ def _attach_metadata(payload: dict[str, Any], run: dict[str, Any]) -> dict[str, 
     return payload
 
 
+def _run_record_payload(run: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": run.get("run_id"),
+        "status": run.get("status"),
+        "submitted_at": run.get("submitted_at"),
+        "started_at": run.get("started_at"),
+        "completed_at": run.get("completed_at"),
+        "run_name": run.get("run_name"),
+        "start_date": run.get("start_date"),
+        "end_date": run.get("end_date"),
+        "error": run.get("error"),
+        "strategy_name": run.get("strategy_name"),
+        "strategy_version": run.get("strategy_version"),
+        "bar_size": run.get("bar_size"),
+        "execution_name": run.get("execution_name"),
+    }
+
+
+def _run_status_payload(run: dict[str, Any]) -> dict[str, Any]:
+    pins_payload: dict[str, Any] | None = None
+    effective_config = run.get("effective_config")
+    if isinstance(effective_config, dict):
+        raw_pins = effective_config.get("pins")
+        if isinstance(raw_pins, dict):
+            pins_payload = RunPinsResponse.model_validate(raw_pins).model_dump(mode="json")
+
+    return {
+        **_run_record_payload(run),
+        "results_ready_at": run.get("results_ready_at"),
+        "results_schema_version": run.get("results_schema_version"),
+        "pins": pins_payload,
+    }
+
+
 def _actor_from_request(request: Request) -> str | None:
     settings = get_settings(request)
     if settings.anonymous_local_auth_enabled:
@@ -252,7 +277,9 @@ async def list_backtests(
         "Postgres is unavailable for backtest features.",
         lambda: repo.list_runs(status=status, query=q, limit=limit, offset=offset),
     )
-    return RunListResponse.model_validate({"runs": runs, "limit": limit, "offset": offset})
+    return RunListResponse.model_validate(
+        {"runs": [_run_record_payload(run) for run in runs], "limit": limit, "offset": offset}
+    )
 
 
 @router.post("", response_model=RunRecordResponse)
@@ -353,15 +380,15 @@ async def submit_backtest(payload: SubmitBacktestRequest, request: Request) -> R
         job_response.get("executionName"),
         run.get("strategy_name"),
     )
-    return RunRecordResponse.model_validate(run)
+    return RunRecordResponse.model_validate(_run_record_payload(run))
 
 
-@router.get("/{run_id}/status", response_model=RunRecordResponse)
-async def get_status(run_id: str, request: Request) -> RunRecordResponse:
+@router.get("/{run_id}/status", response_model=RunStatusResponse)
+async def get_status(run_id: str, request: Request) -> RunStatusResponse:
     validate_auth(request)
     repo = BacktestRepository(_require_postgres_dsn(request))
     run = _require_run(repo, run_id)
-    return RunRecordResponse.model_validate(run)
+    return RunStatusResponse.model_validate(_run_status_payload(run))
 
 
 @router.get("/{run_id}/summary", response_model=SummaryResponse)

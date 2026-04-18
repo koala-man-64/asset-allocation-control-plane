@@ -1,5 +1,5 @@
 name: Setup Control Plane Python
-description: Set up Python and install control-plane dependencies for CI, release, and compatibility workflows.
+description: Set up Python and install control-plane dependencies for CI and release workflows.
 
 inputs:
   repo-path:
@@ -22,7 +22,7 @@ inputs:
     required: false
     default: ""
   extra-editable-path:
-    description: Optional extra editable install path for compatibility runs.
+    description: Optional extra editable install path for additional local validation.
     required: false
     default: ""
   run-pip-check:
@@ -92,6 +92,9 @@ runs:
         PY
 
         if [ -s "${repo_path}/shared-python-deps.txt" ]; then
+          python "${repo_path}/scripts/repo/dependency_governance.py" \
+            check-shared-compat \
+            --requirements "${repo_path}/shared-python-deps.txt"
           python -m pip install -r "${repo_path}/shared-python-deps.txt"
         fi
 

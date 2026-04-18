@@ -45,8 +45,7 @@ containers = [
 ]
 for container in containers:
     os.environ.setdefault(container, "test-container")
-from core.blob_storage import BlobStorageClient
-
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
 @pytest.fixture(scope="session", autouse=True)
 def redirect_storage(tmp_path_factory):
     """
@@ -63,7 +62,10 @@ def redirect_storage(tmp_path_factory):
 
     with patch("core.delta_core.get_delta_table_uri", side_effect=mock_get_uri), \
          patch("core.delta_core.get_delta_storage_options", return_value={}), \
-         patch("core.delta_core._ensure_container_exists", return_value=None):
+         patch("core.delta_core._ensure_container_exists", return_value=None), \
+         patch("asset_allocation_runtime_common.shared_core.delta_core.get_delta_table_uri", side_effect=mock_get_uri), \
+         patch("asset_allocation_runtime_common.shared_core.delta_core.get_delta_storage_options", return_value={}), \
+         patch("asset_allocation_runtime_common.shared_core.delta_core._ensure_container_exists", return_value=None):
         yield temp_storage_root
 
 @pytest.fixture(scope="session")

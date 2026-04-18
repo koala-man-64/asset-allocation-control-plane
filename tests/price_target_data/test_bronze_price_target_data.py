@@ -7,9 +7,8 @@ from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tasks.price_target_data import bronze_price_target_data as bronze
-from core import config as cfg
-from core import core as mdc
-
+from asset_allocation_runtime_common.foundation import config as cfg
+from asset_allocation_runtime_common.market_data import core as mdc
 # --- Helpers ---
 
 @pytest.fixture

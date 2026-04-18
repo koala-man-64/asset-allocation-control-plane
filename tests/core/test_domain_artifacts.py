@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from core import domain_artifacts
-from core import domain_metadata_snapshots
-
-
+from asset_allocation_runtime_common.market_data import domain_artifacts
+from asset_allocation_runtime_common.market_data import domain_metadata_snapshots
 def test_summarize_frame_tracks_finance_subdomains() -> None:
     df = pd.DataFrame(
         {
