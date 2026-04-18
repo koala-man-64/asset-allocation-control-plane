@@ -5,14 +5,14 @@ from typing import Any, Callable
 import httpx
 import pytest
 
-import asset_allocation_runtime_common.providers.alpha_vantage_gateway_client as alpha_vantage_gateway_client_module
-import asset_allocation_runtime_common.providers.massive_gateway_client as massive_gateway_client_module
-from asset_allocation_runtime_common.providers.alpha_vantage_gateway_client import (
+import asset_allocation_runtime_common.shared_core.alpha_vantage_gateway_client as alpha_vantage_gateway_client_module
+import asset_allocation_runtime_common.shared_core.massive_gateway_client as massive_gateway_client_module
+from asset_allocation_runtime_common.shared_core.alpha_vantage_gateway_client import (
     AlphaVantageGatewayClient,
     AlphaVantageGatewayClientConfig,
     AlphaVantageGatewayUnavailableError,
 )
-from asset_allocation_runtime_common.providers.massive_gateway_client import (
+from asset_allocation_runtime_common.shared_core.massive_gateway_client import (
     MassiveGatewayClient,
     MassiveGatewayClientConfig,
     MassiveGatewayUnavailableError,

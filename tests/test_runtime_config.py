@@ -1,7 +1,9 @@
 import logging
 
-from asset_allocation_runtime_common.foundation import runtime_config
-from asset_allocation_runtime_common.foundation.runtime_config import normalize_env_override
+from asset_allocation_runtime_common.shared_core import runtime_config
+from asset_allocation_runtime_common.shared_core.runtime_config import normalize_env_override
+
+
 def test_normalize_env_override_passthrough_for_unmanaged_keys():
     assert normalize_env_override("LEGACY_FLAG", "true") == "true"
     assert normalize_env_override("LEGACY_FLAG", "1") == "1"
@@ -64,6 +66,7 @@ def test_apply_runtime_config_logs_info_for_local_db_connectivity_error(monkeypa
         "KUBERNETES_SERVICE_HOST",
     ):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     monkeypatch.setattr(runtime_config, "get_effective_runtime_config", _raise_connectivity_error)
 
     with caplog.at_level(logging.INFO, logger=runtime_config.logger.name):
@@ -86,6 +89,7 @@ def test_apply_runtime_config_logs_warning_for_cloud_runtime_db_connectivity_err
         raise RuntimeError("connection failed: timeout expired")
 
     monkeypatch.setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "azurecontainerapps.io")
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     monkeypatch.setattr(runtime_config, "get_effective_runtime_config", _raise_connectivity_error)
 
     with caplog.at_level(logging.INFO, logger=runtime_config.logger.name):

@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
+from asset_allocation_contracts.strategy import (
+    UNIVERSE_FIELD_DEFINITION_BY_ID,
+    UniverseFieldId,
+)
 from asset_allocation_runtime_common.foundation.postgres import connect
 from core.strategy_engine.contracts import (
     UniverseCondition,
@@ -18,7 +22,15 @@ logger = logging.getLogger(__name__)
 
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _FIELD_ID_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$")
-_AS_OF_COLUMN_CANDIDATES = ("as_of_ts", "timestamp", "ts", "datetime", "date", "obs_date")
+_AS_OF_COLUMN_CANDIDATES = (
+    "as_of_ts",
+    "timestamp",
+    "ts",
+    "datetime",
+    "date",
+    "obs_date",
+    "updated_at",
+)
 _NUMERIC_TYPES = {
     "smallint",
     "integer",
@@ -69,94 +81,100 @@ def _is_catalog_table_name(table_name: str) -> bool:
 
 @dataclass(frozen=True)
 class UniverseFieldSpec:
-    field_id: str
-    label: str
+    field_id: UniverseFieldId
+    schema: str
     table: str
     column: str
-    value_kind: str
-    operators: tuple[UniverseConditionOperator, ...]
+    candidate_sql: str | None = None
+
+    @property
+    def label(self) -> str:
+        return UNIVERSE_FIELD_DEFINITION_BY_ID[self.field_id].label
+
+    @property
+    def value_kind(self) -> str:
+        return UNIVERSE_FIELD_DEFINITION_BY_ID[self.field_id].valueKind
+
+    @property
+    def operators(self) -> tuple[UniverseConditionOperator, ...]:
+        return tuple(UNIVERSE_FIELD_DEFINITION_BY_ID[self.field_id].operators)
 
 
 UNIVERSE_FIELD_MAP: dict[str, UniverseFieldSpec] = {
     "market.close": UniverseFieldSpec(
         field_id="market.close",
-        label="Market Close",
+        schema="gold",
         table="market_data",
         column="close",
-        value_kind="number",
-        operators=_NUMBER_OPERATORS,
     ),
     "market.trade_date": UniverseFieldSpec(
         field_id="market.trade_date",
-        label="Market Trade Date",
+        schema="gold",
         table="market_data",
         column="date",
-        value_kind="date",
-        operators=_NUMBER_OPERATORS,
     ),
     "market.timestamp": UniverseFieldSpec(
         field_id="market.timestamp",
-        label="Market Timestamp",
+        schema="gold",
         table="market_data",
         column="date",
-        value_kind="date",
-        operators=_NUMBER_OPERATORS,
+        candidate_sql='({column})::timestamp without time zone',
     ),
     "returns.return_20d": UniverseFieldSpec(
         field_id="returns.return_20d",
-        label="20D Return",
+        schema="gold",
         table="market_data",
         column="return_20d",
-        value_kind="number",
-        operators=_NUMBER_OPERATORS,
     ),
     "returns.return_126d": UniverseFieldSpec(
         field_id="returns.return_126d",
-        label="126D Return",
+        schema="gold",
         table="market_data",
-        column="return_60d",
-        value_kind="number",
-        operators=_NUMBER_OPERATORS,
+        column="return_126d",
     ),
     "security.is_active": UniverseFieldSpec(
         field_id="security.is_active",
-        label="Security Is Active",
+        schema="core",
         table="symbols",
         column="status",
-        value_kind="string",
-        operators=_STRING_OPERATORS,
+        candidate_sql=(
+            "CASE "
+            "WHEN {column} IS NULL OR btrim({column}) = '' THEN NULL "
+            "WHEN lower(btrim({column})) = 'active' THEN TRUE "
+            "ELSE FALSE "
+            "END"
+        ),
     ),
     "security.sector": UniverseFieldSpec(
         field_id="security.sector",
-        label="Security Sector",
+        schema="core",
         table="symbols",
         column="sector",
-        value_kind="string",
-        operators=_STRING_OPERATORS,
     ),
     "security.delisted_at": UniverseFieldSpec(
         field_id="security.delisted_at",
-        label="Security Delisted At",
+        schema="core",
         table="symbols",
         column="delisting_date",
-        value_kind="date",
-        operators=_NUMBER_OPERATORS,
+        candidate_sql=(
+            "CASE "
+            "WHEN NULLIF(btrim({column}), '') IS NULL THEN NULL "
+            "WHEN btrim({column}) ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN (btrim({column}))::date::timestamp without time zone "
+            "ELSE (btrim({column}))::timestamp without time zone "
+            "END"
+        ),
     ),
     "quality.piotroski_f_score": UniverseFieldSpec(
         field_id="quality.piotroski_f_score",
-        label="Piotroski F Score",
+        schema="gold",
         table="finance_data",
         column="piotroski_f_score",
-        value_kind="number",
-        operators=_NUMBER_OPERATORS,
     ),
     "earnings.surprise_pct": UniverseFieldSpec(
         field_id="earnings.surprise_pct",
-        label="Earnings Surprise %",
+        schema="gold",
         table="earnings_data",
         column="surprise_pct",
-        value_kind="number",
-        operators=_NUMBER_OPERATORS,
     ),
 }
 
@@ -175,6 +193,7 @@ class UniverseColumnSpec:
 
 @dataclass(frozen=True)
 class UniverseTableSpec:
+    schema: str
     name: str
     as_of_column: str
     columns: dict[str, UniverseColumnSpec]
@@ -182,6 +201,8 @@ class UniverseTableSpec:
 
 
 def list_gold_universe_catalog(dsn: str) -> dict[str, Any]:
+    table_specs = _load_gold_table_specs(dsn)
+    supported_fields = _resolve_supported_field_specs(table_specs)
     fields = [
         {
             "id": spec.field_id,
@@ -189,7 +210,7 @@ def list_gold_universe_catalog(dsn: str) -> dict[str, Any]:
             "valueKind": spec.value_kind,
             "operators": list(spec.operators),
         }
-        for spec in sorted(UNIVERSE_FIELD_MAP.values(), key=lambda item: item.field_id)
+        for spec in sorted(supported_fields.values(), key=lambda item: item.field_id)
     ]
     logger.info("Universe catalog loaded: fields=%d", len(fields))
     return {"source": "postgres_gold", "fields": fields}
@@ -206,8 +227,15 @@ def preview_gold_universe(
 
     normalized_universe = _normalize_universe_definition(universe)
     table_specs = _load_gold_table_specs(dsn)
+    supported_field_specs = _resolve_supported_field_specs(table_specs)
+    _validate_supported_universe_fields(normalized_universe.root, supported_field_specs)
     with connect(dsn) as conn:
-        symbols, fields_used = _evaluate_node(conn, normalized_universe.root, table_specs)
+        symbols, fields_used = _evaluate_node(
+            conn,
+            normalized_universe.root,
+            table_specs,
+            supported_field_specs,
+        )
 
     ordered_symbols = sorted(symbols)
     warnings: list[str] = []
@@ -227,6 +255,13 @@ def preview_gold_universe(
         "fieldsUsed": sorted(fields_used),
         "warnings": warnings,
     }
+
+
+def validate_universe_definition_support(dsn: str, universe: Any) -> UniverseDefinition:
+    normalized_universe = _normalize_universe_definition(universe)
+    supported_field_specs = _resolve_supported_field_specs(_load_gold_table_specs(dsn))
+    _validate_supported_universe_fields(normalized_universe.root, supported_field_specs)
+    return normalized_universe
 
 
 def _normalize_universe_definition(universe: Any) -> UniverseDefinition:
@@ -368,30 +403,37 @@ def _payload_to_dict(value: Any) -> dict[str, Any]:
 
 def _load_gold_table_specs(dsn: str) -> dict[str, UniverseTableSpec]:
     query = """
-        SELECT table_name, column_name, data_type, udt_name
+        SELECT table_schema, table_name, column_name, data_type, udt_name
         FROM information_schema.columns
         WHERE table_schema = 'gold'
-        ORDER BY table_name, ordinal_position
+           OR (table_schema = 'core' AND table_name = 'symbols')
+        ORDER BY table_schema, table_name, ordinal_position
     """
     with connect(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(query)
             rows = cur.fetchall()
-    rows = [row for row in rows if _is_catalog_table_name(str(row[0] or ""))]
+    rows = [row for row in rows if _is_catalog_table_name(str(row[1] or ""))]
     return _build_table_specs(rows)
 
 
 def _build_table_specs(rows: list[tuple[Any, ...]]) -> dict[str, UniverseTableSpec]:
-    by_table: dict[str, list[tuple[str, str, str]]] = {}
-    for table_name_raw, column_name_raw, data_type_raw, udt_name_raw in rows:
+    by_table: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+    for row in rows:
+        if len(row) == 5:
+            table_schema_raw, table_name_raw, column_name_raw, data_type_raw, udt_name_raw = row
+        else:
+            table_schema_raw = "gold"
+            table_name_raw, column_name_raw, data_type_raw, udt_name_raw = row
+        table_schema = _normalize_identifier(str(table_schema_raw or ""), "schema")
         table_name = _normalize_identifier(str(table_name_raw or ""), "table")
         column_name = _normalize_identifier(str(column_name_raw or ""), "column")
         data_type = str(data_type_raw or "").strip().lower()
         udt_name = str(udt_name_raw or "").strip().lower()
-        by_table.setdefault(table_name, []).append((column_name, data_type, udt_name))
+        by_table.setdefault((table_schema, table_name), []).append((column_name, data_type, udt_name))
 
     table_specs: dict[str, UniverseTableSpec] = {}
-    for table_name, column_rows in sorted(by_table.items()):
+    for (table_schema, table_name), column_rows in sorted(by_table.items()):
         column_specs: dict[str, UniverseColumnSpec] = {}
         has_symbol = False
         as_of_column: str | None = None
@@ -415,12 +457,43 @@ def _build_table_specs(rows: list[tuple[Any, ...]]) -> dict[str, UniverseTableSp
             continue
         as_of_kind = "intraday" if _is_intraday_data_type(as_of_column, column_rows) else "slower"
         table_specs[table_name] = UniverseTableSpec(
+            schema=table_schema,
             name=table_name,
             as_of_column=as_of_column,
             as_of_kind=as_of_kind,
             columns=column_specs,
         )
     return table_specs
+
+
+def _resolve_supported_field_specs(
+    table_specs: dict[str, UniverseTableSpec],
+) -> dict[str, UniverseFieldSpec]:
+    supported_fields: dict[str, UniverseFieldSpec] = {}
+    for field_id, spec in UNIVERSE_FIELD_MAP.items():
+        table_spec = table_specs.get(spec.table)
+        if table_spec is None or table_spec.schema != spec.schema:
+            continue
+        if _normalize_identifier(spec.column, "column") not in table_spec.columns:
+            continue
+        supported_fields[field_id] = spec
+    return supported_fields
+
+
+def _validate_supported_universe_fields(
+    node: UniverseGroup | UniverseCondition,
+    supported_field_specs: dict[str, UniverseFieldSpec],
+) -> None:
+    if isinstance(node, UniverseCondition):
+        field_id = _normalize_field_id(str(node.field))
+        if field_id not in supported_field_specs:
+            raise ValueError(
+                f"Universe field '{field_id}' is not available in the current database."
+            )
+        return
+
+    for clause in node.clauses:
+        _validate_supported_universe_fields(clause, supported_field_specs)
 
 
 def _is_intraday_data_type(as_of_column: str, column_rows: list[tuple[str, str, str]]) -> bool:
@@ -439,31 +512,37 @@ def _evaluate_node(
     conn: Any,
     node: UniverseGroup | UniverseCondition,
     table_specs: dict[str, UniverseTableSpec],
+    supported_field_specs: dict[str, UniverseFieldSpec],
 ) -> tuple[set[str], set[str]]:
     if isinstance(node, UniverseCondition):
         field_id_value = getattr(node, "field", None)
         if field_id_value:
             field_id = _normalize_field_id(str(field_id_value))
-            field_spec = UNIVERSE_FIELD_MAP.get(field_id)
+            field_spec = supported_field_specs.get(field_id)
             if field_spec is None:
-                raise ValueError(f"Unknown universe field '{node.field}'.")
+                raise ValueError(f"Universe field '{field_id}' is not available in the current database.")
         else:
             table_name = _normalize_identifier(getattr(node, "table", ""), "table")
             column_name = _normalize_identifier(getattr(node, "column", ""), "column")
             field_id = _UNIVERSE_TABLE_COLUMN_TO_FIELD.get((table_name, column_name))
-            if field_id is None:
+            field_spec = supported_field_specs.get(field_id) if field_id is not None else None
+            if field_spec is None:
                 raise ValueError(f"Unknown gold column mapping '{table_name}.{column_name}'.")
-            field_spec = UNIVERSE_FIELD_MAP[field_id]
         table_spec = table_specs.get(field_spec.table)
-        if table_spec is None:
-            raise ValueError(f"Unknown gold table '{field_spec.table}'.")
+        if table_spec is None or table_spec.schema != field_spec.schema:
+            raise ValueError(f"Unknown universe table '{field_spec.schema}.{field_spec.table}'.")
         symbols = _fetch_condition_symbols(conn, table_spec, field_spec, node)
         return symbols, {field_spec.field_id}
 
     child_symbols: list[set[str]] = []
     tables_used: set[str] = set()
     for clause in node.clauses:
-        clause_symbols, clause_tables = _evaluate_node(conn, clause, table_specs)
+        clause_symbols, clause_tables = _evaluate_node(
+            conn,
+            clause,
+            table_specs,
+            supported_field_specs,
+        )
         child_symbols.append(clause_symbols)
         tables_used.update(clause_tables)
 
@@ -485,24 +564,37 @@ def _fetch_condition_symbols(
     field_spec: UniverseFieldSpec,
     condition: UniverseCondition,
 ) -> set[str]:
-    column_spec = table_spec.columns.get(_normalize_identifier(field_spec.column, "column"))
-    if column_spec is None:
-        raise ValueError(f"Unknown column '{field_spec.column}' for gold.{table_spec.name}.")
-    if condition.operator not in column_spec.operators:
+    source_column = table_spec.columns.get(_normalize_identifier(field_spec.column, "column"))
+    if source_column is None:
+        raise ValueError(
+            f"Unknown column '{field_spec.column}' for {table_spec.schema}.{table_spec.name}."
+        )
+    if condition.operator not in field_spec.operators:
         raise ValueError(
             f"Operator '{condition.operator}' is not supported for field '{field_spec.field_id}'."
         )
 
-    predicate_sql, params = _build_predicate(condition, column_spec)
+    predicate_column_spec = UniverseColumnSpec(
+        name=field_spec.column,
+        data_type=source_column.data_type,
+        value_kind=field_spec.value_kind,
+        operators=field_spec.operators,
+    )
+    predicate_sql, params = _build_predicate(condition, predicate_column_spec)
     symbol_identifier = _quote_identifier("symbol")
-    column_identifier = _quote_identifier(column_spec.name)
+    column_identifier = _quote_identifier(source_column.name)
     as_of_identifier = _quote_identifier(table_spec.as_of_column)
+    candidate_value_sql = (
+        field_spec.candidate_sql.format(column=column_identifier)
+        if field_spec.candidate_sql
+        else column_identifier
+    )
     query = f"""
         WITH latest AS (
             SELECT DISTINCT ON ({symbol_identifier})
               {symbol_identifier} AS symbol,
-              {column_identifier} AS candidate_value
-            FROM "gold".{_quote_identifier(table_spec.name)}
+              {candidate_value_sql} AS candidate_value
+            FROM {_quote_identifier(table_spec.schema)}.{_quote_identifier(table_spec.name)}
             WHERE {symbol_identifier} IS NOT NULL
             ORDER BY {symbol_identifier}, {as_of_identifier} DESC NULLS LAST
         )

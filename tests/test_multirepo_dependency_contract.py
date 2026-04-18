@@ -67,6 +67,14 @@ def test_contracts_release_dispatch_pins_current_manifest() -> None:
     assert "git push origin HEAD:${{ steps.target.outputs.current_repo_ref }}" in compat
 
 
+def test_setup_action_validates_shared_package_compatibility_before_install() -> None:
+    action = (repo_root() / ".github" / "actions" / "setup-control-plane-python" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "check-shared-compat" in action
+    assert '--requirements "${repo_path}/shared-python-deps.txt"' in action
+
+
 def test_compatibility_workflow_uses_defined_dispatch_action_context() -> None:
     compat = (repo_root() / ".github" / "workflows" / "compat.yml").read_text(encoding="utf-8")
     assert "GITHUB_EVENT_ACTION" not in compat

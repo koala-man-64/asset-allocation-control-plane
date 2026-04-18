@@ -5,7 +5,7 @@ API Root
 |-- /docs [GET] (app.docs_redirect) - Redirects to active Swagger UI path :: api/service/app.py
 |-- /openapi.json [GET] (app.openapi_redirect) - Redirects to active OpenAPI JSON path :: api/service/app.py
 |-- /healthz [GET] (app.healthz) - K8s Liveness Probe (Returns 200 OK) :: api/service/app.py
-|-- /readyz [GET] (app.readyz) - K8s Readiness Probe (Checks DB connectivity) :: api/service/app.py
+|-- /readyz [GET] (app.readyz) - K8s Readiness Probe (Shallow 200/ready response; no dependency check) :: api/service/app.py
 |-- /config.js [GET] (app.serve_runtime_config) - Serves runtime env vars to UI :: api/service/app.py <== ui/src/config.ts (implicit)
 |-- /api/ws/updates [WEBSOCKET] (realtime.websocket_updates) - Real-time updates for UI :: api/endpoints/realtime.py
 `-- /api

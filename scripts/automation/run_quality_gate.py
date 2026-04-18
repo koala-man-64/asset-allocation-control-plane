@@ -18,7 +18,6 @@ def _repo_root() -> pathlib.Path:
 
 
 REPO_ROOT = _repo_root()
-UI_ROOT = REPO_ROOT / "ui"
 
 
 def resolve_python() -> str:
@@ -30,16 +29,6 @@ def resolve_python() -> str:
         if candidate.exists():
             return str(candidate)
     return sys.executable
-
-
-def resolve_ui_bin(name: str) -> pathlib.Path:
-    suffixes = [".CMD", ".cmd"] if os.name == "nt" else [""]
-    for suffix in suffixes:
-        candidate = UI_ROOT / "node_modules" / ".bin" / f"{name}{suffix}"
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(f"Unable to find UI tool '{name}' under {UI_ROOT / 'node_modules' / '.bin'}")
-
 
 def run(argv: list[str], cwd: pathlib.Path) -> int:
     if os.name == "nt" and pathlib.Path(argv[0]).suffix.lower() == ".cmd":
@@ -57,24 +46,24 @@ def build_command(gate: str) -> tuple[list[str], pathlib.Path]:
         "lint-python": ([python, "-m", "ruff", "check", "."], REPO_ROOT),
         "format-python": ([python, "-m", "ruff", "format", "."], REPO_ROOT),
         "lint-fix-python": ([python, "-m", "ruff", "check", "--fix", "."], REPO_ROOT),
-        "lint-ui": ([str(resolve_ui_bin("eslint")), "src", "--report-unused-disable-directives"], UI_ROOT),
-        "typecheck-ui": ([str(resolve_ui_bin("tsc")), "--noEmit"], UI_ROOT),
         "test-fast-api": (
             [
                 python,
                 "-m",
                 "pytest",
                 "-q",
-                "tests/tasks",
-                "tests/market_data",
-                "tests/finance_data",
-                "tests/earnings_data",
-                "tests/price_target_data",
+                "tests/architecture/test_python_module_boundaries.py",
+                "tests/architecture/test_system_facade_guard.py",
+                "tests/architecture/test_monitoring_facade_guard.py",
+                "tests/test_multirepo_dependency_contract.py",
+                "tests/test_workflow_runtime_ownership.py",
+                "tests/test_deploy_manifests.py",
+                "tests/api/test_config_js_contract.py",
+                "tests/api/test_internal_endpoints.py",
             ],
             REPO_ROOT,
         ),
         "test-full-api": ([python, "-m", "pytest", "-q"], REPO_ROOT),
-        "test-ui": ([str(resolve_ui_bin("vitest")), "run"], UI_ROOT),
     }
     if gate not in gates:
         available = ", ".join(sorted(gates))

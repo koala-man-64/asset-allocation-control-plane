@@ -39,7 +39,7 @@ Evidence:
 | --- | --- | --- | --- | --- | --- |
 | `api/` | HTTP transport, operator endpoints, realtime, health/config/docs surfaces | `api/service/app.py`, `api/service/*`, `api/endpoints/*` | `/healthz`, `/readyz`, `/config.js`, `/docs`, `/openapi.json`, `/api/*`, `/api/auth/session` | `api/endpoints/system.py` remains a facade and re-export surface | `tests/architecture/test_system_facade_guard.py`, `tests/api/*`, `.github/workflows/ci.yml` |
 | `core/` | Control-plane-side runtime logic, repositories, runtime config, backtest storage, storage helpers, strategy and ranking engines | `core/*.py`, `core/ranking_engine/*`, `core/strategy_engine/*` | Python package import surface used by API and monitoring layers | Historical split overlap exists, but direct `tasks.*` imports are prohibited here | `tests/architecture/test_python_module_boundaries.py`, `tests/core/*` |
-| `monitoring/` | System health collection, ARM/metrics/log analytics integration, control-plane resource inspection | `monitoring/system_health_modules/*`, `monitoring/control_plane.py`, `monitoring/*.py` | `monitoring/system_health.py` | `monitoring/system_health.py` remains the facade and patch surface | `tests/monitoring/*`, `docs/architecture/runtime-surface-ci-matrix.md` |
+| `monitoring/` | System health collection, ARM/metrics/log analytics integration, control-plane resource inspection | `monitoring/system_health_modules/*`, `monitoring/control_plane.py`, `monitoring/*.py` | `monitoring/system_health.py` | `monitoring/system_health.py` remains the facade and patch surface | `tests/architecture/test_monitoring_facade_guard.py`, `tests/monitoring/*`, `docs/architecture/runtime-surface-ci-matrix.md` |
 | `alpha_vantage/`, `massive_provider/` | API-side provider clients and helper modules used by gateway endpoints | `alpha_vantage/*.py`, `massive_provider/*.py`, `api/service/*gateway*.py` | `/api/providers/alpha-vantage/*`, `/api/providers/massive/*` | Historical lineage overlaps with jobs-side ingestion ownership | `tests/alpha_vantage/*`, `tests/api/test_alpha_vantage_endpoints.py`, `tests/api/test_massive_endpoints.py` |
 | `api/contracts/*` | Generated API and UI runtime contract artifacts | `scripts/automation/export_contract_artifacts.py` | `control-plane.openapi.json`, `ui-runtime-config.schema.json` | None | `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `tests/api/test_config_js_contract.py` |
 | `.github/workflows/*.yml` | Validation, release, deploy, compat, infra reconcile, and security automation | `ci.yml`, `compat.yml`, `release.yml`, `deploy-prod.yml`, `infra-shared-prod.yml`, `security.yml` | GitHub Actions workflow entrypoints | Only `compat.yml` may check out sibling repos | `tests/test_multirepo_dependency_contract.py`, `tests/test_workflow_runtime_ownership.py` |
@@ -216,7 +216,7 @@ Evidence:
 
 - Confirmed: lightweight readiness and liveness endpoints are separate from the richer system-health view.
 - Confirmed: deploy verification currently relies on `/healthz`, `/readyz`, `/config.js`, and an OpenAPI path.
-- Needs confirmation: whether `/readyz` should remain shallow or should eventually reflect deeper dependency readiness, such as Postgres connectivity.
+- Confirmed: `/readyz` is intentionally shallow in the current runtime and returns `{"status":"ready"}` without a dependency probe.
 
 Evidence:
 - `api/service/app.py`
@@ -232,6 +232,7 @@ Evidence:
 
 - Confirmed: `tests/architecture/test_python_module_boundaries.py` enforces that `api/`, `monitoring/`, and `core/` do not import `tasks.*`.
 - Confirmed: `tests/architecture/test_system_facade_guard.py` keeps `api/endpoints/system.py` as a facade rather than allowing migrated helper ownership to grow back.
+- Confirmed: `tests/architecture/test_monitoring_facade_guard.py` keeps `monitoring/system_health.py` as a facade and blocks the old snapshot self-import seam from reappearing.
 - Confirmed: `tests/test_multirepo_dependency_contract.py` enforces pinned shared-package usage, blocks sibling-repo copying in the API Dockerfile, and constrains sibling checkouts to `compat.yml`.
 - Confirmed: `tests/test_workflow_runtime_ownership.py` enforces the expected workflow inventory and local bootstrap path references in `DEPLOYMENT_SETUP.md`.
 
@@ -240,7 +241,7 @@ Evidence:
 Run these from the repository root when a change affects architecture, boundaries, workflow ownership, or public contract surfaces:
 
 ```powershell
-python -m pytest tests/architecture/test_python_module_boundaries.py tests/architecture/test_system_facade_guard.py tests/test_multirepo_dependency_contract.py tests/test_workflow_runtime_ownership.py -q
+python -m pytest tests/architecture/test_python_module_boundaries.py tests/architecture/test_system_facade_guard.py tests/architecture/test_monitoring_facade_guard.py tests/test_multirepo_dependency_contract.py tests/test_workflow_runtime_ownership.py tests/test_deploy_manifests.py -q
 ```
 
 For broader backend or runtime work, run the full suite before marking the change complete:
@@ -259,7 +260,7 @@ Use `docs/architecture/runtime-surface-ci-matrix.md` and `docs/architecture/runt
 
 ### Current enforcement gaps
 
-- Needs confirmation: `tests/architecture/*` are not currently wired into `ci.yml`, so the architecture boundary checks are enforced by local or targeted execution rather than by the required CI path.
+- Confirmed: `ci.yml` now runs the architecture boundary test plus the system and monitoring facade guards on the required CI path.
 - Needs confirmation: the runtime-surface CI matrix describes intended commands that are not all implemented as first-class workflow jobs.
 - Needs confirmation: workflow ownership tests validate workflow inventory and some path invariants, but not all workflow permissions, trigger details, or step behavior.
 - Needs confirmation: there is no dedicated test that ties `release-manifest.json` and the `control_plane_released` payload back to the pinned shared package versions beyond current workflow logic.
@@ -276,24 +277,9 @@ Evidence:
 
 ## Known ambiguities / needs confirmation
 
-### Observed mismatches
+### Remaining historical ambiguity
 
-1. `readyz` depth
-   - Confirmed: `api/API_ENDPOINTS.md` describes `/readyz` as a readiness check that checks DB connectivity.
-   - Confirmed: `api/service/app.py` currently returns a shallow `{"status":"ready"}` response without a DB connectivity check.
-   - Needs confirmation: whether the docs should be corrected to match current code, or readiness should be deepened to match the docs.
-
-2. OpenAPI verification path
-   - Confirmed: `api/service/app.py` and `api/API_ENDPOINTS.md` describe OpenAPI availability under `/api/openapi.json` plus top-level redirects.
-   - Confirmed: `DEPLOYMENT_SETUP.md` and `.github/workflows/deploy-prod.yml` verify `/openapi.json`, which redirects to the active OpenAPI path, and manual deploys no longer ask users for an image digest.
-   - Needs confirmation: which public path is intended to be the canonical deploy-time OpenAPI verification endpoint.
-
-3. Legacy job manifests under `deploy/`
-   - Confirmed: `deploy/` still contains multiple `job_*.yaml` manifests.
-   - Confirmed: `DEPLOYMENT_SETUP.md` states that this repo should not deploy jobs and that `deploy-prod.yml` deploys only `asset-allocation-api`.
-   - Needs confirmation: whether the job manifests are retained as historical artifacts, temporary shared references, or stale files that should eventually move or be removed.
-
-4. Historical docs versus current tree
+1. Historical docs versus current tree
    - Confirmed: `docs/architecture/original-monolith-and-five-repo-map.md` and some refactor-era docs describe `tasks/` and `ui/` as part of the runtime-surface story.
    - Confirmed: the current repo tree does not contain top-level `tasks/` or `ui/` directories.
    - Needs confirmation: which older docs should remain as historical lineage only versus which should be refreshed to avoid being read as current-repo structure.

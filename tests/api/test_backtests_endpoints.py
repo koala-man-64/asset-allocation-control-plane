@@ -24,8 +24,7 @@ def _sample_universe() -> UniverseDefinition:
                 "clauses": [
                     {
                         "kind": "condition",
-                        "table": "market_data",
-                        "column": "close",
+                        "field": "market.close",
                         "operator": "gt",
                         "value": 1,
                     }

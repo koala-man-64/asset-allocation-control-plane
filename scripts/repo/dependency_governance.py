@@ -11,9 +11,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple
+import zipfile
 
 PINNED_REQ_RE = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s;#]+)$")
 QUOTED_VALUE_RE = re.compile(r'"([^"]+)"')
@@ -222,6 +225,124 @@ def build_report(
     }
 
 
+def read_wheel_metadata(wheel_path: Path) -> str:
+    with zipfile.ZipFile(wheel_path) as wheel_archive:
+        for archive_name in wheel_archive.namelist():
+            if archive_name.endswith(".dist-info/METADATA"):
+                return wheel_archive.read(archive_name).decode("utf-8")
+    raise ValueError(f"Wheel metadata not found in {wheel_path}")
+
+
+def get_exact_requires_dist_version(metadata_text: str, package_name: str) -> str | None:
+    prefix = f"Requires-Dist: {package_name}=="
+    for line in metadata_text.splitlines():
+        if not line.startswith(prefix):
+            continue
+        version = line[len(prefix) :].split(";", 1)[0].strip()
+        if version:
+            return version
+    return None
+
+
+def validate_shared_dependency_compatibility(shared_pins: Dict[str, str], runtime_common_metadata: str) -> str | None:
+    contracts_version = shared_pins.get("asset-allocation-contracts")
+    runtime_common_version = shared_pins.get("asset-allocation-runtime-common")
+
+    if not contracts_version or not runtime_common_version:
+        return None
+
+    required_contracts_version = get_exact_requires_dist_version(
+        runtime_common_metadata,
+        "asset-allocation-contracts",
+    )
+    if required_contracts_version is None:
+        return (
+            "Shared package compatibility check failed: "
+            f"asset-allocation-runtime-common=={runtime_common_version} does not declare an exact "
+            "asset-allocation-contracts requirement in its wheel metadata."
+        )
+
+    if required_contracts_version != contracts_version:
+        return (
+            "Shared package compatibility check failed: "
+            f"pyproject pins asset-allocation-contracts=={contracts_version}, "
+            f"but asset-allocation-runtime-common=={runtime_common_version} requires "
+            f"asset-allocation-contracts=={required_contracts_version}. "
+            "Publish or adopt a compatible runtime-common version before installing both packages together."
+        )
+
+    return None
+
+
+def download_exact_wheel_metadata(requirement: str) -> str:
+    with tempfile.TemporaryDirectory(prefix="shared-deps-preflight-") as temp_dir:
+        download_dir = Path(temp_dir)
+        command = [
+            sys.executable,
+            "-m",
+            "pip",
+            "download",
+            "--disable-pip-version-check",
+            "--no-deps",
+            "--dest",
+            str(download_dir),
+            requirement,
+        ]
+        completed = subprocess.run(command, check=False, capture_output=True, text=True)
+        if completed.returncode != 0:
+            raise ValueError(
+                f"Unable to download {requirement} for shared package compatibility validation:\n"
+                f"{completed.stdout}{completed.stderr}"
+            )
+
+        wheel_paths = sorted(download_dir.glob("*.whl"))
+        if len(wheel_paths) != 1:
+            raise ValueError(
+                f"Expected exactly one wheel for {requirement}, found {len(wheel_paths)} in {download_dir}"
+            )
+        return read_wheel_metadata(wheel_paths[0])
+
+
+def command_check_shared_compat(args: argparse.Namespace) -> int:
+    shared_pins, duplicates, malformed, unpinned = parse_requirements_file(args.requirements)
+
+    findings: List[str] = []
+    findings.extend(duplicates)
+    findings.extend(malformed)
+    findings.extend(unpinned)
+    if findings:
+        print("Cannot validate shared package compatibility due to malformed requirements:")
+        for finding in findings:
+            print(f"- {finding}")
+        return 1
+
+    contracts_version = shared_pins.get("asset-allocation-contracts")
+    runtime_common_version = shared_pins.get("asset-allocation-runtime-common")
+    if not contracts_version or not runtime_common_version:
+        print("Shared package compatibility check skipped: both contracts and runtime-common pins are not in scope.")
+        return 0
+
+    try:
+        runtime_common_metadata = download_exact_wheel_metadata(
+            f"asset-allocation-runtime-common=={runtime_common_version}"
+        )
+    except ValueError as exc:
+        print(str(exc))
+        return 1
+
+    incompatibility = validate_shared_dependency_compatibility(shared_pins, runtime_common_metadata)
+    if incompatibility:
+        print(incompatibility)
+        return 1
+
+    print(
+        "Verified shared package compatibility: "
+        f"asset-allocation-runtime-common=={runtime_common_version} requires "
+        f"asset-allocation-contracts=={contracts_version}."
+    )
+    return 0
+
+
 def command_check(args: argparse.Namespace) -> int:
     runtime_entries, pyproject_pinned, pyproject_duplicates, pyproject_malformed = parse_pyproject_runtime_dependencies(
         args.pyproject
@@ -372,6 +493,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     sync = check_parser.add_parser("sync", parents=[common_parent], help="Sync runtime requirements from pyproject")
     sync.set_defaults(func=command_sync)
+
+    shared_compat = check_parser.add_parser(
+        "check-shared-compat",
+        help="Validate first-party shared package pins against published wheel metadata",
+    )
+    shared_compat.add_argument(
+        "--requirements",
+        type=Path,
+        default=Path("shared-python-deps.txt"),
+        help="Path to the generated shared package requirements file",
+    )
+    shared_compat.set_defaults(func=command_check_shared_compat)
 
     return parser
 

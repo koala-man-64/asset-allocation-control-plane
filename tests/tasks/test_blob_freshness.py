@@ -24,6 +24,7 @@ def test_blob_recursive_check():
     with patch.dict(os.environ, {
         "TEST_CONTAINER": "test-container",
         "AZURE_CONTAINER_COMMON": "common",
+        "SYSTEM_HEALTH_MARKERS_CONTAINER": "common",
         "SYSTEM_HEALTH_RUN_IN_TEST": "true",
     }):
         with patch('monitoring.system_health.AzureBlobStore', return_value=mock_store):

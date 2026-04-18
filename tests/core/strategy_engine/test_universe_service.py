@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
 from core.strategy_engine import universe as universe_service
 
 
@@ -55,13 +57,32 @@ def test_catalog_table_name_filter_excludes_noncanonical_gold_tables() -> None:
     assert not universe_service._is_catalog_table_name("market_data_by_date")
 
 
-def test_list_gold_universe_catalog_returns_public_fields() -> None:
+def test_list_gold_universe_catalog_returns_public_fields(monkeypatch) -> None:
+    specs = universe_service._build_table_specs(
+        [
+            ("gold", "market_data", "symbol", "text", "text"),
+            ("gold", "market_data", "date", "date", "date"),
+            ("gold", "market_data", "close", "double precision", "float8"),
+            ("gold", "market_data", "return_20d", "double precision", "float8"),
+            ("core", "symbols", "symbol", "text", "text"),
+            ("core", "symbols", "updated_at", "timestamp with time zone", "timestamptz"),
+            ("core", "symbols", "status", "text", "text"),
+        ]
+    )
+
+    monkeypatch.setattr(universe_service, "_load_gold_table_specs", lambda _dsn: specs)
     catalog = universe_service.list_gold_universe_catalog("postgresql://test")
 
     assert catalog["source"] == "postgres_gold"
-    assert [field["id"] for field in catalog["fields"]] == sorted(
-        universe_service.UNIVERSE_FIELD_MAP.keys()
-    )
+    assert [field["id"] for field in catalog["fields"]] == [
+        "market.close",
+        "market.timestamp",
+        "market.trade_date",
+        "returns.return_20d",
+        "security.is_active",
+    ]
+    assert catalog["fields"][0]["label"] == "Close Price"
+    assert catalog["fields"][4]["valueKind"] == "boolean"
     assert all("label" in field and "valueKind" in field and "operators" in field for field in catalog["fields"])
 
 
@@ -102,6 +123,7 @@ def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> Non
 
     specs = {
         "market_data": universe_service.UniverseTableSpec(
+            schema="gold",
             name="market_data",
             as_of_column="date",
             columns={
@@ -114,6 +136,7 @@ def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> Non
             },
         ),
         "finance_data": universe_service.UniverseTableSpec(
+            schema="gold",
             name="finance_data",
             as_of_column="obs_date",
             columns={
@@ -126,6 +149,7 @@ def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> Non
             },
         ),
         "earnings_data": universe_service.UniverseTableSpec(
+            schema="gold",
             name="earnings_data",
             as_of_column="date",
             columns={
@@ -187,6 +211,7 @@ def test_preview_gold_universe_warns_when_no_symbols_match(monkeypatch) -> None:
 
     specs = {
         "market_data": universe_service.UniverseTableSpec(
+            schema="gold",
             name="market_data",
             as_of_column="date",
             columns={
@@ -233,3 +258,34 @@ def test_preview_gold_universe_rejects_unknown_field_id() -> None:
         raise AssertionError("Expected preview_gold_universe to fail.")
     except ValueError as exc:
         assert "Unknown universe field 'unknown.metric'." in str(exc)
+
+
+def test_validate_universe_definition_support_rejects_unavailable_contract_field(monkeypatch) -> None:
+    universe = {
+        "source": "postgres_gold",
+        "root": {
+            "kind": "group",
+            "operator": "and",
+            "clauses": [
+                {
+                    "kind": "condition",
+                    "field": "returns.return_126d",
+                    "operator": "gt",
+                    "value": 0,
+                }
+            ],
+        },
+    }
+    specs = universe_service._build_table_specs(
+        [
+            ("gold", "market_data", "symbol", "text", "text"),
+            ("gold", "market_data", "date", "date", "date"),
+            ("gold", "market_data", "close", "double precision", "float8"),
+            ("gold", "market_data", "return_20d", "double precision", "float8"),
+        ]
+    )
+
+    monkeypatch.setattr(universe_service, "_load_gold_table_specs", lambda _dsn: specs)
+
+    with pytest.raises(ValueError, match="returns\\.return_126d"):
+        universe_service.validate_universe_definition_support("postgresql://test", universe)

@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.shared_core import delta_core
+from monitoring import domain_metadata
 from monitoring.domain_metadata import (
     _count_finance_symbols_from_listing,
     collect_delta_table_metadata,
@@ -13,10 +14,19 @@ from monitoring.domain_metadata import (
 from deltalake.exceptions import TableNotFoundError
 
 
-def test_collect_delta_table_metadata_reports_rows_and_date_range(tmp_path) -> None:
+def test_collect_delta_table_metadata_reports_rows_and_date_range(
+    monkeypatch,
+    redirect_storage,
+) -> None:
     # Use the test storage redirection fixture (see tests/conftest.py) which patches delta URIs to local paths.
     container = "test-container"
     table_path = "market-data/AAPL"
+
+    def _local_uri(resolved_container: str, resolved_path: str, account_name=None) -> str:
+        return str(redirect_storage / resolved_container / resolved_path)
+
+    monkeypatch.setattr(domain_metadata.delta_core, "get_delta_table_uri", _local_uri)
+    monkeypatch.setattr(domain_metadata.delta_core, "get_delta_storage_options", lambda _container: {})
 
     df = pd.DataFrame(
         {

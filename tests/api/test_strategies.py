@@ -32,8 +32,7 @@ MOCK_UNIVERSE = {
         "clauses": [
             {
                 "kind": "condition",
-                "table": "market_data",
-                "column": "close",
+                "field": "market.close",
                 "operator": "gt",
                 "value": 10,
             }
@@ -51,7 +50,11 @@ MOCK_STRATEGY_DETAIL = {
     "type": "configured",
     "description": "Test Description",
     "updated_at": "2023-01-01T00:00:00Z",
-    "config": MOCK_CONFIG
+    "config": {
+        **MOCK_CONFIG,
+        "intrabarConflictPolicy": "stop_first",
+        "exits": [],
+    },
 }
 
 @pytest.fixture
@@ -154,9 +157,15 @@ def test_save_strategy_rejects_duplicate_exit_rule_ids(client, mock_repo):
         },
     }
 
-    response = client.post("/api/strategies/", json=payload)
+    with patch("api.endpoints.strategies._require_postgres_dsn", return_value="postgresql://test:test@localhost:5432/asset_allocation"), patch.object(
+        UniverseRepository,
+        "get_universe_config",
+        return_value={"name": "large-cap-quality", "config": MOCK_UNIVERSE},
+    ):
+        response = client.post("/api/strategies/", json=payload)
 
-    assert response.status_code == 422
+    assert response.status_code == 400
+    assert "Duplicate exit rule id 'dup'" in response.json()["detail"]
     repo_instance.save_strategy.assert_not_called()
 
 

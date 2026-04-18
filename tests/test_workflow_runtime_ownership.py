@@ -101,6 +101,14 @@ def test_ci_preserves_dependency_governance_gate() -> None:
     assert "python scripts/repo/dependency_governance.py check" in text
 
 
+def test_ci_runs_architecture_and_facade_guards() -> None:
+    text = (repo_root() / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "tests/architecture/test_python_module_boundaries.py" in text
+    assert "tests/architecture/test_system_facade_guard.py" in text
+    assert "tests/architecture/test_monitoring_facade_guard.py" in text
+    assert "tests/test_deploy_manifests.py" in text
+
+
 def test_release_workflow_runs_preflight_before_export_and_build() -> None:
     text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     ordered_markers = [

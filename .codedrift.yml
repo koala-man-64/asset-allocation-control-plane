@@ -5,16 +5,11 @@ standards:
   format: []
   lint:
     - "python3 scripts/automation/run_quality_gate.py lint-python"
-    - "python3 scripts/automation/run_quality_gate.py lint-ui"
-    - "python3 scripts/automation/check_ui_api_drift_guards.py"
-  typecheck:
-    - "python3 scripts/automation/run_quality_gate.py typecheck-ui"
+  typecheck: []
   test_fast:
     - "python3 scripts/automation/run_quality_gate.py test-fast-api"
-    - "python3 scripts/automation/run_quality_gate.py test-ui"
   test_full:
     - "python3 scripts/automation/run_quality_gate.py test-full-api"
-    - "python3 scripts/automation/run_quality_gate.py test-ui"
   format_fix:
     - "python3 scripts/automation/run_quality_gate.py format-python"
   lint_fix:
@@ -24,14 +19,10 @@ architecture:
   layers:
     - name: "api"
       path_glob: "api/**"
-      forbid_imports_from:
-        - "ui/**"
-    - name: "tasks"
-      path_glob: "tasks/**"
-      allow_imports_from:
-        - "core/**"
-        - "tasks/**"
-        - "monitoring/**"
+    - name: "monitoring"
+      path_glob: "monitoring/**"
+    - name: "core"
+      path_glob: "core/**"
   blessed_patterns:
     - "Idempotent storage reconciliation flows"
     - "Environment-driven runtime configuration"
@@ -70,7 +61,7 @@ auto_remediate:
   safe_directories:
     - "api/**"
     - "core/**"
-    - "tasks/**"
+    - "monitoring/**"
     - "tests/**"
     - "docs/**"
     - ".github/workflows/**"

@@ -26,8 +26,7 @@ def _sample_universe() -> UniverseDefinition:
                 "clauses": [
                     {
                         "kind": "condition",
-                        "table": "market_data",
-                        "column": "close",
+                        "field": "market.close",
                         "operator": "gt",
                         "value": 1,
                     }
@@ -122,6 +121,7 @@ def test_score_snapshot_breaks_ties_by_symbol() -> None:
 def test_validate_backtest_submission_rejects_intraday_coverage_gaps(monkeypatch: pytest.MonkeyPatch) -> None:
     specs = {
         "market_data": universe_service.UniverseTableSpec(
+            schema="gold",
             name="market_data",
             as_of_column="as_of_ts",
             as_of_kind="intraday",
@@ -166,6 +166,7 @@ def test_validate_backtest_submission_rejects_regime_coverage_gaps(monkeypatch: 
     )
     specs = {
         "market_data": universe_service.UniverseTableSpec(
+            schema="gold",
             name="market_data",
             as_of_column="as_of_ts",
             as_of_kind="intraday",

@@ -4,8 +4,7 @@ This document lists the canonical, runnable validation commands for the refactor
 
 ## Conventions
 
-- Run Python commands from the repository root: `C:\Users\rdpro\Projects\AssetAllocation`
-- Run UI commands from the UI package root: `C:\Users\rdpro\Projects\AssetAllocation\ui`
+- Run Python commands from the repository root: `C:\Users\rdpro\Projects\asset-allocation-control-plane`
 - Use these commands as the handoff-safe validation set for the current refactor baseline
 
 ## Canonical Commands
@@ -23,11 +22,13 @@ Purpose:
 ### Architecture Boundary Guardrail
 
 ```powershell
-python -m pytest tests/architecture/test_python_module_boundaries.py -q
+python -m pytest tests/architecture/test_python_module_boundaries.py tests/architecture/test_system_facade_guard.py tests/architecture/test_monitoring_facade_guard.py tests/test_workflow_runtime_ownership.py tests/test_deploy_manifests.py -q
 ```
 
 Purpose:
 - verifies `api/`, `monitoring/`, and non-shim `core/` modules stay off direct `tasks.*` imports
+- keeps `api.endpoints.system` and `monitoring.system_health` as facades instead of helper-ownership modules
+- blocks new top-level non-API YAML manifests under `deploy/`
 
 ### System Facade Compatibility
 
@@ -58,12 +59,6 @@ Purpose:
 - validates the finance job compatibility surfaces after establishing `silver_modules/*`, `bronze_modules/*`, and `gold_modules/*`
 - confirms the legacy top-level entrypoints and the new module packages resolve to the same helper surfaces where compatibility wrappers are still in place
 
-### Full UI Closeout
+### UI Closeout
 
-```powershell
-pnpm exec vitest run
-```
-
-Purpose:
-- end-to-end regression gate for `WI-RSR-005`
-- validates `ui/src/app/routes.tsx`, `ui/src/features/*`, and compatibility wrappers under `ui/src/app/components/pages/*`
+This repository no longer contains a top-level UI workspace. Run UI validation in the sibling `asset-allocation-ui` repository when that repo changes.

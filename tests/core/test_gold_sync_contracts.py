@@ -5,7 +5,9 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from asset_allocation_runtime_common.market_data import gold_sync_contracts as sync
+from asset_allocation_runtime_common.shared_core import gold_sync_contracts as sync
+
+
 class _FakeCursor:
     def __init__(
         self,

@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any, List
 
+from asset_allocation_contracts.strategy import UniverseCatalogResponse, UniverseDefinition, UniversePreviewResponse
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
@@ -11,8 +12,8 @@ from api.service.dependencies import validate_auth
 from core.strategy_engine.universe import (
     list_gold_universe_catalog,
     preview_gold_universe,
-    _normalize_universe_definition,
     _publicize_universe_definition,
+    validate_universe_definition_support,
 )
 from core.universe_repository import UniverseRepository
 
@@ -29,25 +30,13 @@ class UniverseConfigSummaryResponse(BaseModel):
 
 
 class UniverseConfigDetailResponse(UniverseConfigSummaryResponse):
-    config: dict[str, Any]
+    config: UniverseDefinition
 
 
 class UniverseConfigUpsertRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str = ""
     config: dict[str, Any]
-
-
-class UniverseCatalogFieldResponse(BaseModel):
-    id: str
-    label: str
-    valueKind: str
-    operators: list[str]
-
-
-class UniverseCatalogResponse(BaseModel):
-    source: str
-    fields: list[UniverseCatalogFieldResponse]
 
 
 class UniversePreviewRequest(BaseModel):
@@ -60,14 +49,6 @@ class UniversePreviewRequest(BaseModel):
         if not self.universeName and self.universe is None:
             raise ValueError("universeName or universe is required.")
         return self
-
-
-class UniversePreviewResponse(BaseModel):
-    source: str
-    symbolCount: int
-    sampleSymbols: list[str]
-    fieldsUsed: list[str]
-    warnings: list[str] = Field(default_factory=list)
 
 
 def _require_postgres_dsn(request: Request) -> str:
@@ -145,9 +126,10 @@ async def get_universe_config_detail(name: str, request: Request) -> UniverseCon
 @router.post("/")
 async def save_universe_config(payload: UniverseConfigUpsertRequest, request: Request) -> dict[str, Any]:
     validate_auth(request)
-    repo = UniverseRepository(_require_postgres_dsn(request))
+    dsn = _require_postgres_dsn(request)
+    repo = UniverseRepository(dsn)
     try:
-        normalized_universe = _normalize_universe_definition(payload.config)
+        normalized_universe = validate_universe_definition_support(dsn, payload.config)
         saved = repo.save_universe_config(
             name=payload.name,
             description=payload.description,

@@ -3,19 +3,15 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from importlib import import_module
 from types import ModuleType
 from typing import Any, Dict, List, Optional
 
+from monitoring.system_health_modules import runtime as system_health_runtime
+
 logger = logging.getLogger("asset_allocation.monitoring.system_health")
 
-
-def _runtime_module() -> ModuleType:
-    return import_module("monitoring.system_health")
-
-
-def _runtime_attr(runtime: ModuleType, name: str) -> Any:
-    return getattr(runtime, name)
+_runtime_module = system_health_runtime.module
+_runtime_attr = system_health_runtime.attr
 
 
 def _make_container_portal_url(sub_id: str, rg: str, account: str, container: str) -> Optional[str]:

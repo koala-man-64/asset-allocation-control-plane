@@ -12,8 +12,7 @@ def _sample_universe_payload() -> dict:
             "clauses": [
                 {
                     "kind": "condition",
-                    "table": "market_data",
-                    "column": "close",
+                    "field": "market.close",
                     "operator": "gt",
                     "value": 10,
                 }
