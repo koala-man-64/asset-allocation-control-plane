@@ -206,6 +206,57 @@ def test_backtest_results_cutover_migration_creates_result_tables_and_drops_lega
     assert "DROP COLUMN IF EXISTS adls_prefix" in text
 
 
+def test_backtest_summary_metrics_v3_migration_adds_cost_and_exposure_columns() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0035_backtest_summary_metrics_v3.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "gross_total_return DOUBLE PRECISION" in text
+    assert "gross_annualized_return DOUBLE PRECISION" in text
+    assert "total_commission DOUBLE PRECISION" in text
+    assert "total_slippage_cost DOUBLE PRECISION" in text
+    assert "total_transaction_cost DOUBLE PRECISION" in text
+    assert "cost_drag_bps DOUBLE PRECISION" in text
+    assert "avg_gross_exposure DOUBLE PRECISION" in text
+    assert "avg_net_exposure DOUBLE PRECISION" in text
+    assert "sortino_ratio DOUBLE PRECISION" in text
+    assert "calmar_ratio DOUBLE PRECISION" in text
+
+
+def test_backtest_position_analytics_v4_migration_adds_closed_position_surface() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0036_backtest_position_analytics_v4.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS closed_positions INTEGER" in text
+    assert "ADD COLUMN IF NOT EXISTS hit_rate DOUBLE PRECISION" in text
+    assert "ADD COLUMN IF NOT EXISTS expectancy_return DOUBLE PRECISION" in text
+    assert "ALTER TABLE IF EXISTS core.backtest_trades" in text
+    assert "ADD COLUMN IF NOT EXISTS position_id TEXT" in text
+    assert "ADD COLUMN IF NOT EXISTS trade_role TEXT" in text
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_closed_positions" in text
+    assert "holding_period_bars INTEGER NOT NULL DEFAULT 0" in text
+    assert "average_cost DOUBLE PRECISION NOT NULL" in text
+    assert "realized_pnl DOUBLE PRECISION NOT NULL" in text
+    assert "total_transaction_cost DOUBLE PRECISION NOT NULL DEFAULT 0" in text
+    assert "idx_backtest_closed_positions_run_closed_at" in text
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE core.backtest_closed_positions TO backtest_service;" in text
+
+
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"

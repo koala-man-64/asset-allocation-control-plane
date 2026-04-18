@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from asset_allocation_contracts.backtest import BacktestSummary
+from asset_allocation_contracts.backtest import BacktestSummary, ClosedPositionListResponse, TradeRole
 from pydantic import BaseModel, ConfigDict, Field
 from psycopg import Error as PsycopgError
 
@@ -126,6 +126,8 @@ class TradeResponse(BaseModel):
     commission: float
     slippage_cost: float
     cash_after: float
+    position_id: str | None = None
+    trade_role: TradeRole | None = None
 
 
 class TradeListResponse(BaseModel):
@@ -475,6 +477,34 @@ async def get_trades(
     return TradeListResponse.model_validate(
         {
             "trades": trades,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+    )
+
+
+@router.get("/{run_id}/positions/closed", response_model=ClosedPositionListResponse)
+async def get_closed_positions(
+    run_id: str,
+    request: Request,
+    limit: int = Query(default=2000, ge=1, le=10000),
+    offset: int = Query(default=0, ge=0),
+) -> ClosedPositionListResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    _require_published_run(repo, run_id)
+    total = _postgres_or_503(
+        "Postgres is unavailable for backtest features.",
+        lambda: repo.count_closed_positions(run_id),
+    )
+    positions = _postgres_or_503(
+        "Postgres is unavailable for backtest features.",
+        lambda: repo.list_closed_positions(run_id, limit=limit, offset=offset),
+    )
+    return ClosedPositionListResponse.model_validate(
+        {
+            "positions": positions,
             "total": total,
             "limit": limit,
             "offset": offset,

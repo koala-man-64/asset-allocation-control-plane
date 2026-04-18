@@ -127,6 +127,28 @@ def _map_summary_row(row: tuple[Any, ...]) -> dict[str, Any]:
         "trades": row[9],
         "initial_cash": row[10],
         "final_equity": row[11],
+        "gross_total_return": row[12],
+        "gross_annualized_return": row[13],
+        "total_commission": row[14],
+        "total_slippage_cost": row[15],
+        "total_transaction_cost": row[16],
+        "cost_drag_bps": row[17],
+        "avg_gross_exposure": row[18],
+        "avg_net_exposure": row[19],
+        "sortino_ratio": row[20],
+        "calmar_ratio": row[21],
+        "closed_positions": row[22],
+        "winning_positions": row[23],
+        "losing_positions": row[24],
+        "hit_rate": row[25],
+        "avg_win_pnl": row[26],
+        "avg_loss_pnl": row[27],
+        "avg_win_return": row[28],
+        "avg_loss_return": row[29],
+        "payoff_ratio": row[30],
+        "profit_factor": row[31],
+        "expectancy_pnl": row[32],
+        "expectancy_return": row[33],
     }
 
 
@@ -175,6 +197,29 @@ def _map_trade_row(row: tuple[Any, ...]) -> dict[str, Any]:
         "commission": row[5],
         "slippage_cost": row[6],
         "cash_after": row[7],
+        "position_id": row[8],
+        "trade_role": row[9],
+    }
+
+
+def _map_closed_position_row(row: tuple[Any, ...]) -> dict[str, Any]:
+    return {
+        "position_id": row[0],
+        "symbol": row[1],
+        "opened_at": _serialize_timestamp(row[2]),
+        "closed_at": _serialize_timestamp(row[3]),
+        "holding_period_bars": row[4],
+        "average_cost": row[5],
+        "exit_price": row[6],
+        "max_quantity": row[7],
+        "resize_count": row[8],
+        "realized_pnl": row[9],
+        "realized_return": row[10],
+        "total_commission": row[11],
+        "total_slippage_cost": row[12],
+        "total_transaction_cost": row[13],
+        "exit_reason": row[14],
+        "exit_rule_id": row[15],
     }
 
 
@@ -615,7 +660,29 @@ class BacktestRepository:
                         s.max_drawdown,
                         s.trades,
                         s.initial_cash,
-                        s.final_equity
+                        s.final_equity,
+                        s.gross_total_return,
+                        s.gross_annualized_return,
+                        s.total_commission,
+                        s.total_slippage_cost,
+                        s.total_transaction_cost,
+                        s.cost_drag_bps,
+                        s.avg_gross_exposure,
+                        s.avg_net_exposure,
+                        s.sortino_ratio,
+                        s.calmar_ratio,
+                        s.closed_positions,
+                        s.winning_positions,
+                        s.losing_positions,
+                        s.hit_rate,
+                        s.avg_win_pnl,
+                        s.avg_loss_pnl,
+                        s.avg_win_return,
+                        s.avg_loss_return,
+                        s.payoff_ratio,
+                        s.profit_factor,
+                        s.expectancy_pnl,
+                        s.expectancy_return
                     FROM core.runs AS r
                     LEFT JOIN core.backtest_run_summary AS s
                       ON s.run_id = r.run_id
@@ -741,7 +808,9 @@ class BacktestRepository:
                         notional,
                         commission,
                         slippage_cost,
-                        cash_after
+                        cash_after,
+                        position_id,
+                        trade_role
                     FROM core.backtest_trades
                     WHERE run_id = %s
                     ORDER BY trade_seq ASC
@@ -757,6 +826,47 @@ class BacktestRepository:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM core.backtest_trades WHERE run_id = %s", (run_id,))
+                row = cur.fetchone()
+        return int((row or (0,))[0] or 0)
+
+    def list_closed_positions(self, run_id: str, *, limit: int, offset: int) -> list[dict[str, Any]]:
+        dsn = self._require_dsn()
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        position_id,
+                        symbol,
+                        opened_at,
+                        closed_at,
+                        holding_period_bars,
+                        average_cost,
+                        exit_price,
+                        max_quantity,
+                        resize_count,
+                        realized_pnl,
+                        realized_return,
+                        total_commission,
+                        total_slippage_cost,
+                        total_transaction_cost,
+                        exit_reason,
+                        exit_rule_id
+                    FROM core.backtest_closed_positions
+                    WHERE run_id = %s
+                    ORDER BY closed_at ASC, position_id ASC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (run_id, max(1, int(limit)), max(0, int(offset))),
+                )
+                rows = cur.fetchall()
+        return [_map_closed_position_row(row) for row in rows]
+
+    def count_closed_positions(self, run_id: str) -> int:
+        dsn = self._require_dsn()
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM core.backtest_closed_positions WHERE run_id = %s", (run_id,))
                 row = cur.fetchone()
         return int((row or (0,))[0] or 0)
 

@@ -244,7 +244,7 @@ async def test_get_summary_returns_postgres_summary(monkeypatch: pytest.MonkeyPa
             "status": "completed",
             "results_ready_at": "2026-03-08T12:00:00+00:00",
             "bar_size": "5m",
-            "results_schema_version": 2,
+            "results_schema_version": 4,
         },
     )
     monkeypatch.setattr(
@@ -261,6 +261,28 @@ async def test_get_summary_returns_postgres_summary(monkeypatch: pytest.MonkeyPa
             "trades": 12,
             "initial_cash": 100000.0,
             "final_equity": 112000.0,
+            "gross_total_return": 0.123,
+            "gross_annualized_return": 0.51,
+            "total_commission": 30.0,
+            "total_slippage_cost": 12.0,
+            "total_transaction_cost": 42.0,
+            "cost_drag_bps": 4.2,
+            "avg_gross_exposure": 0.94,
+            "avg_net_exposure": 0.91,
+            "sortino_ratio": 2.9,
+            "calmar_ratio": 6.25,
+            "closed_positions": 7,
+            "winning_positions": 4,
+            "losing_positions": 3,
+            "hit_rate": 4 / 7,
+            "avg_win_pnl": 210.0,
+            "avg_loss_pnl": -120.0,
+            "avg_win_return": 0.08,
+            "avg_loss_return": -0.03,
+            "payoff_ratio": 1.75,
+            "profit_factor": 2.1,
+            "expectancy_pnl": 68.0,
+            "expectancy_return": 0.021,
         },
     )
 
@@ -271,8 +293,10 @@ async def test_get_summary_returns_postgres_summary(monkeypatch: pytest.MonkeyPa
     assert response.status_code == 200
     payload = response.json()
     assert payload["sharpe_ratio"] == 2.5
+    assert payload["gross_total_return"] == 0.123
+    assert payload["closed_positions"] == 7
     assert payload["metadata"] == {
-        "results_schema_version": 2,
+        "results_schema_version": 4,
         "bar_size": "5m",
         "periods_per_year": 19656,
         "strategy_scope": "long_only",
@@ -334,7 +358,7 @@ async def test_get_timeseries_returns_empty_payload_for_published_run(monkeypatc
             "status": "completed",
             "results_ready_at": "2026-03-08T12:00:00+00:00",
             "bar_size": "5m",
-            "results_schema_version": 2,
+            "results_schema_version": 4,
         },
     )
     monkeypatch.setattr(BacktestRepository, "count_timeseries", lambda self, run_id: 0)
@@ -347,7 +371,7 @@ async def test_get_timeseries_returns_empty_payload_for_published_run(monkeypatc
     assert response.status_code == 200
     assert response.json() == {
         "metadata": {
-            "results_schema_version": 2,
+            "results_schema_version": 4,
             "bar_size": "5m",
             "periods_per_year": 19656,
             "strategy_scope": "long_only",
@@ -371,7 +395,7 @@ async def test_get_timeseries_synthesizes_period_return_from_daily_return(
             "status": "completed",
             "results_ready_at": "2026-03-08T12:00:00+00:00",
             "bar_size": "5m",
-            "results_schema_version": 2,
+            "results_schema_version": 4,
         },
     )
     monkeypatch.setattr(BacktestRepository, "count_timeseries", lambda self, run_id: 1)
@@ -416,7 +440,7 @@ async def test_get_rolling_metrics_returns_empty_payload_for_published_run(monke
             "status": "completed",
             "results_ready_at": "2026-03-08T12:00:00+00:00",
             "bar_size": "5m",
-            "results_schema_version": 2,
+            "results_schema_version": 4,
         },
     )
     monkeypatch.setattr(BacktestRepository, "count_rolling_metrics", lambda self, run_id, *, window_days: 0)
@@ -429,7 +453,7 @@ async def test_get_rolling_metrics_returns_empty_payload_for_published_run(monke
     assert response.status_code == 200
     assert response.json() == {
         "metadata": {
-            "results_schema_version": 2,
+            "results_schema_version": 4,
             "bar_size": "5m",
             "periods_per_year": 19656,
             "strategy_scope": "long_only",
@@ -453,7 +477,7 @@ async def test_get_rolling_metrics_synthesizes_window_periods_from_window_days(
             "status": "completed",
             "results_ready_at": "2026-03-08T12:00:00+00:00",
             "bar_size": "5m",
-            "results_schema_version": 2,
+            "results_schema_version": 4,
         },
     )
     monkeypatch.setattr(BacktestRepository, "count_rolling_metrics", lambda self, run_id, *, window_days: 1)
@@ -509,3 +533,94 @@ async def test_get_trades_returns_empty_payload_for_published_run(monkeypatch: p
 
     assert response.status_code == 200
     assert response.json() == {"trades": [], "total": 0, "limit": 100, "offset": 0}
+
+
+@pytest.mark.asyncio
+async def test_get_trades_returns_position_lifecycle_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_trades", lambda self, run_id: 1)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_trades",
+        lambda self, run_id, **kwargs: [
+            {
+                "execution_date": "2026-03-08T10:00:00Z",
+                "symbol": "MSFT",
+                "quantity": 10.0,
+                "price": 100.0,
+                "notional": 1000.0,
+                "commission": 1.0,
+                "slippage_cost": 0.5,
+                "cash_after": 98998.5,
+                "position_id": "pos-1",
+                "trade_role": "entry",
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/trades?limit=100&offset=0")
+
+    assert response.status_code == 200
+    trade = response.json()["trades"][0]
+    assert trade["position_id"] == "pos-1"
+    assert trade["trade_role"] == "entry"
+
+
+@pytest.mark.asyncio
+async def test_get_closed_positions_returns_paginated_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_closed_positions", lambda self, run_id: 1)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_closed_positions",
+        lambda self, run_id, **kwargs: [
+            {
+                "position_id": "pos-1",
+                "symbol": "MSFT",
+                "opened_at": "2026-03-08T10:00:00Z",
+                "closed_at": "2026-03-10T10:00:00Z",
+                "holding_period_bars": 8,
+                "average_cost": 100.0,
+                "exit_price": 108.0,
+                "max_quantity": 15.0,
+                "resize_count": 2,
+                "realized_pnl": 75.0,
+                "realized_return": 0.05,
+                "total_commission": 3.0,
+                "total_slippage_cost": 1.5,
+                "total_transaction_cost": 4.5,
+                "exit_reason": "take_profit_fixed",
+                "exit_rule_id": "tp-1",
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/positions/closed?limit=50&offset=0")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["positions"][0]["position_id"] == "pos-1"
+    assert payload["positions"][0]["exit_rule_id"] == "tp-1"

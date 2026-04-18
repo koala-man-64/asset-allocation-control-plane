@@ -181,6 +181,50 @@
         "title": "BacktestReconcileResponse",
         "type": "object"
       },
+      "BacktestResponseMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "bar_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bar Size"
+          },
+          "periods_per_year": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periods Per Year"
+          },
+          "results_schema_version": {
+            "minimum": 1.0,
+            "title": "Results Schema Version",
+            "type": "integer"
+          },
+          "strategy_scope": {
+            "const": "long_only",
+            "default": "long_only",
+            "title": "Strategy Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "results_schema_version"
+        ],
+        "title": "BacktestResponseMetadata",
+        "type": "object"
+      },
       "BacktestStartRequest": {
         "additionalProperties": false,
         "properties": {
@@ -198,6 +242,145 @@
           }
         },
         "title": "BacktestStartRequest",
+        "type": "object"
+      },
+      "ClosedPositionListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/ClosedPositionResponse"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "positions",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ClosedPositionListResponse",
+        "type": "object"
+      },
+      "ClosedPositionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "average_cost": {
+            "title": "Average Cost",
+            "type": "number"
+          },
+          "closed_at": {
+            "title": "Closed At",
+            "type": "string"
+          },
+          "exit_price": {
+            "title": "Exit Price",
+            "type": "number"
+          },
+          "exit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Reason"
+          },
+          "exit_rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Rule Id"
+          },
+          "holding_period_bars": {
+            "title": "Holding Period Bars",
+            "type": "integer"
+          },
+          "max_quantity": {
+            "title": "Max Quantity",
+            "type": "number"
+          },
+          "opened_at": {
+            "title": "Opened At",
+            "type": "string"
+          },
+          "position_id": {
+            "title": "Position Id",
+            "type": "string"
+          },
+          "realized_pnl": {
+            "title": "Realized Pnl",
+            "type": "number"
+          },
+          "realized_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realized Return"
+          },
+          "resize_count": {
+            "title": "Resize Count",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "total_commission": {
+            "title": "Total Commission",
+            "type": "number"
+          },
+          "total_slippage_cost": {
+            "title": "Total Slippage Cost",
+            "type": "number"
+          },
+          "total_transaction_cost": {
+            "title": "Total Transaction Cost",
+            "type": "number"
+          }
+        },
+        "required": [
+          "position_id",
+          "symbol",
+          "opened_at",
+          "closed_at",
+          "holding_period_bars",
+          "average_cost",
+          "exit_price",
+          "max_quantity",
+          "resize_count",
+          "realized_pnl",
+          "total_commission",
+          "total_slippage_cost",
+          "total_transaction_cost"
+        ],
+        "title": "ClosedPositionResponse",
         "type": "object"
       },
       "CreateRegimeModelRequest": {
@@ -2402,6 +2585,7 @@
         "type": "object"
       },
       "RollingMetricPointResponse": {
+        "additionalProperties": false,
         "properties": {
           "commission_sum": {
             "anyOf": [
@@ -2520,6 +2704,17 @@
           "window_days": {
             "title": "Window Days",
             "type": "integer"
+          },
+          "window_periods": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Periods"
           }
         },
         "required": [
@@ -2530,7 +2725,18 @@
         "type": "object"
       },
       "RollingMetricsResponse": {
+        "additionalProperties": false,
         "properties": {
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestResponseMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "points": {
             "items": {
               "$ref": "#/components/schemas/RollingMetricPointResponse"
@@ -3109,6 +3315,7 @@
         "type": "object"
       },
       "SummaryResponse": {
+        "additionalProperties": true,
         "properties": {
           "annualized_return": {
             "anyOf": [
@@ -3132,6 +3339,105 @@
             ],
             "title": "Annualized Volatility"
           },
+          "avg_gross_exposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Gross Exposure"
+          },
+          "avg_loss_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss Pnl"
+          },
+          "avg_loss_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss Return"
+          },
+          "avg_net_exposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Net Exposure"
+          },
+          "avg_win_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Win Pnl"
+          },
+          "avg_win_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Win Return"
+          },
+          "calmar_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calmar Ratio"
+          },
+          "closed_positions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Positions"
+          },
+          "cost_drag_bps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Drag Bps"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -3142,6 +3448,28 @@
               }
             ],
             "title": "End Date"
+          },
+          "expectancy_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectancy Pnl"
+          },
+          "expectancy_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectancy Return"
           },
           "final_equity": {
             "anyOf": [
@@ -3154,6 +3482,39 @@
             ],
             "title": "Final Equity"
           },
+          "gross_annualized_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Annualized Return"
+          },
+          "gross_total_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Total Return"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hit Rate"
+          },
           "initial_cash": {
             "anyOf": [
               {
@@ -3165,6 +3526,17 @@
             ],
             "title": "Initial Cash"
           },
+          "losing_positions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Losing Positions"
+          },
           "max_drawdown": {
             "anyOf": [
               {
@@ -3175,6 +3547,38 @@
               }
             ],
             "title": "Max Drawdown"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestResponseMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payoff_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payoff Ratio"
+          },
+          "profit_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Factor"
           },
           "run_id": {
             "anyOf": [
@@ -3209,6 +3613,17 @@
             ],
             "title": "Sharpe Ratio"
           },
+          "sortino_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sortino Ratio"
+          },
           "start_date": {
             "anyOf": [
               {
@@ -3219,6 +3634,17 @@
               }
             ],
             "title": "Start Date"
+          },
+          "total_commission": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Commission"
           },
           "total_return": {
             "anyOf": [
@@ -3231,6 +3657,28 @@
             ],
             "title": "Total Return"
           },
+          "total_slippage_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Slippage Cost"
+          },
+          "total_transaction_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Transaction Cost"
+          },
           "trades": {
             "anyOf": [
               {
@@ -3241,6 +3689,17 @@
               }
             ],
             "title": "Trades"
+          },
+          "winning_positions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winning Positions"
           }
         },
         "title": "SummaryResponse",
@@ -3452,6 +3911,7 @@
         "type": "object"
       },
       "TimeseriesPointResponse": {
+        "additionalProperties": false,
         "properties": {
           "cash": {
             "anyOf": [
@@ -3527,6 +3987,17 @@
             ],
             "title": "Net Exposure"
           },
+          "period_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Return"
+          },
           "portfolio_value": {
             "title": "Portfolio Value",
             "type": "number"
@@ -3563,7 +4034,18 @@
         "type": "object"
       },
       "TimeseriesResponse": {
+        "additionalProperties": false,
         "properties": {
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestResponseMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "points": {
             "items": {
               "$ref": "#/components/schemas/TimeseriesPointResponse"
@@ -3637,6 +4119,17 @@
             "title": "Notional",
             "type": "number"
           },
+          "position_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Id"
+          },
           "price": {
             "title": "Price",
             "type": "number"
@@ -3652,6 +4145,23 @@
           "symbol": {
             "title": "Symbol",
             "type": "string"
+          },
+          "trade_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "entry",
+                  "rebalance_increase",
+                  "rebalance_decrease",
+                  "exit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Role"
           }
         },
         "required": [
@@ -4639,6 +5149,71 @@
           }
         },
         "summary": "Get Timeseries",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/{run_id}/positions/closed": {
+      "get": {
+        "operationId": "get_closed_positions_api_backtests__run_id__positions_closed_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosedPositionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Closed Positions",
         "tags": [
           "Backtests"
         ]
@@ -5862,6 +6437,31 @@
         "summary": "Get Data Generic",
         "tags": [
           "Data"
+        ]
+      }
+    },
+    "/api/internal/backtests/ready": {
+      "get": {
+        "operationId": "ready_backtests_api_internal_backtests_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ready Backtests Api Internal Backtests Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Backtests",
+        "tags": [
+          "Internal"
         ]
       }
     },

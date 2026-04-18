@@ -41,8 +41,9 @@ API Root
     |-- /backtests [POST] (backtests.submit_backtest) - Submits a new backtest job :: api/endpoints/backtests.py <== ui/src/app/components/pages/StrategyConfigPage.tsx
     `-- /backtests/{run_id}
         |-- /status [GET] (backtests.get_status) - Polls current status of a running backtest :: api/endpoints/backtests.py
-        |-- /summary [GET] (backtests.get_summary) - Returns performance summary plus additive v2 metadata from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
-        |-- /trades [GET] (backtests.get_trades) - Returns list of executed trades for a run from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
+        |-- /summary [GET] (backtests.get_summary) - Returns performance summary plus additive v4 metadata, cost-drag fields, and closed-position statistics from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
+        |-- /trades [GET] (backtests.get_trades) - Returns executed trade audit rows, including `position_id` and `trade_role`, for a run from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
+        |-- /positions/closed [GET] (backtests.get_closed_positions) - Returns flat-to-flat closed position cycles with realized PnL, return, costs, and exit reason :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
         |-- /metrics
         |   |-- /timeseries [GET] (backtests.get_timeseries) - Returns equity curve and drawdown series with additive period_return metadata from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
         |   `-- /rolling [GET] (backtests.get_rolling_metrics) - Returns rolling metrics with additive window_periods metadata from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
