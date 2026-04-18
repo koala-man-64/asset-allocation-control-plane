@@ -2321,6 +2321,88 @@
         "title": "RankingPreviewRowResponse",
         "type": "object"
       },
+      "RankingRefreshClaimRequest": {
+        "properties": {
+          "executionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          }
+        },
+        "title": "RankingRefreshClaimRequest",
+        "type": "object"
+      },
+      "RankingRefreshCompleteRequest": {
+        "properties": {
+          "claimToken": {
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "dependencyFingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencyfingerprint"
+          },
+          "dependencyState": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencystate"
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runid"
+          }
+        },
+        "required": [
+          "claimToken"
+        ],
+        "title": "RankingRefreshCompleteRequest",
+        "type": "object"
+      },
+      "RankingRefreshFailRequest": {
+        "properties": {
+          "claimToken": {
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimToken",
+          "error"
+        ],
+        "title": "RankingRefreshFailRequest",
+        "type": "object"
+      },
       "RankingSchemaConfig-Input": {
         "additionalProperties": false,
         "properties": {
@@ -2584,6 +2666,17 @@
         "title": "RegimePolicy",
         "type": "object"
       },
+      "ResultsReconcileRequest": {
+        "properties": {
+          "dryRun": {
+            "default": false,
+            "title": "Dryrun",
+            "type": "boolean"
+          }
+        },
+        "title": "ResultsReconcileRequest",
+        "type": "object"
+      },
       "RollingMetricPointResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2762,6 +2855,7 @@
         "type": "object"
       },
       "RunListResponse": {
+        "additionalProperties": false,
         "properties": {
           "limit": {
             "title": "Limit",
@@ -2787,8 +2881,129 @@
         "title": "RunListResponse",
         "type": "object"
       },
-      "RunRecordResponse": {
+      "RunPinsResponse": {
+        "additionalProperties": false,
         "properties": {
+          "rankingSchemaName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaname"
+          },
+          "rankingSchemaVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaversion"
+          },
+          "regimeModelName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimemodelname"
+          },
+          "regimeModelVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimemodelversion"
+          },
+          "strategyName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategyname"
+          },
+          "strategyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategyversion"
+          },
+          "universeName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universename"
+          },
+          "universeVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universeversion"
+          }
+        },
+        "title": "RunPinsResponse",
+        "type": "object"
+      },
+      "RunRecordResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bar_size": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bar Size"
+          },
           "completed_at": {
             "anyOf": [
               {
@@ -2822,6 +3037,19 @@
               }
             ],
             "title": "Error"
+          },
+          "execution_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Name"
           },
           "run_id": {
             "title": "Run Id",
@@ -2862,8 +3090,37 @@
             "title": "Started At"
           },
           "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
             "title": "Status",
             "type": "string"
+          },
+          "strategy_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Name"
+          },
+          "strategy_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Version"
           },
           "submitted_at": {
             "format": "date-time",
@@ -2877,6 +3134,188 @@
           "submitted_at"
         ],
         "title": "RunRecordResponse",
+        "type": "object"
+      },
+      "RunStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bar_size": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bar Size"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "execution_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Name"
+          },
+          "pins": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunPinsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "results_ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Ready At"
+          },
+          "results_schema_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Schema Version"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Name"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "strategy_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Name"
+          },
+          "strategy_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Version"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "submitted_at"
+        ],
+        "title": "RunStatusResponse",
         "type": "object"
       },
       "RuntimeConfigUpsertRequest": {
@@ -2915,113 +3354,6 @@
           "key"
         ],
         "title": "RuntimeConfigUpsertRequest",
-        "type": "object"
-      },
-      "StrategyConfig-Input": {
-        "additionalProperties": false,
-        "properties": {
-          "costModel": {
-            "default": "default",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Costmodel",
-            "type": "string"
-          },
-          "exits": {
-            "items": {
-              "$ref": "#/components/schemas/ExitRule"
-            },
-            "title": "Exits",
-            "type": "array"
-          },
-          "holdingPeriod": {
-            "default": 21,
-            "minimum": 1.0,
-            "title": "Holdingperiod",
-            "type": "integer"
-          },
-          "intrabarConflictPolicy": {
-            "default": "stop_first",
-            "enum": [
-              "stop_first",
-              "take_profit_first",
-              "priority_order"
-            ],
-            "title": "Intrabarconflictpolicy",
-            "type": "string"
-          },
-          "longOnly": {
-            "default": true,
-            "title": "Longonly",
-            "type": "boolean"
-          },
-          "lookbackWindow": {
-            "default": 63,
-            "minimum": 1.0,
-            "title": "Lookbackwindow",
-            "type": "integer"
-          },
-          "rankingSchemaName": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rankingschemaname"
-          },
-          "rebalance": {
-            "default": "monthly",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Rebalance",
-            "type": "string"
-          },
-          "regimePolicy": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegimePolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "topN": {
-            "default": 20,
-            "minimum": 1.0,
-            "title": "Topn",
-            "type": "integer"
-          },
-          "universe": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UniverseDefinition-Input"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "universeConfigName": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Universeconfigname"
-          }
-        },
-        "title": "StrategyConfig",
         "type": "object"
       },
       "StrategyConfig-Output": {
@@ -3128,15 +3460,13 @@
             "title": "Universeconfigname"
           }
         },
-        "title": "StrategyConfig",
+        "title": "StrategyConfig-Output",
         "type": "object"
       },
       "StrategyDetailResponse": {
         "properties": {
           "config": {
-            "additionalProperties": true,
-            "title": "Config",
-            "type": "object"
+            "$ref": "#/components/schemas/StrategyConfig-Output"
           },
           "description": {
             "default": "",
@@ -4017,6 +4347,17 @@
             ],
             "title": "Slippage Cost"
           },
+          "trade_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Count"
+          },
           "turnover": {
             "anyOf": [
               {
@@ -4212,35 +4553,46 @@
         "title": "UniverseCatalogFieldResponse",
         "type": "object"
       },
-      "UniverseCatalogTableResponse": {
+      "UniverseCatalogResponse": {
         "properties": {
-          "asOfColumn": {
-            "title": "Asofcolumn",
-            "type": "string"
-          },
-          "columns": {
+          "fields": {
             "items": {
               "$ref": "#/components/schemas/UniverseCatalogFieldResponse"
             },
-            "title": "Columns",
+            "title": "Fields",
             "type": "array"
           },
-          "name": {
-            "title": "Name",
+          "source": {
+            "title": "Source",
             "type": "string"
-          },
+          }
         },
         "required": [
-          "name",
-          "asOfColumn",
-          "columns"
+          "source",
+          "fields"
         ],
-        "title": "UniverseCatalogTableResponse",
+        "title": "UniverseCatalogResponse",
         "type": "object"
       },
       "UniverseCondition": {
         "additionalProperties": false,
         "properties": {
+          "field": {
+            "enum": [
+              "market.close",
+              "security.is_active",
+              "security.sector",
+              "security.delisted_at",
+              "market.trade_date",
+              "market.timestamp",
+              "returns.return_20d",
+              "returns.return_126d",
+              "quality.piotroski_f_score",
+              "earnings.surprise_pct"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
           "kind": {
             "const": "condition",
             "default": "condition",
@@ -4261,13 +4613,6 @@
               "is_not_null"
             ],
             "title": "Operator",
-            "type": "string"
-          },
-          "field": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$",
-            "title": "Field",
             "type": "string"
           },
           "value": {
@@ -4328,9 +4673,7 @@
       "UniverseConfigDetailResponse": {
         "properties": {
           "config": {
-            "additionalProperties": true,
-            "title": "Config",
-            "type": "object"
+            "$ref": "#/components/schemas/UniverseDefinition-Output"
           },
           "description": {
             "default": "",
@@ -4427,30 +4770,11 @@
         "title": "UniverseConfigUpsertRequest",
         "type": "object"
       },
-      "UniverseDefinition-Input": {
-        "additionalProperties": false,
-        "properties": {
-          "root": {
-            "$ref": "#/components/schemas/UniverseGroup-Input"
-          },
-          "source": {
-            "const": "postgres_gold",
-            "default": "postgres_gold",
-            "title": "Source",
-            "type": "string"
-          }
-        },
-        "required": [
-          "root"
-        ],
-        "title": "UniverseDefinition",
-        "type": "object"
-      },
       "UniverseDefinition-Output": {
         "additionalProperties": false,
         "properties": {
           "root": {
-            "$ref": "#/components/schemas/UniverseGroup-Output"
+            "$ref": "#/components/schemas/UniverseGroup"
           },
           "source": {
             "const": "postgres_gold",
@@ -4462,57 +4786,17 @@
         "required": [
           "root"
         ],
-        "title": "UniverseDefinition",
+        "title": "UniverseDefinition-Output",
         "type": "object"
       },
-      "UniverseGroup-Input": {
+      "UniverseGroup": {
         "additionalProperties": false,
         "properties": {
           "clauses": {
             "items": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/UniverseGroup-Input"
-                },
-                {
-                  "$ref": "#/components/schemas/UniverseCondition"
-                }
-              ]
-            },
-            "minItems": 1,
-            "title": "Clauses",
-            "type": "array"
-          },
-          "kind": {
-            "const": "group",
-            "default": "group",
-            "title": "Kind",
-            "type": "string"
-          },
-          "operator": {
-            "default": "and",
-            "enum": [
-              "and",
-              "or"
-            ],
-            "title": "Operator",
-            "type": "string"
-          }
-        },
-        "required": [
-          "clauses"
-        ],
-        "title": "UniverseGroup",
-        "type": "object"
-      },
-      "UniverseGroup-Output": {
-        "additionalProperties": false,
-        "properties": {
-          "clauses": {
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/UniverseGroup-Output"
+                  "$ref": "#/components/schemas/UniverseGroup"
                 },
                 {
                   "$ref": "#/components/schemas/UniverseCondition"
@@ -4547,6 +4831,13 @@
       },
       "UniversePreviewResponse": {
         "properties": {
+          "fieldsUsed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fieldsused",
+            "type": "array"
+          },
           "sampleSymbols": {
             "items": {
               "type": "string"
@@ -4561,13 +4852,6 @@
           "symbolCount": {
             "title": "Symbolcount",
             "type": "integer"
-          },
-          "fieldsUsed": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Fieldsused",
-            "type": "array"
           },
           "warnings": {
             "items": {
@@ -4656,16 +4940,16 @@
       },
       "api__endpoints__strategies__UniverseCatalogResponse": {
         "properties": {
-          "source": {
-            "title": "Source",
-            "type": "string"
-          },
           "fields": {
             "items": {
               "$ref": "#/components/schemas/UniverseCatalogFieldResponse"
             },
             "title": "Fields",
             "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -4698,16 +4982,16 @@
       },
       "api__endpoints__universes__UniverseCatalogResponse": {
         "properties": {
-          "source": {
-            "title": "Source",
-            "type": "string"
-          },
           "fields": {
             "items": {
               "$ref": "#/components/schemas/UniverseCatalogFieldResponse"
             },
             "title": "Fields",
             "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -4735,7 +5019,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Universe"
           },
           "universeName": {
             "anyOf": [
@@ -5241,7 +5526,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunRecordResponse"
+                  "$ref": "#/components/schemas/RunStatusResponse"
                 }
               }
             },
@@ -6816,6 +7101,157 @@
         ]
       }
     },
+    "/api/internal/rankings/refresh/claim": {
+      "post": {
+        "operationId": "claim_ranking_refresh_api_internal_rankings_refresh_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RankingRefreshClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Claim Ranking Refresh Api Internal Rankings Refresh Claim Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Ranking Refresh",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/rankings/refresh/{strategy_name}/complete": {
+      "post": {
+        "operationId": "complete_ranking_refresh_work_api_internal_rankings_refresh__strategy_name__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_name",
+            "required": true,
+            "schema": {
+              "title": "Strategy Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RankingRefreshCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Complete Ranking Refresh Work Api Internal Rankings Refresh  Strategy Name  Complete Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Ranking Refresh Work",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/rankings/refresh/{strategy_name}/fail": {
+      "post": {
+        "operationId": "fail_ranking_refresh_work_api_internal_rankings_refresh__strategy_name__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_name",
+            "required": true,
+            "schema": {
+              "title": "Strategy Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RankingRefreshFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fail Ranking Refresh Work Api Internal Rankings Refresh  Strategy Name  Fail Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fail Ranking Refresh Work",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
     "/api/internal/rankings/{name}": {
       "get": {
         "operationId": "get_ranking_schema_api_internal_rankings__name__get",
@@ -7110,6 +7546,56 @@
           }
         },
         "summary": "Get Regime Model Revision",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/results/reconcile": {
+      "post": {
+        "operationId": "reconcile_results_api_internal_results_reconcile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ResultsReconcileRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reconcile Results Api Internal Results Reconcile Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconcile Results",
         "tags": [
           "Internal"
         ]
@@ -8990,7 +9476,7 @@
     },
     "/api/strategies/universe/catalog": {
       "get": {
-        "description": "Return eligible Postgres gold tables and columns for strategy universe authoring.",
+        "description": "Return eligible public universe fields for strategy universe authoring.",
         "operationId": "get_universe_catalog_api_strategies_universe_catalog_get",
         "responses": {
           "200": {

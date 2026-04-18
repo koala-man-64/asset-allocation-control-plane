@@ -31,13 +31,16 @@ from api.endpoints import (
 from api.service.auth import AuthManager
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
 from api.service.log_streaming import LogStreamManager
+from api.service.openapi_schema import stabilize_openapi_schema
 from api.service.massive_gateway import MassiveGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.settings import ServiceSettings
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
 from asset_allocation_runtime_common.market_data.delta_core import get_delta_storage_auth_diagnostics
+
 logger = logging.getLogger("asset-allocation.api")
+
 
 def _is_truthy(raw: str | None) -> bool:
     return (raw or "").strip().lower() in {"1", "true", "t", "yes", "y", "on"}
@@ -106,11 +109,13 @@ async def _shutdown_background_task(
     except Exception as exc:
         logger.warning("Background task '%s' raised after cancellation: %s", task_name, exc)
 
+
 def _normalize_root_prefix(value: str | None) -> str:
     raw = (value or "").strip()
     if not raw or raw == "/":
         return ""
     return "/" + raw.strip("/")
+
 
 def _parse_env_list(value: str | None) -> list[str]:
     raw = (value or "").strip()
@@ -154,6 +159,7 @@ def _get_cors_allow_origins() -> list[str]:
     # De-dup while preserving order.
     return list(dict.fromkeys(origins))
 
+
 def create_app() -> FastAPI:
     # ... (existing inner functions) ...
     log_stream_manager = LogStreamManager(realtime_manager)
@@ -187,7 +193,11 @@ def create_app() -> FastAPI:
             try:
                 from asset_allocation_runtime_common.foundation.config import reload_settings
                 from asset_allocation_runtime_common.foundation.debug_symbols import refresh_debug_symbols_from_db
-                from asset_allocation_runtime_common.foundation.runtime_config import DEFAULT_ENV_OVERRIDE_KEYS, apply_runtime_config_to_env
+                from asset_allocation_runtime_common.foundation.runtime_config import (
+                    DEFAULT_ENV_OVERRIDE_KEYS,
+                    apply_runtime_config_to_env,
+                )
+
                 if workers_enabled and not _is_test_environment():
                     baseline_env: dict[str, str | None] = {
                         key: os.environ.get(key) for key in sorted(DEFAULT_ENV_OVERRIDE_KEYS)
@@ -219,9 +229,7 @@ def create_app() -> FastAPI:
                             import hashlib
 
                             digest = hashlib.sha256(
-                                json.dumps(applied, sort_keys=True, separators=(",", ":")).encode(
-                                    "utf-8"
-                                )
+                                json.dumps(applied, sort_keys=True, separators=(",", ":")).encode("utf-8")
                             ).hexdigest()
                             if getattr(app.state, "runtime_config_hash", None) != digest:
                                 app.state.runtime_config_hash = digest
@@ -328,9 +336,9 @@ def create_app() -> FastAPI:
             response.headers.setdefault("X-Frame-Options", "DENY")
             if content_security_policy:
                 response.headers.setdefault("Content-Security-Policy", content_security_policy)
-            
+
             return response
-            
+
         except Exception:
             # Let Starlette's ServerErrorMiddleware handle it, but log it first if needed
             raise
@@ -351,12 +359,16 @@ def create_app() -> FastAPI:
 
     def _get_openapi_schema() -> dict:
         if app.openapi_schema is None:
-            app.openapi_schema = get_openapi(
-                title=app.title,
-                version=app.version,
-                routes=app.routes,
+            app.openapi_schema = stabilize_openapi_schema(
+                get_openapi(
+                    title=app.title,
+                    version=app.version,
+                    routes=app.routes,
+                )
             )
         return app.openapi_schema
+
+    app.openapi = _get_openapi_schema  # type: ignore[method-assign]
 
     def _register_docs_routes(api_prefix: str) -> None:
         docs_path = f"{api_prefix}/docs"
@@ -489,6 +501,7 @@ def create_app() -> FastAPI:
         if dist_path.exists() and dist_path.is_dir():
             logger.info("Serving UI from %s", dist_path)
             from fastapi.staticfiles import StaticFiles
+
             assets_path = dist_path / "assets"
             if assets_path.exists():
                 app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
@@ -504,8 +517,7 @@ def create_app() -> FastAPI:
     else:
         logger.info("UI_DIST_DIR not set. UI will not be served.")
 
-
-            
     return app
+
 
 app = create_app()

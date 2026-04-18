@@ -5,6 +5,7 @@ from typing import Any, List
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from api.openapi_models import StrategyConfigOutput, UniversePreviewResponse
 from api.service.dependencies import validate_auth
 
 from core.strategy_engine import StrategyConfig
@@ -31,7 +32,7 @@ class StrategySummaryResponse(BaseModel):
 
 
 class StrategyDetailResponse(StrategySummaryResponse):
-    config: dict[str, Any]
+    config: StrategyConfigOutput
 
 
 class StrategyUpsertRequest(BaseModel):
@@ -56,14 +57,6 @@ class UniverseCatalogResponse(BaseModel):
 class UniversePreviewRequest(BaseModel):
     universe: dict[str, Any]
     sampleLimit: int = Field(default=25, ge=1, le=100)
-
-
-class UniversePreviewResponse(BaseModel):
-    source: str
-    symbolCount: int
-    sampleSymbols: list[str]
-    fieldsUsed: list[str]
-    warnings: list[str] = Field(default_factory=list)
 
 
 def _normalize_strategy_config(dsn: str, config: Any) -> dict[str, Any]:
@@ -96,7 +89,7 @@ def _build_strategy_detail_response(strategy: dict[str, Any]) -> StrategyDetailR
         description=str(strategy.get("description") or ""),
         output_table_name=strategy.get("output_table_name"),
         updated_at=strategy.get("updated_at"),
-        config=_publicize_strategy_config(strategy.get("config") or {}),
+        config=StrategyConfigOutput.model_validate(_publicize_strategy_config(strategy.get("config") or {})),
     )
 
 
@@ -126,9 +119,7 @@ async def get_universe_catalog(request: Request) -> UniverseCatalogResponse:
     """
     validate_auth(request)
     try:
-        return UniverseCatalogResponse.model_validate(
-            list_gold_universe_catalog(_require_postgres_dsn(request))
-        )
+        return UniverseCatalogResponse.model_validate(list_gold_universe_catalog(_require_postgres_dsn(request)))
     except HTTPException:
         raise
     except ValueError as exc:
@@ -177,8 +168,8 @@ async def get_strategy_detail(name: str, request: Request) -> StrategyDetailResp
     return _build_strategy_detail_response(strategy)
 
 
-@router.get("/{name}", response_model=StrategyConfig)
-async def get_strategy(name: str, request: Request) -> StrategyConfig:
+@router.get("/{name}", response_model=StrategyConfigOutput)
+async def get_strategy(name: str, request: Request) -> StrategyConfigOutput:
     """
     Get configuration for a specific strategy by name.
     """
@@ -188,7 +179,7 @@ async def get_strategy(name: str, request: Request) -> StrategyConfig:
     config = repo.get_strategy_config(name)
     if config is None:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' configuration not found")
-    return StrategyConfig.model_validate(config)
+    return StrategyConfigOutput.model_validate(config)
 
 
 @router.post("/")

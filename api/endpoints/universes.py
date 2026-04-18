@@ -4,10 +4,10 @@ import logging
 from datetime import datetime
 from typing import Any, List
 
-from asset_allocation_contracts.strategy import UniverseCatalogResponse, UniverseDefinition, UniversePreviewResponse
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
+from api.openapi_models import UniverseDefinitionOutput, UniversePreviewResponse
 from api.service.dependencies import validate_auth
 from core.strategy_engine.universe import (
     list_gold_universe_catalog,
@@ -30,13 +30,25 @@ class UniverseConfigSummaryResponse(BaseModel):
 
 
 class UniverseConfigDetailResponse(UniverseConfigSummaryResponse):
-    config: UniverseDefinition
+    config: UniverseDefinitionOutput
 
 
 class UniverseConfigUpsertRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str = ""
     config: dict[str, Any]
+
+
+class UniverseCatalogFieldResponse(BaseModel):
+    id: str
+    label: str
+    valueKind: str
+    operators: list[str]
+
+
+class UniverseCatalogResponse(BaseModel):
+    source: str
+    fields: list[UniverseCatalogFieldResponse]
 
 
 class UniversePreviewRequest(BaseModel):
@@ -65,7 +77,7 @@ def _build_detail_response(universe: dict[str, Any]) -> UniverseConfigDetailResp
         description=str(universe.get("description") or ""),
         version=int(universe.get("version") or 1),
         updated_at=universe.get("updated_at"),
-        config=_publicize_universe_definition(universe.get("config") or {}),
+        config=UniverseDefinitionOutput.model_validate(_publicize_universe_definition(universe.get("config") or {})),
     )
 
 
