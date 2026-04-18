@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from core.config import parse_debug_symbols
-from core.postgres import PostgresError
-from core.runtime_config import (
+from asset_allocation_runtime_common.foundation.config import parse_debug_symbols
+from asset_allocation_runtime_common.foundation.postgres import PostgresError
+from asset_allocation_runtime_common.foundation.runtime_config import (
     delete_runtime_config,
     default_scopes_by_precedence,
     get_effective_runtime_config,
@@ -130,8 +130,7 @@ def _apply_debug_symbols_from_env() -> list[str]:
 
 def _apply_debug_symbols_to_config(symbols: list[str]) -> None:
     try:
-        from core import config as cfg
-
+        from asset_allocation_runtime_common.foundation import config as cfg
         cfg.settings.DEBUG_SYMBOLS = list(symbols)
         cfg.DEBUG_SYMBOLS = list(symbols)
     except Exception as exc:

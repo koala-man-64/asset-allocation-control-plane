@@ -3134,7 +3134,9 @@
       "StrategyDetailResponse": {
         "properties": {
           "config": {
-            "$ref": "#/components/schemas/StrategyConfig-Output"
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
           },
           "description": {
             "default": "",
@@ -3230,7 +3232,9 @@
       "StrategyUpsertRequest": {
         "properties": {
           "config": {
-            "$ref": "#/components/schemas/StrategyConfig-Input"
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
           },
           "description": {
             "default": "",
@@ -4177,14 +4181,14 @@
         "title": "TradeResponse",
         "type": "object"
       },
-      "UniverseCatalogColumnResponse": {
+      "UniverseCatalogFieldResponse": {
         "properties": {
-          "dataType": {
-            "title": "Datatype",
+          "id": {
+            "title": "Id",
             "type": "string"
           },
-          "name": {
-            "title": "Name",
+          "label": {
+            "title": "Label",
             "type": "string"
           },
           "operators": {
@@ -4200,12 +4204,12 @@
           }
         },
         "required": [
-          "name",
-          "dataType",
+          "id",
+          "label",
           "valueKind",
           "operators"
         ],
-        "title": "UniverseCatalogColumnResponse",
+        "title": "UniverseCatalogFieldResponse",
         "type": "object"
       },
       "UniverseCatalogTableResponse": {
@@ -4216,7 +4220,7 @@
           },
           "columns": {
             "items": {
-              "$ref": "#/components/schemas/UniverseCatalogColumnResponse"
+              "$ref": "#/components/schemas/UniverseCatalogFieldResponse"
             },
             "title": "Columns",
             "type": "array"
@@ -4224,7 +4228,7 @@
           "name": {
             "title": "Name",
             "type": "string"
-          }
+          },
         },
         "required": [
           "name",
@@ -4237,13 +4241,6 @@
       "UniverseCondition": {
         "additionalProperties": false,
         "properties": {
-          "column": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-            "title": "Column",
-            "type": "string"
-          },
           "kind": {
             "const": "condition",
             "default": "condition",
@@ -4266,11 +4263,11 @@
             "title": "Operator",
             "type": "string"
           },
-          "table": {
+          "field": {
             "maxLength": 128,
             "minLength": 1,
-            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-            "title": "Table",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$",
+            "title": "Field",
             "type": "string"
           },
           "value": {
@@ -4322,8 +4319,7 @@
           }
         },
         "required": [
-          "table",
-          "column",
+          "field",
           "operator"
         ],
         "title": "UniverseCondition",
@@ -4332,7 +4328,9 @@
       "UniverseConfigDetailResponse": {
         "properties": {
           "config": {
-            "$ref": "#/components/schemas/UniverseDefinition-Output"
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
           },
           "description": {
             "default": "",
@@ -4406,7 +4404,9 @@
       "UniverseConfigUpsertRequest": {
         "properties": {
           "config": {
-            "$ref": "#/components/schemas/UniverseDefinition-Input"
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
           },
           "description": {
             "default": "",
@@ -4562,11 +4562,11 @@
             "title": "Symbolcount",
             "type": "integer"
           },
-          "tablesUsed": {
+          "fieldsUsed": {
             "items": {
               "type": "string"
             },
-            "title": "Tablesused",
+            "title": "Fieldsused",
             "type": "array"
           },
           "warnings": {
@@ -4581,7 +4581,7 @@
           "source",
           "symbolCount",
           "sampleSymbols",
-          "tablesUsed"
+          "fieldsUsed"
         ],
         "title": "UniversePreviewResponse",
         "type": "object"
@@ -4660,17 +4660,17 @@
             "title": "Source",
             "type": "string"
           },
-          "tables": {
+          "fields": {
             "items": {
-              "$ref": "#/components/schemas/UniverseCatalogTableResponse"
+              "$ref": "#/components/schemas/UniverseCatalogFieldResponse"
             },
-            "title": "Tables",
+            "title": "Fields",
             "type": "array"
           }
         },
         "required": [
           "source",
-          "tables"
+          "fields"
         ],
         "title": "UniverseCatalogResponse",
         "type": "object"
@@ -4685,7 +4685,9 @@
             "type": "integer"
           },
           "universe": {
-            "$ref": "#/components/schemas/UniverseDefinition-Input"
+            "additionalProperties": true,
+            "title": "Universe",
+            "type": "object"
           }
         },
         "required": [
@@ -4700,17 +4702,17 @@
             "title": "Source",
             "type": "string"
           },
-          "tables": {
+          "fields": {
             "items": {
-              "$ref": "#/components/schemas/UniverseCatalogTableResponse"
+              "$ref": "#/components/schemas/UniverseCatalogFieldResponse"
             },
-            "title": "Tables",
+            "title": "Fields",
             "type": "array"
           }
         },
         "required": [
           "source",
-          "tables"
+          "fields"
         ],
         "title": "UniverseCatalogResponse",
         "type": "object"
@@ -4727,7 +4729,8 @@
           "universe": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UniverseDefinition-Input"
+                "additionalProperties": true,
+                "type": "object"
               },
               {
                 "type": "null"

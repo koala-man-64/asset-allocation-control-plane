@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from api.service.app import create_app
-from core.runtime_config import RuntimeConfigItem
+from asset_allocation_runtime_common.foundation.runtime_config import RuntimeConfigItem
 from tests.api._client import get_test_client
 
 

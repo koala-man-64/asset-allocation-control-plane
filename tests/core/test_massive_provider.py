@@ -3,7 +3,7 @@ import json
 import pytest
 import requests
 
-from core.massive_provider import (
+from asset_allocation_runtime_common.providers.massive_provider import (
     MassiveProvider,
     MassiveProviderConfig,
     MassiveProviderError,

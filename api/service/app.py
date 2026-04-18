@@ -36,8 +36,7 @@ from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.settings import ServiceSettings
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
-from core.delta_core import get_delta_storage_auth_diagnostics
-
+from asset_allocation_runtime_common.market_data.delta_core import get_delta_storage_auth_diagnostics
 logger = logging.getLogger("asset-allocation.api")
 
 def _is_truthy(raw: str | None) -> bool:
@@ -186,10 +185,9 @@ def create_app() -> FastAPI:
 
         if settings.postgres_dsn:
             try:
-                from core.config import reload_settings
-                from core.debug_symbols import refresh_debug_symbols_from_db
-                from core.runtime_config import DEFAULT_ENV_OVERRIDE_KEYS, apply_runtime_config_to_env
-
+                from asset_allocation_runtime_common.foundation.config import reload_settings
+                from asset_allocation_runtime_common.foundation.debug_symbols import refresh_debug_symbols_from_db
+                from asset_allocation_runtime_common.foundation.runtime_config import DEFAULT_ENV_OVERRIDE_KEYS, apply_runtime_config_to_env
                 if workers_enabled and not _is_test_environment():
                     baseline_env: dict[str, str | None] = {
                         key: os.environ.get(key) for key in sorted(DEFAULT_ENV_OVERRIDE_KEYS)

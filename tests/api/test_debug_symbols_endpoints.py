@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from api.service.app import create_app
-from core.debug_symbols import DebugSymbolsState
+from asset_allocation_runtime_common.foundation.debug_symbols import DebugSymbolsState
 from tests.api._client import get_test_client
 
 

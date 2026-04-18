@@ -1,6 +1,4 @@
-from core.config import AppSettings
-
-
+from asset_allocation_runtime_common.foundation.config import AppSettings
 def test_debug_symbols_normalized_to_uppercase(monkeypatch):
     monkeypatch.setenv("DEBUG_SYMBOLS", "aapl, msft, f , bac")
     settings = AppSettings()

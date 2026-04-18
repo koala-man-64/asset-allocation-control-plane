@@ -9,13 +9,13 @@ from datetime import datetime, timezone
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
 
-from core import bronze_bucketing
-from core import domain_artifacts
-from core import layer_bucketing
-from core.blob_storage import BlobStorageClient
-from core import delta_core
-from core.domain_metadata_snapshots import build_domain_metadata_snapshot_metadata_from_artifact
-from core.finance_contracts import SILVER_FINANCE_SUBDOMAINS
+from asset_allocation_runtime_common.market_data import bronze_bucketing
+from asset_allocation_runtime_common.market_data import domain_artifacts
+from asset_allocation_runtime_common.market_data import layer_bucketing
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.market_data.domain_metadata_snapshots import build_domain_metadata_snapshot_metadata_from_artifact
+from asset_allocation_contracts.finance import SILVER_FINANCE_SUBDOMAINS
 from deltalake import DeltaTable
 
 logger = logging.getLogger("asset_allocation.monitoring.domain_metadata")

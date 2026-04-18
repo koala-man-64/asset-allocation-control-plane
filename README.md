@@ -9,7 +9,7 @@ Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
 python -m pip install asset-allocation-contracts==1.1.0
-python -m pip install asset-allocation-runtime-common==1.0.2
+python -m pip install asset-allocation-runtime-common==2.0.0
 python -m pytest tests/api tests/monitoring -q
 ```
 

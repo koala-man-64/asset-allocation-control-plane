@@ -8,8 +8,12 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
 from api.service.dependencies import validate_auth
-from core.strategy_engine import UniverseDefinition
-from core.strategy_engine.universe import list_gold_universe_catalog, preview_gold_universe
+from core.strategy_engine.universe import (
+    list_gold_universe_catalog,
+    preview_gold_universe,
+    _normalize_universe_definition,
+    _publicize_universe_definition,
+)
 from core.universe_repository import UniverseRepository
 
 logger = logging.getLogger(__name__)
@@ -25,36 +29,30 @@ class UniverseConfigSummaryResponse(BaseModel):
 
 
 class UniverseConfigDetailResponse(UniverseConfigSummaryResponse):
-    config: UniverseDefinition
+    config: dict[str, Any]
 
 
 class UniverseConfigUpsertRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str = ""
-    config: UniverseDefinition
+    config: dict[str, Any]
 
 
-class UniverseCatalogColumnResponse(BaseModel):
-    name: str
-    dataType: str
+class UniverseCatalogFieldResponse(BaseModel):
+    id: str
+    label: str
     valueKind: str
     operators: list[str]
 
 
-class UniverseCatalogTableResponse(BaseModel):
-    name: str
-    asOfColumn: str
-    columns: list[UniverseCatalogColumnResponse]
-
-
 class UniverseCatalogResponse(BaseModel):
     source: str
-    tables: list[UniverseCatalogTableResponse]
+    fields: list[UniverseCatalogFieldResponse]
 
 
 class UniversePreviewRequest(BaseModel):
     universeName: str | None = Field(default=None, min_length=1, max_length=128)
-    universe: UniverseDefinition | None = None
+    universe: dict[str, Any] | None = None
     sampleLimit: int = Field(default=25, ge=1, le=100)
 
     @model_validator(mode="after")
@@ -68,7 +66,7 @@ class UniversePreviewResponse(BaseModel):
     source: str
     symbolCount: int
     sampleSymbols: list[str]
-    tablesUsed: list[str]
+    fieldsUsed: list[str]
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -86,7 +84,7 @@ def _build_detail_response(universe: dict[str, Any]) -> UniverseConfigDetailResp
         description=str(universe.get("description") or ""),
         version=int(universe.get("version") or 1),
         updated_at=universe.get("updated_at"),
-        config=UniverseDefinition.model_validate(universe.get("config") or {}),
+        config=_publicize_universe_definition(universe.get("config") or {}),
     )
 
 
@@ -121,7 +119,7 @@ async def preview_universe(payload: UniversePreviewRequest, request: Request) ->
             record = repo.get_universe_config(str(payload.universeName))
             if not record:
                 raise HTTPException(status_code=404, detail=f"Universe config '{payload.universeName}' not found")
-            universe = UniverseDefinition.model_validate(record.get("config") or {})
+            universe = record.get("config") or {}
         return UniversePreviewResponse.model_validate(
             preview_gold_universe(_require_postgres_dsn(request), universe, sample_limit=payload.sampleLimit)
         )
@@ -149,10 +147,11 @@ async def save_universe_config(payload: UniverseConfigUpsertRequest, request: Re
     validate_auth(request)
     repo = UniverseRepository(_require_postgres_dsn(request))
     try:
+        normalized_universe = _normalize_universe_definition(payload.config)
         saved = repo.save_universe_config(
             name=payload.name,
             description=payload.description,
-            config=payload.config.model_dump(exclude_none=True),
+            config=normalized_universe.model_dump(exclude_none=True),
         )
         return {
             "status": "success",

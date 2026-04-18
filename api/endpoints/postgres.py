@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import MetaData, String as SqlString, Table, and_, cast, create_engine, inspect, select, text
 
-from core.gold_column_lookup_catalog import SUPPORTED_GOLD_LOOKUP_TABLES
+from asset_allocation_runtime_common.market_data.gold_column_lookup_catalog import SUPPORTED_GOLD_LOOKUP_TABLES
 from api.service.dependencies import get_settings
 
 router = APIRouter()

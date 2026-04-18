@@ -8,6 +8,8 @@ It stores one row per `(schema_name, table_name, column_name)` and includes:
 - curated feature metadata (`description`, `calculation_type`, `calculation_notes`, `calculation_expression`, `calculation_dependencies`)
 - ownership/status fields (`source_job`, `status`, `updated_at`, `updated_by`)
 
+Universe field ids are a separate public contract. They resolve to local warehouse columns inside the control plane and do not expose `gold.column_lookup` table names or column names directly.
+
 ## Migration
 
 - `deploy/sql/postgres/migrations/0031_gold_column_lookup.sql`

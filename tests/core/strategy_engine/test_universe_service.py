@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.strategy_engine.contracts import UniverseDefinition
 from core.strategy_engine import universe as universe_service
 
 
@@ -56,45 +55,50 @@ def test_catalog_table_name_filter_excludes_noncanonical_gold_tables() -> None:
     assert not universe_service._is_catalog_table_name("market_data_by_date")
 
 
-def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> None:
-    universe = UniverseDefinition.model_validate(
-        {
-            "source": "postgres_gold",
-            "root": {
-                "kind": "group",
-                "operator": "and",
-                "clauses": [
-                    {
-                        "kind": "condition",
-                        "table": "market_data",
-                        "column": "close",
-                        "operator": "gt",
-                        "value": 10,
-                    },
-                    {
-                        "kind": "group",
-                        "operator": "or",
-                        "clauses": [
-                            {
-                                "kind": "condition",
-                                "table": "finance_data",
-                                "column": "f_score",
-                                "operator": "gte",
-                                "value": 7,
-                            },
-                            {
-                                "kind": "condition",
-                                "table": "earnings_data",
-                                "column": "surprise_pct",
-                                "operator": "gt",
-                                "value": 0,
-                            },
-                        ],
-                    },
-                ],
-            },
-        }
+def test_list_gold_universe_catalog_returns_public_fields() -> None:
+    catalog = universe_service.list_gold_universe_catalog("postgresql://test")
+
+    assert catalog["source"] == "postgres_gold"
+    assert [field["id"] for field in catalog["fields"]] == sorted(
+        universe_service.UNIVERSE_FIELD_MAP.keys()
     )
+    assert all("label" in field and "valueKind" in field and "operators" in field for field in catalog["fields"])
+
+
+def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> None:
+    universe = {
+        "source": "postgres_gold",
+        "root": {
+            "kind": "group",
+            "operator": "and",
+            "clauses": [
+                {
+                    "kind": "condition",
+                    "field": "market.close",
+                    "operator": "gt",
+                    "value": 10,
+                },
+                {
+                    "kind": "group",
+                    "operator": "or",
+                    "clauses": [
+                        {
+                            "kind": "condition",
+                            "field": "quality.piotroski_f_score",
+                            "operator": "gte",
+                            "value": 7,
+                        },
+                        {
+                            "kind": "condition",
+                            "field": "earnings.surprise_pct",
+                            "operator": "gt",
+                            "value": 0,
+                        },
+                    ],
+                },
+            ],
+        },
+    }
 
     specs = {
         "market_data": universe_service.UniverseTableSpec(
@@ -113,8 +117,8 @@ def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> Non
             name="finance_data",
             as_of_column="obs_date",
             columns={
-                "f_score": universe_service.UniverseColumnSpec(
-                    name="f_score",
+                "piotroski_f_score": universe_service.UniverseColumnSpec(
+                    name="piotroski_f_score",
                     data_type="integer",
                     value_kind="number",
                     operators=universe_service._NUMBER_OPERATORS,
@@ -139,16 +143,16 @@ def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> Non
     monkeypatch.setattr(universe_service, "connect", lambda _dsn: _FakeConn())
 
     condition_results = {
-        ("market_data", "close"): {"AAPL", "MSFT"},
-        ("finance_data", "f_score"): {"AAPL"},
-        ("earnings_data", "surprise_pct"): {"MSFT", "NVDA"},
+        "market.close": {"AAPL", "MSFT"},
+        "quality.piotroski_f_score": {"AAPL"},
+        "earnings.surprise_pct": {"MSFT", "NVDA"},
     }
 
     monkeypatch.setattr(
         universe_service,
         "_fetch_condition_symbols",
-        lambda _conn, table_spec, condition: set(
-            condition_results[(table_spec.name, condition.column)]
+        lambda _conn, _table_spec, field_spec, _condition: set(
+            condition_results[field_spec.field_id]
         ),
     )
 
@@ -156,29 +160,30 @@ def test_preview_gold_universe_combines_nested_and_or_groups(monkeypatch) -> Non
 
     assert preview["symbolCount"] == 2
     assert preview["sampleSymbols"] == ["AAPL", "MSFT"]
-    assert preview["tablesUsed"] == ["earnings_data", "finance_data", "market_data"]
+    assert preview["fieldsUsed"] == [
+        "earnings.surprise_pct",
+        "market.close",
+        "quality.piotroski_f_score",
+    ]
     assert preview["warnings"] == []
 
 
 def test_preview_gold_universe_warns_when_no_symbols_match(monkeypatch) -> None:
-    universe = UniverseDefinition.model_validate(
-        {
-            "source": "postgres_gold",
-            "root": {
-                "kind": "group",
-                "operator": "and",
-                "clauses": [
-                    {
-                        "kind": "condition",
-                        "table": "market_data",
-                        "column": "close",
-                        "operator": "gt",
-                        "value": 10,
-                    }
-                ],
-            },
-        }
-    )
+    universe = {
+        "source": "postgres_gold",
+        "root": {
+            "kind": "group",
+            "operator": "and",
+            "clauses": [
+                {
+                    "kind": "condition",
+                    "field": "market.close",
+                    "operator": "gt",
+                    "value": 10,
+                }
+            ],
+        },
+    }
 
     specs = {
         "market_data": universe_service.UniverseTableSpec(
@@ -204,3 +209,27 @@ def test_preview_gold_universe_warns_when_no_symbols_match(monkeypatch) -> None:
     assert preview["symbolCount"] == 0
     assert preview["sampleSymbols"] == []
     assert preview["warnings"] == ["Universe preview matched zero symbols."]
+
+
+def test_preview_gold_universe_rejects_unknown_field_id() -> None:
+    universe = {
+        "source": "postgres_gold",
+        "root": {
+            "kind": "group",
+            "operator": "and",
+            "clauses": [
+                {
+                    "kind": "condition",
+                    "field": "unknown.metric",
+                    "operator": "eq",
+                    "value": 1,
+                }
+            ],
+        },
+    }
+
+    try:
+        universe_service.preview_gold_universe("postgresql://test", universe)
+        raise AssertionError("Expected preview_gold_universe to fail.")
+    except ValueError as exc:
+        assert "Unknown universe field 'unknown.metric'." in str(exc)

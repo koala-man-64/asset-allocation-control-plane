@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from core import core as mdc
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
 class _FakeContainerClient:
     def get_blob_client(self, _name: str):
         return object()

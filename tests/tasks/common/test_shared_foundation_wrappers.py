@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core import finance_contracts as owner_finance_contracts
-from core import market_symbols as owner_market_symbols
+from asset_allocation_contracts import finance as owner_finance_contracts
+from asset_allocation_runtime_common.market_data import market_symbols as owner_market_symbols
 from tasks.common import finance_contracts as legacy_finance_contracts
 from tasks.common import market_symbols as legacy_market_symbols
 

@@ -13,12 +13,12 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Iterator, Literal, Optional
 
-from core.market_history_contract import (
+from asset_allocation_contracts.market_history import (
     MARKET_HISTORY_START_DATE,
     MARKET_HISTORY_STATUS_NO_HISTORY,
     MARKET_HISTORY_STATUS_OK,
 )
-from core.massive_provider import get_complete_ticker_list as get_complete_reference_ticker_list
+from asset_allocation_runtime_common.providers.massive_provider import get_complete_ticker_list as get_complete_reference_ticker_list
 from massive_provider import MassiveClient, MassiveConfig
 from massive_provider.errors import (
     MassiveAuthError,

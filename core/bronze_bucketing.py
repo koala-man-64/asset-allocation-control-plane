@@ -7,10 +7,8 @@ from typing import Any, Dict, Iterable, Optional
 
 import pandas as pd
 
-from core import core as mdc
-from core import run_manifests
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.foundation import run_manifests
 ALPHABET_BUCKETS: tuple[str, ...] = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 _DOMAIN_PREFIXES: dict[str, str] = {
     "market": "market-data",
@@ -25,8 +23,7 @@ def _is_truthy(raw: Optional[str]) -> bool:
 
 
 def bronze_layout_mode() -> str:
-    from core import config as cfg
-
+    from asset_allocation_runtime_common.foundation import config as cfg
     mode = (os.environ.get("BRONZE_LAYOUT_MODE") or str(cfg.BRONZE_LAYOUT_MODE)).strip().lower()
     if mode != "alpha26":
         raise ValueError("BRONZE_LAYOUT_MODE must be 'alpha26' when set.")

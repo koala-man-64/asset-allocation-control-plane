@@ -149,3 +149,71 @@ async def test_internal_backtest_ready_returns_503_when_postgres_probe_fails(
         response = await client.get("/api/internal/backtests/ready")
 
     assert response.status_code == 503
+
+
+async def test_internal_results_reconcile_forwards_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    calls: list[tuple[str, bool]] = []
+
+    def _reconcile(dsn: str, *, dry_run: bool = False) -> dict[str, object]:
+        calls.append((dsn, dry_run))
+        return {"dryRun": dry_run, "rankingDirtyCount": 1, "errorCount": 0}
+
+    monkeypatch.setattr(internal_routes, "reconcile_results_freshness", _reconcile)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.post("/api/internal/results/reconcile", json={"dryRun": True})
+
+    assert response.status_code == 200
+    assert response.json()["dryRun"] is True
+    assert calls == [("postgresql://test:test@localhost:5432/asset_allocation", True)]
+
+
+async def test_internal_ranking_refresh_routes_delegate_to_freshness_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    claim_calls: list[str | None] = []
+    complete_calls: list[tuple[str, str, str | None]] = []
+    fail_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        internal_routes,
+        "claim_next_ranking_refresh",
+        lambda dsn, execution_name=None: claim_calls.append(execution_name)
+        or {"strategyName": "alpha", "claimToken": "claim-1", "startDate": "2026-03-01", "endDate": "2026-03-02"},
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "complete_ranking_refresh",
+        lambda dsn, *, strategy_name, claim_token, run_id=None, dependency_fingerprint=None, dependency_state=None: complete_calls.append(
+            (strategy_name, claim_token, run_id)
+        )
+        or {"status": "ok"},
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "fail_ranking_refresh",
+        lambda dsn, *, strategy_name, claim_token, error: fail_calls.append((strategy_name, error)) or {"status": "ok"},
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        claim_response = await client.post("/api/internal/rankings/refresh/claim", json={"executionName": "job-7"})
+        complete_response = await client.post(
+            "/api/internal/rankings/refresh/alpha/complete",
+            json={"claimToken": "claim-1", "runId": "run-1", "dependencyFingerprint": "fp-1", "dependencyState": {}},
+        )
+        fail_response = await client.post(
+            "/api/internal/rankings/refresh/alpha/fail",
+            json={"claimToken": "claim-1", "error": "boom"},
+        )
+
+    assert claim_response.status_code == 200
+    assert claim_response.json()["work"]["strategyName"] == "alpha"
+    assert complete_response.status_code == 200
+    assert fail_response.status_code == 200
+    assert claim_calls == ["job-7"]
+    assert complete_calls == [("alpha", "claim-1", "run-1")]
+    assert fail_calls == [("alpha", "boom")]

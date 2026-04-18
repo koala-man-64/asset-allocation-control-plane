@@ -2,9 +2,7 @@ import pandas as pd
 
 import api.data_service as data_service_module
 from api.data_service import DataService
-from core.pipeline import DataPaths
-
-
+from asset_allocation_runtime_common.market_data.pipeline import DataPaths
 def test_delta_nan_values_are_json_safe(monkeypatch):
     monkeypatch.setattr(
         data_service_module.delta_core,

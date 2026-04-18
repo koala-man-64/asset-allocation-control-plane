@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core import domain_artifacts as owner_domain_artifacts
-from core import domain_metadata_snapshots as owner_domain_metadata_snapshots
+from asset_allocation_runtime_common.market_data import domain_artifacts as owner_domain_artifacts
+from asset_allocation_runtime_common.market_data import domain_metadata_snapshots as owner_domain_metadata_snapshots
 from tasks.common import domain_artifacts as legacy_domain_artifacts
 from tasks.common import domain_metadata_snapshots as legacy_domain_metadata_snapshots
 

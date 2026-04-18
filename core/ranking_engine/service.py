@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from core.postgres import connect, copy_rows
+from asset_allocation_runtime_common.foundation.postgres import connect, copy_rows
 from core.ranking_engine.contracts import (
     RankingGroup,
     RankingMaterializationSummary,
@@ -145,8 +145,17 @@ def _load_strategy(dsn: str, strategy_name: str) -> dict[str, Any]:
     strategy = repo.get_strategy(strategy_name)
     if not strategy:
         raise ValueError(f"Strategy '{strategy_name}' not found.")
-    strategy["config"] = StrategyConfig.model_validate(strategy.get("config") or {})
+    strategy["config"] = StrategyConfig.model_validate(_normalize_strategy_config_payload(strategy.get("config") or {}))
     return strategy
+
+
+def _normalize_strategy_config_payload(config: Any) -> dict[str, Any]:
+    payload = config.model_dump(exclude_none=True) if hasattr(config, "model_dump") else dict(config or {})
+    universe_payload = payload.get("universe")
+    if universe_payload is not None:
+        normalized_universe = universe_service._normalize_universe_definition(universe_payload)
+        payload["universe"] = normalized_universe.model_dump(exclude_none=True)
+    return payload
 
 
 def _resolve_date_range(
@@ -246,14 +255,14 @@ def _compute_rankings_dataframe(
 
 def _resolve_strategy_universe(dsn: str, strategy_config: StrategyConfig) -> UniverseDefinition:
     if strategy_config.universe is not None:
-        return strategy_config.universe
+        return universe_service._normalize_universe_definition(strategy_config.universe)
     if not strategy_config.universeConfigName:
         raise ValueError("Strategy config must reference universeConfigName.")
     repo = UniverseRepository(dsn)
     universe = repo.get_universe_config(strategy_config.universeConfigName)
     if not universe:
         raise ValueError(f"Universe config '{strategy_config.universeConfigName}' not found.")
-    return UniverseDefinition.model_validate(universe.get("config") or {})
+    return universe_service._normalize_universe_definition(universe.get("config") or {})
 
 
 def _resolve_ranking_universe(dsn: str, ranking_schema: RankingSchemaConfig) -> UniverseDefinition:
@@ -263,7 +272,7 @@ def _resolve_ranking_universe(dsn: str, ranking_schema: RankingSchemaConfig) -> 
     universe = repo.get_universe_config(ranking_schema.universeConfigName)
     if not universe:
         raise ValueError(f"Universe config '{ranking_schema.universeConfigName}' not found.")
-    return UniverseDefinition.model_validate(universe.get("config") or {})
+    return universe_service._normalize_universe_definition(universe.get("config") or {})
 
 
 def _collect_required_columns(
@@ -281,8 +290,13 @@ def _collect_required_columns(
 
 
 def _collect_universe_columns(node: UniverseGroup | UniverseCondition, required: dict[str, set[str]]) -> None:
+    if isinstance(node, dict):
+        normalized = universe_service._normalize_universe_definition({"source": "postgres_gold", "root": node})
+        _collect_universe_columns(normalized.root, required)
+        return
     if isinstance(node, UniverseCondition):
-        required.setdefault(node.table, set()).add(node.column)
+        table_name, column_name = _resolve_universe_condition_column(node)
+        required.setdefault(table_name, set()).add(column_name)
         return
     for clause in node.clauses:
         _collect_universe_columns(clause, required)
@@ -349,8 +363,12 @@ def _merge_frames(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 
 def _evaluate_universe_mask(df: pd.DataFrame, node: UniverseGroup | UniverseCondition) -> pd.Series:
+    if isinstance(node, dict):
+        normalized = universe_service._normalize_universe_definition({"source": "postgres_gold", "root": node})
+        return _evaluate_universe_mask(df, normalized.root)
     if isinstance(node, UniverseCondition):
-        column_name = f"{node.table}__{node.column}"
+        table_name, column_name = _resolve_universe_condition_column(node)
+        column_name = f"{table_name}__{column_name}"
         if column_name not in df.columns:
             return pd.Series(False, index=df.index)
         series = df[column_name]
@@ -387,6 +405,22 @@ def _evaluate_universe_mask(df: pd.DataFrame, node: UniverseGroup | UniverseCond
     for mask in child_masks[1:]:
         result |= mask
     return result
+
+
+def _resolve_universe_condition_column(node: UniverseCondition) -> tuple[str, str]:
+    field_id = getattr(node, "field", None)
+    if field_id:
+        normalized_field_id = str(field_id).strip().lower()
+        field_spec = universe_service.UNIVERSE_FIELD_MAP.get(normalized_field_id)
+        if field_spec is None:
+            raise ValueError(f"Unknown universe field '{field_id}'.")
+        return field_spec.table, field_spec.column
+
+    table_name = str(getattr(node, "table", "") or "").strip().lower()
+    column_name = str(getattr(node, "column", "") or "").strip().lower()
+    if not table_name or not column_name:
+        raise ValueError("Universe condition must declare either field or table/column.")
+    return table_name, column_name
 
 
 def _score_group(df: pd.DataFrame, group: RankingGroup) -> tuple[pd.Series, list[pd.Series]]:

@@ -1,9 +1,7 @@
 import os
 from unittest.mock import patch
 
-from core import core as mdc
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
 def test_get_storage_client_initializes_when_test_mode_false():
     sentinel = object()
     env = {

@@ -16,11 +16,10 @@ from typing import Literal
 import nasdaqdatalink
 import pandas as pd
 
-from core import core as mdc
-from core.alpha_vantage_gateway_client import AlphaVantageGatewayClient
-from core.massive_gateway_client import MassiveGatewayClient
-from core.postgres import connect
-
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.providers.alpha_vantage_gateway_client import AlphaVantageGatewayClient
+from asset_allocation_runtime_common.providers.massive_gateway_client import MassiveGatewayClient
+from asset_allocation_runtime_common.foundation.postgres import connect
 DomainName = Literal["market", "finance", "earnings", "price-target"]
 ProviderName = Literal["massive", "alpha_vantage", "nasdaq"]
 

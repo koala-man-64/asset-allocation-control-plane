@@ -8,15 +8,13 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from core import config as cfg
-from core import core as mdc
-from core import delta_core
-from core import bronze_bucketing
-from core import layer_bucketing
-from core.pipeline import DataPaths
-from core.finance_contracts import SILVER_FINANCE_SUBDOMAINS
-
-
+from asset_allocation_runtime_common.foundation import config as cfg
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.market_data import bronze_bucketing
+from asset_allocation_runtime_common.market_data import layer_bucketing
+from asset_allocation_runtime_common.market_data.pipeline import DataPaths
+from asset_allocation_contracts.finance import SILVER_FINANCE_SUBDOMAINS
 _FINANCE_BRONZE_FOLDERS: dict[str, tuple[str, str]] = {
     "balance_sheet": ("Balance Sheet", "quarterly_balance-sheet"),
     "income_statement": ("Income Statement", "quarterly_financials"),

@@ -4,9 +4,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from core import core as mdc
-
-
+from asset_allocation_runtime_common.market_data import core as mdc
 DOMAIN_METADATA_CACHE_PATH_DEFAULT = "metadata/domain-metadata.json"
 DOMAIN_METADATA_UI_CACHE_PATH_DEFAULT = "metadata/ui-cache/domain-metadata-snapshot.json"
 _HISTORY_LIMIT = 200
@@ -329,8 +327,7 @@ def refresh_domain_metadata_snapshots_from_saved_artifact(
     layer: str,
     domain: str,
 ) -> Optional[dict[str, Any]]:
-    from core import domain_artifacts
-
+    from asset_allocation_runtime_common.market_data import domain_artifacts
     artifact = domain_artifacts.load_domain_artifact(layer=layer, domain=domain)
     if not isinstance(artifact, dict):
         return None

@@ -1,7 +1,7 @@
 import httpx
 
-import core.massive_gateway_client as massive_gateway_client_module
-from core.massive_gateway_client import (
+import asset_allocation_runtime_common.providers.massive_gateway_client as massive_gateway_client_module
+from asset_allocation_runtime_common.providers.massive_gateway_client import (
     MassiveGatewayClient,
     MassiveGatewayClientConfig,
 )

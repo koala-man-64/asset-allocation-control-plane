@@ -12,7 +12,8 @@ from core.ranking_engine.service import (
     _write_rankings_to_platinum,
 )
 from core.ranking_engine.contracts import RankingSchemaConfig
-from core.strategy_engine.contracts import StrategyConfig, UniverseDefinition
+from core.strategy_engine import universe as universe_service
+from core.strategy_engine.contracts import StrategyConfig
 
 
 def test_slugify_strategy_output_table_normalizes_invalid_characters() -> None:
@@ -43,44 +44,39 @@ def test_apply_transforms_runs_in_order() -> None:
 
 
 def test_evaluate_universe_mask_handles_nested_groups() -> None:
-    universe = UniverseDefinition.model_validate(
-        {
-            "source": "postgres_gold",
-            "root": {
-                "kind": "group",
-                "operator": "and",
-                "clauses": [
-                    {
-                        "kind": "condition",
-                        "table": "market_data",
-                        "column": "close",
-                        "operator": "gt",
-                        "value": 10,
-                    },
-                    {
-                        "kind": "group",
-                        "operator": "or",
-                        "clauses": [
-                            {
-                                "kind": "condition",
-                                "table": "finance_data",
-                                "column": "piotroski_f_score",
-                                "operator": "gte",
-                                "value": 7,
-                            },
-                            {
-                                "kind": "condition",
-                                "table": "market_data",
-                                "column": "return_20d",
-                                "operator": "gt",
-                                "value": 0.1,
-                            },
-                        ],
-                    },
-                ],
-            },
-        }
-    )
+    universe = {
+        "source": "postgres_gold",
+        "root": {
+            "kind": "group",
+            "operator": "and",
+            "clauses": [
+                {
+                    "kind": "condition",
+                    "field": "market.close",
+                    "operator": "gt",
+                    "value": 10,
+                },
+                {
+                    "kind": "group",
+                    "operator": "or",
+                    "clauses": [
+                        {
+                            "kind": "condition",
+                            "field": "quality.piotroski_f_score",
+                            "operator": "gte",
+                            "value": 7,
+                        },
+                        {
+                            "kind": "condition",
+                            "field": "returns.return_20d",
+                            "operator": "gt",
+                            "value": 0.1,
+                        },
+                    ],
+                },
+            ],
+        },
+    }
     frame = pd.DataFrame(
         {
             "market_data__close": [12.0, 9.0, 15.0],
@@ -89,13 +85,13 @@ def test_evaluate_universe_mask_handles_nested_groups() -> None:
         }
     )
 
-    mask = _evaluate_universe_mask(frame, universe.root)
+    mask = _evaluate_universe_mask(frame, universe["root"])
 
     assert mask.tolist() == [False, False, True]
 
 
 def test_compute_rankings_dataframe_intersects_strategy_and_ranking_universes(monkeypatch) -> None:
-    strategy_universe = UniverseDefinition.model_validate(
+    strategy_universe = universe_service._normalize_universe_definition(
         {
             "source": "postgres_gold",
             "root": {
@@ -104,8 +100,7 @@ def test_compute_rankings_dataframe_intersects_strategy_and_ranking_universes(mo
                 "clauses": [
                     {
                         "kind": "condition",
-                        "table": "market_data",
-                        "column": "close",
+                        "field": "market.close",
                         "operator": "gt",
                         "value": 10,
                     }
@@ -113,7 +108,7 @@ def test_compute_rankings_dataframe_intersects_strategy_and_ranking_universes(mo
             },
         }
     )
-    ranking_universe = UniverseDefinition.model_validate(
+    ranking_universe = universe_service._normalize_universe_definition(
         {
             "source": "postgres_gold",
             "root": {
@@ -122,8 +117,7 @@ def test_compute_rankings_dataframe_intersects_strategy_and_ranking_universes(mo
                 "clauses": [
                     {
                         "kind": "condition",
-                        "table": "finance_data",
-                        "column": "piotroski_f_score",
+                        "field": "quality.piotroski_f_score",
                         "operator": "gte",
                         "value": 7,
                     }

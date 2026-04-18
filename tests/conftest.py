@@ -45,8 +45,7 @@ containers = [
 ]
 for container in containers:
     os.environ.setdefault(container, "test-container")
-from core.blob_storage import BlobStorageClient
-
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
 @pytest.fixture(scope="session", autouse=True)
 def redirect_storage(tmp_path_factory):
     """

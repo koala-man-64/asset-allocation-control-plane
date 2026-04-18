@@ -18,8 +18,7 @@ def _sample_universe_payload() -> dict:
             "clauses": [
                 {
                     "kind": "condition",
-                    "table": "market_data",
-                    "column": "close",
+                    "field": "market.close",
                     "operator": "gt",
                     "value": 10,
                 }
@@ -150,18 +149,12 @@ async def test_universe_catalog_endpoint_returns_gold_tables(monkeypatch: pytest
         "list_gold_universe_catalog",
         lambda _dsn: {
             "source": "postgres_gold",
-            "tables": [
+            "fields": [
                 {
-                    "name": "market_data",
-                    "asOfColumn": "date",
-                    "columns": [
-                        {
-                            "name": "close",
-                            "dataType": "double precision",
-                            "valueKind": "number",
-                            "operators": ["eq", "gt"],
-                        }
-                    ],
+                    "id": "market.close",
+                    "label": "Market Close",
+                    "valueKind": "number",
+                    "operators": ["eq", "gt"],
                 }
             ],
         },
@@ -173,8 +166,7 @@ async def test_universe_catalog_endpoint_returns_gold_tables(monkeypatch: pytest
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["tables"][0]["name"] == "market_data"
-    assert payload["tables"][0]["columns"][0]["name"] == "close"
+    assert payload["fields"][0]["id"] == "market.close"
 
 
 @pytest.mark.asyncio
@@ -184,7 +176,7 @@ async def test_universe_preview_endpoint_maps_validation_errors_to_400(
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
 
     def fake_preview(_dsn: str, _universe, *, sample_limit: int = 25):  # type: ignore[no-untyped-def]
-        raise ValueError("Unknown gold table 'bad_table'.")
+        raise ValueError("Unknown universe field 'unknown.metric'.")
 
     monkeypatch.setattr(strategy_endpoints, "preview_gold_universe", fake_preview)
 
@@ -196,4 +188,4 @@ async def test_universe_preview_endpoint_maps_validation_errors_to_400(
         )
 
     assert response.status_code == 400
-    assert "Unknown gold table" in response.text
+    assert "Unknown universe field" in response.text

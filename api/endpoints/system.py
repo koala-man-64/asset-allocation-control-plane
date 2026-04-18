@@ -38,26 +38,26 @@ from monitoring.domain_metadata import collect_domain_metadata
 from monitoring.log_analytics import AzureLogAnalyticsClient, extract_first_table_rows
 from monitoring.system_health import collect_system_health_snapshot
 from monitoring.ttl_cache import TtlCache
-from core import bronze_bucketing
-from core import config as cfg
-from core import core as mdc
-from core import delta_core
-from core import domain_artifacts
-from core import domain_metadata_snapshots
-from core import layer_bucketing
-from core.blob_storage import BlobStorageClient
-from core.debug_symbols import (
+from asset_allocation_runtime_common.market_data import bronze_bucketing
+from asset_allocation_runtime_common.foundation import config as cfg
+from asset_allocation_runtime_common.market_data import core as mdc
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.market_data import domain_artifacts
+from asset_allocation_runtime_common.market_data import domain_metadata_snapshots
+from asset_allocation_runtime_common.market_data import layer_bucketing
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
+from asset_allocation_runtime_common.foundation.debug_symbols import (
     delete_debug_symbols_state,
     read_debug_symbols_state,
     replace_debug_symbols_state,
 )
-from core.delta_core import load_delta
-from core.delta_core import get_delta_schema_columns
-from core.domain_metadata_snapshots import build_snapshot_miss_payload
-from core.finance_contracts import SILVER_FINANCE_SUBDOMAINS
-from core.pipeline import DataPaths
-from core.postgres import PostgresError
-from core.purge_rules import (
+from asset_allocation_runtime_common.market_data.delta_core import load_delta
+from asset_allocation_runtime_common.market_data.delta_core import get_delta_schema_columns
+from asset_allocation_runtime_common.market_data.domain_metadata_snapshots import build_snapshot_miss_payload
+from asset_allocation_contracts.finance import SILVER_FINANCE_SUBDOMAINS
+from asset_allocation_runtime_common.market_data.pipeline import DataPaths
+from asset_allocation_runtime_common.foundation.postgres import PostgresError
+from asset_allocation_runtime_common.foundation.purge_rules import (
     PurgeRule,
     claim_purge_rule_for_run,
     complete_purge_rule_execution,
@@ -66,7 +66,7 @@ from core.purge_rules import (
     list_due_purge_rules,
     normalize_purge_rule_operator,
 )
-from core.runtime_config import (
+from asset_allocation_runtime_common.foundation.runtime_config import (
     DEFAULT_ENV_OVERRIDE_KEYS,
     delete_runtime_config,
     list_runtime_config,

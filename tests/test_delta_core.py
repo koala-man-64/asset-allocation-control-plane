@@ -3,9 +3,7 @@ import logging
 import pandas as pd
 import pytest
 
-from core import delta_core
-
-
+from asset_allocation_runtime_common.market_data import delta_core
 def _patch_delta_core_for_unit(monkeypatch, tmp_path):
     monkeypatch.setattr(delta_core, "_ensure_container_exists", lambda _container: None)
     monkeypatch.setattr(delta_core, "get_delta_table_uri", lambda _container, _path: str(tmp_path / "table"))

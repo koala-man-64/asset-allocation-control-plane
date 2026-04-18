@@ -1,10 +1,10 @@
 import pandas as pd
 import pytest
 
-from core import core as core_module
-from core import delta_core
-from core.postgres import PostgresError
-from core.pipeline import DataPaths
+from asset_allocation_runtime_common.market_data import core as core_module
+from asset_allocation_runtime_common.market_data import delta_core
+from asset_allocation_runtime_common.foundation.postgres import PostgresError
+from asset_allocation_runtime_common.market_data.pipeline import DataPaths
 from tasks.finance_data import gold_finance_data
 
 EXPECTED_GOLD_FINANCE_COLUMNS = list(gold_finance_data._GOLD_FINANCE_PIOTROSKI_COLUMNS)

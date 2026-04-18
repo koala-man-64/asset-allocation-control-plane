@@ -12,10 +12,10 @@ import pandas as pd
 from asset_allocation_runtime_common import BACKTEST_RESULTS_SCHEMA_VERSION, persist_backtest_results
 
 from core.backtest_repository import BacktestRepository
-from core.postgres import connect
+from asset_allocation_runtime_common.foundation.postgres import connect
 from core.ranking_engine import service as ranking_service
 from core.ranking_engine.contracts import RankingSchemaConfig
-from core.regime import DEFAULT_REGIME_MODEL_NAME, RegimePolicy
+from asset_allocation_runtime_common.domain.regime import DEFAULT_REGIME_MODEL_NAME, RegimePolicy
 from core.regime_repository import RegimeRepository
 from core.ranking_repository import RankingRepository
 from core.strategy_engine import StrategyConfig, UniverseDefinition

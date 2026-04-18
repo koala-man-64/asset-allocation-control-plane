@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from core.gold_column_lookup_catalog import (
+from asset_allocation_runtime_common.market_data.gold_column_lookup_catalog import (
     SUPPORTED_GOLD_LOOKUP_TABLES,
     expected_gold_lookup_columns,
 )

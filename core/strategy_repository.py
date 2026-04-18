@@ -4,7 +4,7 @@ import hashlib
 import logging
 from typing import Any, Optional, Dict
 
-from core.postgres import connect
+from asset_allocation_runtime_common.foundation.postgres import connect
 from core.ranking_engine.naming import slugify_strategy_output_table
 
 logger = logging.getLogger(__name__)

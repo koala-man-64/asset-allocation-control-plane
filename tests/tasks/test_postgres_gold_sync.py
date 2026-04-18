@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core import gold_sync_contracts as owner_gold_sync_contracts
+from asset_allocation_runtime_common.market_data import gold_sync_contracts as owner_gold_sync_contracts
 from tasks.common import postgres_gold_sync as legacy_gold_sync_contracts
 
 

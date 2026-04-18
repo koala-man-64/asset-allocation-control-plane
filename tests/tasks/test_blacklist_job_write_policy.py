@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from core.pipeline import ListManager
+from asset_allocation_runtime_common.market_data.pipeline import ListManager
 from tasks.earnings_data import bronze_earnings_data as bronze_earnings
 from tasks.finance_data import bronze_finance_data as bronze_finance
 from tasks.market_data import bronze_market_data as bronze_market

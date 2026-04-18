@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from core import run_manifests
-
-
+from asset_allocation_runtime_common.foundation import run_manifests
 def test_create_bronze_alpha26_manifest_writes_manifest_and_latest(monkeypatch):
     saved: dict[str, dict] = {}
 

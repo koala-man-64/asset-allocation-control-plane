@@ -8,8 +8,7 @@ from typing import Dict, Optional, Tuple
 
 from azure.core.exceptions import ResourceNotFoundError
 
-from core.blob_storage import BlobStorageClient
-
+from asset_allocation_runtime_common.foundation.blob_storage import BlobStorageClient
 from monitoring.delta_log import find_latest_delta_version, parse_last_checkpoint_version
 
 

@@ -8,6 +8,7 @@ This document is the canonical, repo-specific design and ownership contract for 
 - Confirmed: this document is current-repo-first. When older lineage or refactor documents conflict with current code, tests, or workflows, current repo state wins.
 - Confirmed: subordinate documents remain authoritative for their narrower scope:
   - `docs/architecture/adr-001-runtime-surfaces.md` for boundary policy
+  - `docs/architecture/control-plane-sibling-repo-audit.md` for the sibling-repo ownership drift audit and remediation recommendations
   - `docs/architecture/runtime-surface-extraction-manifest.md` for facade and extracted-surface inventory
   - `docs/architecture/runtime-surface-ci-matrix.md` and `docs/architecture/runtime-surface-test-targets.md` for validation command references
   - `docs/architecture/runtime-surface-refactor-ledger.md` for historical execution evidence

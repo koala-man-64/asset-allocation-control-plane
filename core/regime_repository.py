@@ -7,8 +7,7 @@ import os
 from datetime import date
 from typing import Any, Optional
 
-from core.postgres import connect
-
+from asset_allocation_runtime_common.foundation.postgres import connect
 logger = logging.getLogger(__name__)
 REGIME_MODELS_TABLE = "core.regime_models"
 

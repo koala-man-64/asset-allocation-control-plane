@@ -17,8 +17,7 @@ def _sample_universe_payload() -> dict:
             "clauses": [
                 {
                     "kind": "condition",
-                    "table": "market_data",
-                    "column": "close",
+                    "field": "market.close",
                     "operator": "gt",
                     "value": 10,
                 }
@@ -52,18 +51,12 @@ async def test_universe_catalog_endpoint_returns_gold_tables(monkeypatch: pytest
         "list_gold_universe_catalog",
         lambda _dsn: {
             "source": "postgres_gold",
-            "tables": [
+            "fields": [
                 {
-                    "name": "market_data",
-                    "asOfColumn": "date",
-                    "columns": [
-                        {
-                            "name": "close",
-                            "dataType": "double precision",
-                            "valueKind": "number",
-                            "operators": ["eq", "gt"],
-                        }
-                    ],
+                    "id": "market.close",
+                    "label": "Market Close",
+                    "valueKind": "number",
+                    "operators": ["eq", "gt"],
                 }
             ],
         },
@@ -74,7 +67,7 @@ async def test_universe_catalog_endpoint_returns_gold_tables(monkeypatch: pytest
         response = await client.get("/api/universes/catalog")
 
     assert response.status_code == 200
-    assert response.json()["tables"][0]["columns"][0]["name"] == "close"
+    assert response.json()["fields"][0]["id"] == "market.close"
 
 
 @pytest.mark.asyncio
@@ -87,7 +80,7 @@ async def test_preview_universe_accepts_draft_config(monkeypatch: pytest.MonkeyP
             "source": "postgres_gold",
             "symbolCount": 2,
             "sampleSymbols": ["AAPL", "MSFT"],
-            "tablesUsed": ["market_data"],
+            "fieldsUsed": ["market.close"],
             "warnings": [],
         },
     )
@@ -98,6 +91,7 @@ async def test_preview_universe_accepts_draft_config(monkeypatch: pytest.MonkeyP
 
     assert response.status_code == 200
     assert response.json()["symbolCount"] == 2
+    assert response.json()["fieldsUsed"] == ["market.close"]
 
 
 @pytest.mark.asyncio

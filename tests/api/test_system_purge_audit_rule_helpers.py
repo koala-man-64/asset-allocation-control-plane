@@ -4,9 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from api.endpoints import system
-from core.purge_rules import PurgeRule
-
-
+from asset_allocation_runtime_common.foundation.purge_rules import PurgeRule
 def _build_rule_from_kwargs(**kwargs) -> PurgeRule:
     actor = kwargs.get("actor")
     return PurgeRule(

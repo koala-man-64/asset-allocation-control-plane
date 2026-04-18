@@ -147,6 +147,10 @@ async def test_list_backtests_returns_repo_rows(monkeypatch: pytest.MonkeyPatch)
                 "start_date": "2026-03-01",
                 "end_date": "2026-03-08",
                 "error": None,
+                "strategy_name": "quality-trend",
+                "strategy_version": 4,
+                "bar_size": "5m",
+                "execution_name": "backtest-exec-01",
             }
         ],
     )
@@ -158,8 +162,65 @@ async def test_list_backtests_returns_repo_rows(monkeypatch: pytest.MonkeyPatch)
     assert response.status_code == 200
     payload = response.json()
     assert payload["runs"][0]["run_id"] == "run-1"
+    assert payload["runs"][0]["strategy_name"] == "quality-trend"
+    assert payload["runs"][0]["strategy_version"] == 4
+    assert payload["runs"][0]["bar_size"] == "5m"
+    assert payload["runs"][0]["execution_name"] == "backtest-exec-01"
     assert "output_dir" not in payload["runs"][0]
     assert payload["limit"] == 10
+
+
+@pytest.mark.asyncio
+async def test_get_backtest_status_returns_frozen_pin_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "started_at": datetime(2026, 3, 8, 0, 10, tzinfo=timezone.utc),
+            "completed_at": datetime(2026, 3, 8, 0, 20, tzinfo=timezone.utc),
+            "run_name": "Intraday smoke",
+            "start_date": "2026-03-01",
+            "end_date": "2026-03-08",
+            "error": None,
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "execution_name": "backtest-exec-01",
+            "results_ready_at": "2026-03-08T00:25:00+00:00",
+            "results_schema_version": 4,
+            "effective_config": {
+                "pins": {
+                    "strategyName": "quality-trend",
+                    "strategyVersion": 4,
+                    "rankingSchemaName": "quality-momentum",
+                    "rankingSchemaVersion": 7,
+                    "universeName": "large-cap-quality",
+                    "universeVersion": 5,
+                    "regimeModelName": "default-regime",
+                    "regimeModelVersion": 1,
+                }
+            },
+        },
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["strategy_name"] == "quality-trend"
+    assert payload["strategy_version"] == 4
+    assert payload["bar_size"] == "5m"
+    assert payload["results_schema_version"] == 4
+    assert payload["pins"]["rankingSchemaVersion"] == 7
+    assert payload["pins"]["regimeModelVersion"] == 1
 
 
 @pytest.mark.asyncio
@@ -183,6 +244,10 @@ async def test_submit_backtest_freezes_pinned_versions_and_queues_run(
             "start_date": "2026-03-01",
             "end_date": "2026-03-08",
             "error": None,
+            "strategy_name": kwargs.get("strategy_name"),
+            "strategy_version": kwargs.get("strategy_version"),
+            "bar_size": kwargs.get("bar_size"),
+            "execution_name": None,
         }
 
     monkeypatch.setattr(BacktestRepository, "create_run", fake_create_run)
@@ -415,6 +480,7 @@ async def test_get_timeseries_synthesizes_period_return_from_daily_return(
                 "turnover": 0.1,
                 "commission": 1.0,
                 "slippage_cost": 0.5,
+                "trade_count": 2,
             }
         ],
     )
@@ -427,6 +493,7 @@ async def test_get_timeseries_synthesizes_period_return_from_daily_return(
     point = response.json()["points"][0]
     assert point["daily_return"] == 0.01
     assert point["period_return"] == 0.01
+    assert point["trade_count"] == 2
 
 
 @pytest.mark.asyncio

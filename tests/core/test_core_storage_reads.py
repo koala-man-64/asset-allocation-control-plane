@@ -1,8 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from core import core
-
-
+from asset_allocation_runtime_common.market_data import core
 def test_read_raw_bytes_warns_on_missing_blob_by_default() -> None:
     client = MagicMock()
     client.download_data.return_value = None
