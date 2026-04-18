@@ -13,11 +13,34 @@ python -m pip install asset-allocation-runtime-common==2.0.5
 python -m pytest tests/api tests/monitoring -q
 ```
 
+Refresh the shared package pins with Codex:
+
+```powershell
+.\scripts\refresh_shared_dependencies_with_codex.ps1
+.\scripts\refresh_shared_dependencies_with_codex.ps1 -ExecutionMode full-auto
+```
+
+The wrapper stores the generated prompt, console log, and final Codex summary under `artifacts/codex/shared-dependency-refresh/<timestamp>/`.
+
 Contract artifacts can be regenerated locally with:
 
 ```powershell
 python scripts/automation/export_contract_artifacts.py
 ```
+
+Verify that tracked artifacts are current without rewriting files:
+
+```powershell
+python scripts/automation/run_quality_gate.py contract-artifacts
+```
+
+Install the opt-in local hook guard for this clone:
+
+```powershell
+python scripts/dev/install_git_hooks.py
+```
+
+OpenAPI-facing route model changes are contract changes. If you change request or response models, including imported shared Pydantic models used directly in FastAPI route signatures, regenerate `api/contracts/*` and commit those files in the same change.
 
 ## Operations
 

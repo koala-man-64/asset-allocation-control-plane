@@ -22,13 +22,20 @@ REPO_ROOT = _repo_root()
 
 def resolve_python() -> str:
     candidates = [
-        REPO_ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"),
-        REPO_ROOT / "venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"),
+        REPO_ROOT
+        / ".venv"
+        / ("Scripts" if os.name == "nt" else "bin")
+        / ("python.exe" if os.name == "nt" else "python"),
+        REPO_ROOT
+        / "venv"
+        / ("Scripts" if os.name == "nt" else "bin")
+        / ("python.exe" if os.name == "nt" else "python"),
     ]
     for candidate in candidates:
         if candidate.exists():
             return str(candidate)
     return sys.executable
+
 
 def run(argv: list[str], cwd: pathlib.Path) -> int:
     if os.name == "nt" and pathlib.Path(argv[0]).suffix.lower() == ".cmd":
@@ -63,6 +70,7 @@ def build_command(gate: str) -> tuple[list[str], pathlib.Path]:
             ],
             REPO_ROOT,
         ),
+        "contract-artifacts": ([python, "scripts/automation/export_contract_artifacts.py", "--check"], REPO_ROOT),
         "test-full-api": ([python, "-m", "pytest", "-q"], REPO_ROOT),
     }
     if gate not in gates:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -30,16 +31,64 @@ os.environ.setdefault("AZURE_CONTAINER_COMMON", "local")
 from api.service.app import create_app
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _serialize_json(payload: object) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
-def main() -> None:
+def _render_artifact_texts() -> dict[Path, str]:
     app = create_app()
-    _write_json(OUTPUT_DIR / "control-plane.openapi.json", app.openapi())
-    _write_json(OUTPUT_DIR / "ui-runtime-config.schema.json", UiRuntimeConfig.model_json_schema())
+    return {
+        OUTPUT_DIR / "control-plane.openapi.json": _serialize_json(app.openapi()),
+        OUTPUT_DIR / "ui-runtime-config.schema.json": _serialize_json(UiRuntimeConfig.model_json_schema()),
+    }
+
+
+def _write_artifact_texts(artifacts: dict[Path, str]) -> None:
+    for path, text in artifacts.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
+def _find_drift(artifacts: dict[Path, str]) -> list[Path]:
+    drifted: list[Path] = []
+    for path, expected in artifacts.items():
+        current = path.read_text(encoding="utf-8") if path.exists() else None
+        if current != expected:
+            drifted.append(path)
+    return drifted
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Export or validate generated contract artifacts.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check whether generated artifacts match tracked files without rewriting them.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    artifacts = _render_artifact_texts()
+
+    if args.check:
+        drifted = _find_drift(artifacts)
+        if not drifted:
+            print("Contract artifacts are current.")
+            return 0
+        print("Contract artifact drift detected:", file=sys.stderr)
+        for path in drifted:
+            print(f"- {path}", file=sys.stderr)
+        print(
+            "Run `python scripts/automation/export_contract_artifacts.py`, review api/contracts/*, and stage the regenerated files.",
+            file=sys.stderr,
+        )
+        return 1
+
+    _write_artifact_texts(artifacts)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

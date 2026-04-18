@@ -102,6 +102,7 @@ GitHub variables:
    - `powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate\validate_azure_permissions.ps1 -Scenario Release`
 5. Export contract artifacts:
    - `python scripts/automation/export_contract_artifacts.py`
+   - `python scripts/automation/run_quality_gate.py contract-artifacts`
 6. Run the repo test gates:
    - `python -m pytest tests/test_env_contract.py tests/test_workflow_runtime_ownership.py tests/test_azure_provisioning_scripts.py -q`
    - `python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q`
@@ -127,6 +128,9 @@ GitHub variables:
 ## Troubleshoot
 
 - If `ci.yml` fails on artifact drift, regenerate `api/contracts/*` with `python scripts/automation/export_contract_artifacts.py` and commit the changes.
+- To check artifact drift locally without rewriting files, run `python scripts/automation/run_quality_gate.py contract-artifacts`.
+- To block stale contract artifacts before commit in your local clone, run `python scripts/dev/install_git_hooks.py`.
+- Treat OpenAPI-facing route model changes as contract changes even when runtime behavior is unchanged. Imported shared Pydantic models used directly in FastAPI route signatures can change generated component names and should ship with regenerated `api/contracts/*` in the same PR.
 - If `release.yml` fails in preflight, fix the named prerequisite first:
   - missing `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `DISPATCH_APP_ID`, or `DISPATCH_APP_PRIVATE_KEY`
   - unpublished or unreachable `asset-allocation-contracts` or `asset-allocation-runtime-common` versions

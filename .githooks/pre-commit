@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "${repo_root}"
+
+if ! python scripts/automation/run_quality_gate.py contract-artifacts; then
+  cat >&2 <<'EOF'
+Contract artifacts are stale.
+
+Run:
+  python scripts/automation/export_contract_artifacts.py
+
+Review the diff under api/contracts/, stage the regenerated files, and retry the commit.
+EOF
+  exit 1
+fi

@@ -82,7 +82,9 @@ def test_dependabot_ignores_cross_repo_owned_python_runtime_bumps() -> None:
     updates = config["updates"]
     assert isinstance(updates, list)
 
-    pip_updates = [update for update in updates if isinstance(update, dict) and update.get("package-ecosystem") == "pip"]
+    pip_updates = [
+        update for update in updates if isinstance(update, dict) and update.get("package-ecosystem") == "pip"
+    ]
     assert len(pip_updates) == 1
 
     ignored_dependencies = {
@@ -106,6 +108,12 @@ def test_ci_runs_architecture_and_facade_guards() -> None:
     assert "tests/architecture/test_system_facade_guard.py" in text
     assert "tests/architecture/test_monitoring_facade_guard.py" in text
     assert "tests/test_deploy_manifests.py" in text
+
+
+def test_ci_uses_shared_contract_artifact_gate() -> None:
+    text = (repo_root() / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "python scripts/automation/run_quality_gate.py contract-artifacts" in text
+    assert "git diff --exit-code -- api/contracts" not in text
 
 
 def test_release_workflow_runs_preflight_before_export_and_build() -> None:
@@ -133,7 +141,9 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert '--repository "${RELEASE_IMAGE_REPOSITORY}"' in text
     assert 'image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"' in text
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
-    assert 'curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null' in text
+    assert (
+        'curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null' in text
+    )
     assert "/api/v1/openapi.json" not in text
 
 

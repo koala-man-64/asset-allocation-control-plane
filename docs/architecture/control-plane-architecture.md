@@ -251,7 +251,12 @@ When shared contract artifacts or OpenAPI-facing surfaces change, regenerate art
 
 ```powershell
 python scripts/automation/export_contract_artifacts.py
+python scripts/automation/run_quality_gate.py contract-artifacts
 ```
+
+- Confirmed: OpenAPI-facing route model changes are contract changes even when runtime behavior is unchanged.
+- Confirmed: imported shared Pydantic models used directly in FastAPI route signatures can destabilize generated component names unless the control plane stabilizes those identifiers.
+- Confirmed: developers can opt into a local pre-commit guard with `python scripts/dev/install_git_hooks.py`.
 
 Use `docs/architecture/runtime-surface-ci-matrix.md` and `docs/architecture/runtime-surface-test-targets.md` as the command catalog for more targeted surface validation.
 
@@ -286,6 +291,7 @@ Evidence:
 - Confirmed: if a change affects repo ownership, module boundaries, runtime surfaces, or compatibility seams, update this document in the same PR.
 - Confirmed: if a change affects deploy, rollback, workflow ownership, or shared-infra mutation rules, update this document, `README.md`, `DEPLOYMENT_SETUP.md`, and any affected workflow tests in the same PR.
 - Confirmed: if a change affects public contract artifacts or bootstrap surfaces, regenerate `api/contracts/*` and update this document and the affected tests in the same PR.
+- Confirmed: generated contract artifacts must ship in the same commit set as the route or response-model changes that caused them.
 - Confirmed: if a compatibility facade is narrowed or removed, update this document, the extraction manifest, and the guard tests together.
 - Confirmed: if a statement cannot be verified, do not guess. Record it as `Needs confirmation`, cite the conflicting evidence, and leave the repo in an honest state.
 - Confirmed: do not use the runtime-surface ledger or historical monolith map as the primary ownership source when they conflict with current code, tests, or workflows. Treat them as provenance and lineage only.

@@ -33,7 +33,11 @@ Provisioning scripts under `ops/provision/` also mutate shared Azure resources a
 ## Common Entry Points
 
 - Contract export: `python scripts/automation/export_contract_artifacts.py`
+- Contract drift check: `python scripts/automation/run_quality_gate.py contract-artifacts`
 - Quality gates: `python scripts/automation/run_quality_gate.py <gate>`
+- Git hook installer: `python scripts/dev/install_git_hooks.py`
+
+If you change FastAPI request or response models, including imported shared Pydantic models, treat that as an OpenAPI contract change. Regenerate `api/contracts/*` and keep the regenerated files in the same commit as the route or model change.
 - GitHub sync: `pwsh ./scripts/repo/sync-all-to-github.ps1`
 - Shared Azure provision: `pwsh ./scripts/ops/provision/provision_azure.ps1`
 - Postgres migrations: `pwsh ./scripts/ops/data/apply_postgres_migrations.ps1`

@@ -110,13 +110,12 @@ jobs:
           print("control-plane startup smoke passed")
           PY
 
-      - name: Export contract artifacts and fail on drift
+      - name: Check contract artifacts are current
         shell: bash
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
-          python scripts/automation/export_contract_artifacts.py
-          git diff --exit-code -- api/contracts
+          python scripts/automation/run_quality_gate.py contract-artifacts
 
   dependency-governance:
     name: dependency-governance
