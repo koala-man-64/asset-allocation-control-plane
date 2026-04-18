@@ -20,7 +20,7 @@ def test_get_exact_requires_dist_version_returns_exact_pin() -> None:
     metadata_text = "\n".join(
         [
             "Metadata-Version: 2.4",
-            "Requires-Dist: asset-allocation-contracts==2.0.0",
+            "Requires-Dist: asset-allocation-contracts==2.1.0",
             "Requires-Dist: pytest==8.4.2; extra == 'test'",
         ]
     )
@@ -30,7 +30,7 @@ def test_get_exact_requires_dist_version_returns_exact_pin() -> None:
         "asset-allocation-contracts",
     )
 
-    assert version == "2.0.0"
+    assert version == "2.1.0"
 
 
 def test_validate_shared_dependency_compatibility_reports_version_skew() -> None:
@@ -38,14 +38,14 @@ def test_validate_shared_dependency_compatibility_reports_version_skew() -> None
 
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
-            "asset-allocation-contracts": "2.0.0",
+            "asset-allocation-contracts": "2.1.0",
             "asset-allocation-runtime-common": "2.0.1",
         },
         "Requires-Dist: asset-allocation-contracts==0.0.0\n",
     )
 
     assert incompatibility is not None
-    assert "asset-allocation-contracts==2.0.0" in incompatibility
+    assert "asset-allocation-contracts==2.1.0" in incompatibility
     assert "asset-allocation-runtime-common==2.0.1" in incompatibility
     assert "asset-allocation-contracts==0.0.0" in incompatibility
 
@@ -55,10 +55,10 @@ def test_validate_shared_dependency_compatibility_accepts_matching_versions() ->
 
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
-            "asset-allocation-contracts": "2.0.0",
+            "asset-allocation-contracts": "2.1.0",
             "asset-allocation-runtime-common": "2.0.1",
         },
-        "Requires-Dist: asset-allocation-contracts==2.0.0\n",
+        "Requires-Dist: asset-allocation-contracts==2.1.0\n",
     )
 
     assert incompatibility is None
