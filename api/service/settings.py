@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Any, List, Literal, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 AuthMode = Literal["anonymous", "oidc"]
 _FIXED_UI_API_BASE_URL = "/api"
@@ -37,6 +37,17 @@ def _validate_ui_redirect_uri(value: str) -> str:
     if parsed.scheme != "https" and host not in {"localhost", "127.0.0.1"}:
         raise ValueError("UI_OIDC_REDIRECT_URI must use https unless targeting localhost.")
     return value
+
+
+def _derive_ui_post_logout_redirect_uri(redirect_uri: str | None) -> str | None:
+    if not redirect_uri:
+        return None
+
+    parsed = urlparse(redirect_uri)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    return urlunparse(parsed._replace(path="/auth/logout-complete", params="", query="", fragment=""))
 
 
 @dataclass(frozen=True)
@@ -112,6 +123,7 @@ class ServiceSettings:
             "clientId": ui_client_id,
             "scope": ui_scopes,
             "redirectUri": ui_redirect_uri,
+            "postLogoutRedirectUri": _derive_ui_post_logout_redirect_uri(ui_redirect_uri),
             "apiBaseUrl": _FIXED_UI_API_BASE_URL,
         }
 

@@ -1000,6 +1000,72 @@ def test_system_health_critical_on_job_failure_reason_alerts(monkeypatch: pytest
     assert not any(alert["title"] == "Job execution failed" for alert in payload["alerts"])
 
 
+def test_system_health_enriches_backtest_job_with_operational_signals(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", "sub")
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_RESOURCE_GROUP", "rg")
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_CONTAINERAPPS", raising=False)
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_JOBS", "backtests-job")
+    monkeypatch.setattr(system_health, "_default_layer_specs", lambda: [])
+    monkeypatch.setattr(
+        system_health,
+        "collect_backtest_operational_summary",
+        lambda _dsn=None: {
+            "jobName": "backtests-job",
+            "queuedCount": 3,
+            "oldestQueuedAgeSeconds": 420.0,
+            "dispatchFailureCount": 1,
+            "runningCount": 2,
+            "staleHeartbeatCount": 1,
+            "durationP95Seconds": 95.0,
+            "queueDispatchGraceSeconds": 120,
+        },
+    )
+
+    now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    job_url = "https://management.azure.com/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/jobs/backtests-job"
+    responses: Dict[str, Dict[str, Any]] = {
+        job_url: {
+            "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/jobs/backtests-job",
+            "properties": {"provisioningState": "Succeeded"},
+        },
+        f"{job_url}/executions": {"value": []},
+    }
+
+    class FakeAzureArmClient:
+        def __init__(self, cfg: Any) -> None:
+            self._cfg = cfg
+
+        def __enter__(self) -> "FakeAzureArmClient":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+            return None
+
+        def resource_url(self, *, provider: str, resource_type: str, name: str) -> str:
+            sub = self._cfg.subscription_id
+            rg = self._cfg.resource_group
+            return (
+                f"https://management.azure.com/subscriptions/{sub}"
+                f"/resourceGroups/{rg}"
+                f"/providers/{provider}/{resource_type}/{name}"
+            )
+
+        def get_json(self, url: str, *, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+            return responses[url]
+
+    monkeypatch.setattr(system_health, "AzureArmClient", FakeAzureArmClient)
+
+    payload = system_health.collect_system_health_snapshot(now=now, include_resource_ids=False)
+
+    job_resource = next(item for item in payload["resources"] if item["name"] == "backtests-job")
+    signals_by_name = {signal["name"]: signal for signal in job_resource.get("signals", [])}
+    assert signals_by_name["BacktestQueuedCount"]["value"] == 3.0
+    assert signals_by_name["BacktestDispatchFailureCount"]["status"] == "warning"
+    assert signals_by_name["BacktestStaleHeartbeatCount"]["status"] == "error"
+    assert any(alert["title"] == "Backtest stale heartbeat" for alert in payload["alerts"])
+
+
 def test_system_health_degraded_on_bronze_symbol_jump(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
     monkeypatch.setenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", "sub")

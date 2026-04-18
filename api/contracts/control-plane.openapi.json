@@ -19,9 +19,15 @@
         "title": "ActivateRegimeModelRequest",
         "type": "object"
       },
-      "ArtifactEntryResponse": {
+      "AuthSessionStatus": {
+        "additionalProperties": false,
         "properties": {
-          "contentType": {
+          "authMode": {
+            "minLength": 1,
+            "title": "Authmode",
+            "type": "string"
+          },
+          "displayName": {
             "anyOf": [
               {
                 "type": "string"
@@ -30,60 +36,44 @@
                 "type": "null"
               }
             ],
-            "title": "Contenttype"
+            "title": "Displayname"
           },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "size": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Size"
-          },
-          "updatedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updatedat"
-          }
-        },
-        "required": [
-          "name",
-          "path"
-        ],
-        "title": "ArtifactEntryResponse",
-        "type": "object"
-      },
-      "ArtifactListResponse": {
-        "properties": {
-          "artifacts": {
+          "grantedRoles": {
             "items": {
-              "$ref": "#/components/schemas/ArtifactEntryResponse"
+              "type": "string"
             },
-            "title": "Artifacts",
+            "title": "Grantedroles",
             "type": "array"
+          },
+          "requiredRoles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requiredroles",
+            "type": "array"
+          },
+          "subject": {
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
           }
         },
         "required": [
-          "artifacts"
+          "authMode",
+          "subject"
         ],
-        "title": "ArtifactListResponse",
+        "title": "AuthSessionStatus",
         "type": "object"
       },
       "BacktestClaimRequest": {
@@ -108,18 +98,6 @@
       "BacktestCompleteRequest": {
         "additionalProperties": false,
         "properties": {
-          "artifactManifestPath": {
-            "anyOf": [
-              {
-                "maxLength": 1000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Artifactmanifestpath"
-          },
           "summary": {
             "additionalProperties": true,
             "title": "Summary",
@@ -143,6 +121,64 @@
           "error"
         ],
         "title": "BacktestFailRequest",
+        "type": "object"
+      },
+      "BacktestReconcileResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "dispatchFailedCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Dispatchfailedcount",
+            "type": "integer"
+          },
+          "dispatchFailedRunIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dispatchfailedrunids",
+            "type": "array"
+          },
+          "dispatchedCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Dispatchedcount",
+            "type": "integer"
+          },
+          "dispatchedRunIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dispatchedrunids",
+            "type": "array"
+          },
+          "failedRunIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Failedrunids",
+            "type": "array"
+          },
+          "failedStaleRunningCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Failedstalerunningcount",
+            "type": "integer"
+          },
+          "noActionCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Noactioncount",
+            "type": "integer"
+          },
+          "skippedActiveCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Skippedactivecount",
+            "type": "integer"
+          }
+        },
+        "title": "BacktestReconcileResponse",
         "type": "object"
       },
       "BacktestStartRequest": {
@@ -2547,28 +2583,6 @@
       },
       "RunRecordResponse": {
         "properties": {
-          "adls_container": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Adls Container"
-          },
-          "adls_prefix": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Adls Prefix"
-          },
           "completed_at": {
             "anyOf": [
               {
@@ -2602,17 +2616,6 @@
               }
             ],
             "title": "Error"
-          },
-          "output_dir": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Output Dir"
           },
           "run_id": {
             "title": "Run Id",
@@ -4246,6 +4249,27 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/auth/session": {
+      "get": {
+        "operationId": "get_auth_session_api_auth_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get auth session",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/backtests": {
       "get": {
         "operationId": "list_backtests_api_backtests_get",
@@ -4495,97 +4519,6 @@
           }
         },
         "summary": "Submit Backtest",
-        "tags": [
-          "Backtests"
-        ]
-      }
-    },
-    "/api/backtests/{run_id}/artifacts": {
-      "get": {
-        "operationId": "list_run_artifacts_api_backtests__run_id__artifacts_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "title": "Run Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArtifactListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Run Artifacts",
-        "tags": [
-          "Backtests"
-        ]
-      }
-    },
-    "/api/backtests/{run_id}/artifacts/{name}": {
-      "get": {
-        "operationId": "get_artifact_content_api_backtests__run_id__artifacts__name__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "title": "Run Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "title": "Name",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Artifact Content",
         "tags": [
           "Backtests"
         ]
@@ -5970,6 +5903,27 @@
           }
         },
         "summary": "Claim Backtest Run",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/backtests/runs/reconcile": {
+      "post": {
+        "operationId": "reconcile_backtest_run_queue_api_internal_backtests_runs_reconcile_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestReconcileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reconcile Backtest Run Queue",
         "tags": [
           "Internal"
         ]

@@ -39,6 +39,7 @@ async def test_config_js_emits_fixed_api_base_url(monkeypatch: pytest.MonkeyPatc
     assert "window.__BACKTEST_UI_CONFIG__" not in resp.text
     assert validated.apiBaseUrl == "/api"
     assert validated.oidcRedirectUri is None
+    assert validated.oidcPostLogoutRedirectUri is None
     assert validated.oidcAudience == []
     assert "backtestApiBaseUrl" not in cfg
     assert "apiKeyAuthConfigured" not in cfg
@@ -86,4 +87,5 @@ async def test_config_js_preserves_explicit_oidc_redirect_uri(monkeypatch: pytes
     assert validated.oidcScopes == ["api://asset-allocation-api/user_impersonation"]
     assert validated.oidcAudience == ["asset-allocation-api"]
     assert validated.oidcRedirectUri == "https://asset-allocation.example.com/auth/callback"
+    assert validated.oidcPostLogoutRedirectUri == "https://asset-allocation.example.com/auth/logout-complete"
 

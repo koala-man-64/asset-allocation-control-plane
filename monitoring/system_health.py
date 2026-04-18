@@ -10,6 +10,10 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from monitoring.azure_blob_store import AzureBlobStore, AzureBlobStoreConfig, LastModifiedProbeResult
 from monitoring.arm_client import ArmConfig, AzureArmClient
+from monitoring.backtest_health import (
+    build_backtest_operational_alerts,
+    collect_backtest_operational_summary,
+)
 from monitoring.control_plane import ResourceHealthItem, collect_container_apps, collect_jobs_and_executions
 from monitoring.log_analytics import (
     AzureLogAnalyticsClient,
@@ -83,6 +87,7 @@ from monitoring.system_health_modules.signals import (
     _parse_iso_start_time,
     _utc_now,
     _worse_resource_status,
+    build_backtest_operational_signals,
     collect_resource_health_signals,
 )
 from monitoring.system_health_modules.snapshot import (
@@ -125,6 +130,8 @@ _LEGACY_EXPORTS = (
     AzureBlobStoreConfig,
     LastModifiedProbeResult,
     AzureArmClient,
+    collect_backtest_operational_summary,
+    build_backtest_operational_alerts,
     ResourceHealthItem,
     collect_container_apps,
     collect_jobs_and_executions,
@@ -193,6 +200,7 @@ _LEGACY_EXPORTS = (
     _parse_iso_start_time,
     _utc_now,
     _worse_resource_status,
+    build_backtest_operational_signals,
     collect_resource_health_signals,
     _describe_cron,
     _derive_job_name,

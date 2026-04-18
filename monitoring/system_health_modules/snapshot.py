@@ -527,6 +527,9 @@ def _collect_control_plane_snapshot(
     job_failure_reason_alerts = _runtime_attr(runtime, "_job_failure_reason_alerts")
     bronze_symbol_jump_alerts = _runtime_attr(runtime, "_bronze_symbol_jump_alerts")
     bronze_finance_zero_write_alerts = _runtime_attr(runtime, "_bronze_finance_zero_write_alerts")
+    build_backtest_operational_signals = _runtime_attr(runtime, "build_backtest_operational_signals")
+    collect_backtest_operational_summary = _runtime_attr(runtime, "collect_backtest_operational_summary")
+    build_backtest_operational_alerts = _runtime_attr(runtime, "build_backtest_operational_alerts")
     alert_id = _runtime_attr(runtime, "_alert_id")
     arm_config_cls = _runtime_attr(runtime, "ArmConfig")
     azure_arm_client = _runtime_attr(runtime, "AzureArmClient")
@@ -646,6 +649,7 @@ def _collect_control_plane_snapshot(
 
     arm_cfg = arm_config_cls(subscription_id=subscription_id, resource_group=resource_group, api_version=api_version, timeout_seconds=timeout_seconds)
     checked_iso = iso(now)
+    backtest_summary: Dict[str, Any] | None = None
     try:
         with azure_arm_client(arm_cfg) as arm:
             log_client: Optional[Any] = None
@@ -688,6 +692,19 @@ def _collect_control_plane_snapshot(
                         signals.extend(log_signals)
                         status = worse_resource_status(status, log_status)
                         details = append_signal_details(details, log_signals)
+                if (
+                    item.resource_type == "Microsoft.App/jobs"
+                    and backtest_summary is not None
+                    and item.name == str(backtest_summary.get("jobName") or "").strip()
+                ):
+                    backtest_signals = build_backtest_operational_signals(summary=backtest_summary, checked_at=now)
+                    if backtest_signals:
+                        signals.extend(backtest_signals)
+                        for signal in backtest_signals:
+                            signal_status = str(signal.get("status") or "").strip().lower()
+                            if signal_status in {"warning", "error"}:
+                                status = worse_resource_status(status, signal_status)
+                        details = append_signal_details(details, backtest_signals)
                 return resource_health_item_cls(
                     name=item.name,
                     resource_type=item.resource_type,
@@ -731,6 +748,24 @@ def _collect_control_plane_snapshot(
 
                 if job_names:
                     logger_runtime.info("Collecting Azure job health: count=%s", len(job_names))
+                    try:
+                        backtest_summary = collect_backtest_operational_summary(os.environ.get("POSTGRES_DSN"))
+                    except Exception as exc:
+                        logger_runtime.warning("Backtest operational summary unavailable: %s", exc)
+                        alerts.append(
+                            {
+                                "id": alert_id(
+                                    severity="warning",
+                                    title="Backtest monitoring unavailable",
+                                    component="backtests-job",
+                                ),
+                                "severity": "warning",
+                                "title": "Backtest monitoring unavailable",
+                                "component": "backtests-job",
+                                "timestamp": checked_iso,
+                                "message": f"Backtest operational summary failed: {exc}",
+                            }
+                        )
                     max_executions_per_job = env_int_or_default(
                         "SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB",
                         default_job_executions_per_job,
@@ -791,6 +826,22 @@ def _collect_control_plane_snapshot(
                     if zero_write_alerts:
                         alerts.extend(zero_write_alerts)
                         statuses.extend("error" if alert.get("severity") == "error" else "stale" for alert in zero_write_alerts)
+                    if backtest_summary is not None:
+                        for alert in build_backtest_operational_alerts(
+                            summary=backtest_summary,
+                            checked_iso=checked_iso,
+                            component=str(backtest_summary.get("jobName") or "backtests-job"),
+                        ):
+                            severity = str(alert.get("severity") or "warning").strip().lower()
+                            title = str(alert.get("title") or "Backtest monitoring").strip() or "Backtest monitoring"
+                            component = str(alert.get("component") or "backtests-job").strip() or "backtests-job"
+                            alerts.append(
+                                {
+                                    "id": alert_id(severity=severity, title=title, component=component),
+                                    **alert,
+                                }
+                            )
+                            statuses.append("error" if severity == "error" else "stale")
             finally:
                 if log_client is not None:
                     log_client.close()

@@ -180,17 +180,23 @@ jobs:
           from pathlib import Path
 
           version = os.environ["CONTRACTS_VERSION"]
-          path = Path("asset-allocation-control-plane/pyproject.toml")
-          text = path.read_text(encoding="utf-8")
-          updated, replacements = re.subn(
-              r'asset-allocation-contracts==[^"]+',
-              f"asset-allocation-contracts=={version}",
-              text,
-              count=1,
-          )
-          if replacements != 1:
-              raise SystemExit("Expected exactly one asset-allocation-contracts dependency in pyproject.toml.")
-          path.write_text(updated, encoding="utf-8")
+          replacements = {
+              Path("asset-allocation-control-plane/pyproject.toml"): r'asset-allocation-contracts==[^"]+',
+              Path("asset-allocation-control-plane/requirements.txt"): r"asset-allocation-contracts==[^\r\n]+",
+              Path("asset-allocation-control-plane/requirements.lock.txt"): r"asset-allocation-contracts==[^\r\n]+",
+          }
+
+          for path, pattern in replacements.items():
+              text = path.read_text(encoding="utf-8")
+              updated, count = re.subn(
+                  pattern,
+                  f"asset-allocation-contracts=={version}",
+                  text,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit(f"Expected exactly one asset-allocation-contracts dependency in {path}.")
+              path.write_text(updated, encoding="utf-8")
           PY
           python -m pytest asset-allocation-control-plane/tests/test_multirepo_dependency_contract.py -q
 
@@ -202,13 +208,13 @@ jobs:
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
-          if git diff --quiet -- pyproject.toml; then
+          if git diff --quiet -- pyproject.toml requirements.txt requirements.lock.txt; then
             echo "Contracts version already pinned to ${CONTRACTS_VERSION}."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml
+          git add pyproject.toml requirements.txt requirements.lock.txt
           git commit -m "chore: adopt contracts ${CONTRACTS_VERSION}"
           git push origin HEAD:${{ steps.target.outputs.current_repo_ref }}
 

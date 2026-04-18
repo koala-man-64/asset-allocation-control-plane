@@ -36,6 +36,7 @@ def test_browser_oidc_accepts_localhost_http_redirect_uri(monkeypatch: pytest.Mo
 
     assert settings.browser_oidc_enabled is True
     assert settings.ui_oidc_config["redirectUri"] == "http://localhost:5174/auth/callback"
+    assert settings.ui_oidc_config["postLogoutRedirectUri"] == "http://localhost:5174/auth/logout-complete"
 
 
 def test_deployed_runtime_requires_api_oidc_configuration(monkeypatch: pytest.MonkeyPatch) -> None:

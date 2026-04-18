@@ -105,6 +105,12 @@ def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_upd
     assert "UI_OIDC_REDIRECT_URI" in text, (
         "Entra provisioner must write the resolved redirect URI into the env file"
     )
+    assert 'logoutUrl = $PublicPostLogoutRedirectUri' in text, (
+        "Entra provisioner must register the logout-complete landing route on the UI app registration"
+    )
+    assert "/auth/logout-complete" in text, (
+        "Entra provisioner must derive the logout-complete landing path from the UI redirect origin"
+    )
 
 
 def test_entra_oidc_provisioner_auto_resolves_and_persists_operator_user() -> None:

@@ -175,6 +175,37 @@ def test_add_gold_finance_ratio_columns_migration_rebuilds_view_and_adds_ratio_c
     assert "GRANT SELECT ON TABLE gold.finance_data_by_date TO backtest_service;" in text
 
 
+def test_backtest_results_cutover_migration_creates_result_tables_and_drops_legacy_columns() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0034_backtest_results_postgres_cutover.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_run_summary" in text
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_timeseries" in text
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_rolling_metrics" in text
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_trades" in text
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_selection_trace" in text
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_regime_trace" in text
+    assert "ADD COLUMN IF NOT EXISTS results_ready_at TIMESTAMPTZ" in text
+    assert "ADD COLUMN IF NOT EXISTS results_schema_version SMALLINT NOT NULL DEFAULT 1" in text
+    assert "period_return DOUBLE PRECISION" in text
+    assert "window_periods INTEGER" in text
+    assert "ALTER TABLE core.backtest_timeseries" in text
+    assert "ALTER TABLE core.backtest_rolling_metrics" in text
+    assert "DROP COLUMN IF EXISTS summary_json" in text
+    assert "DROP COLUMN IF EXISTS artifact_manifest_path" in text
+    assert "DROP COLUMN IF EXISTS output_dir" in text
+    assert "DROP COLUMN IF EXISTS adls_container" in text
+    assert "DROP COLUMN IF EXISTS adls_prefix" in text
+
+
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"

@@ -9,16 +9,8 @@ from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
+from asset_allocation_runtime_common import BACKTEST_RESULTS_SCHEMA_VERSION, persist_backtest_results
 
-from core.backtest_artifacts import (
-    list_artifacts,
-    read_json_artifact,
-    read_parquet_artifact,
-    write_json_artifact,
-    write_manifest,
-    write_parquet_artifact,
-    write_text_artifact,
-)
 from core.backtest_repository import BacktestRepository
 from core.postgres import connect
 from core.ranking_engine import service as ranking_service
@@ -951,7 +943,6 @@ def execute_backtest_run(
     regime_trace_rows: list[dict[str, Any]] = []
     trade_rows: list[dict[str, Any]] = []
     timeseries_rows: list[dict[str, Any]] = []
-    log_lines = [f"run_id={run_id} strategy={definition.strategy_name} bars={len(schedule)}"]
     previous_equity = cash
     previous_close_by_symbol: dict[str, float] = {}
     first_signal_computed = False
@@ -1186,64 +1177,16 @@ def execute_backtest_run(
         run_name=run.get("run_name"),
     )
 
-    write_json_artifact(run_id, "effective_config.json", {
-        "strategy": definition.strategy_config_raw,
-        "pins": {
-            "strategyName": definition.strategy_name,
-            "strategyVersion": definition.strategy_version,
-            "rankingSchemaName": definition.ranking_schema_name,
-            "rankingSchemaVersion": definition.ranking_schema_version,
-            "universeName": definition.ranking_universe_name,
-            "universeVersion": definition.ranking_universe_version,
-            "regimeModelName": definition.regime_model_name,
-            "regimeModelVersion": definition.regime_model_version,
-        },
-        "run": {
-            "startTs": start_ts.isoformat(),
-            "endTs": end_ts.isoformat(),
-            "barSize": run.get("bar_size"),
-        },
-    })
-    write_json_artifact(run_id, "summary.json", summary)
-    write_parquet_artifact(run_id, "timeseries.parquet", timeseries)
-    write_parquet_artifact(run_id, "rolling_metrics.parquet", rolling_metrics)
-    write_parquet_artifact(run_id, "trades.parquet", trades)
-    write_parquet_artifact(run_id, "selection_trace.parquet", selection_trace)
-    write_parquet_artifact(run_id, "regime_trace.parquet", regime_trace)
-    write_text_artifact(run_id, "worker.log", "\n".join(log_lines))
-    manifest_path = write_manifest(run_id)
-    repo.complete_run(run_id, summary=summary, artifact_manifest_path=manifest_path)
-    return {
-        "summary": summary,
-        "artifacts": list_artifacts(run_id),
-    }
-
-
-def load_summary(run_id: str, *, repo: BacktestRepository) -> dict[str, Any]:
-    run = repo.get_run(run_id)
-    if not run:
-        raise ValueError(f"Run '{run_id}' not found.")
-    summary = run.get("summary_json") or {}
-    if isinstance(summary, dict) and summary:
-        return summary
-    artifact_summary = read_json_artifact(run_id, "summary.json")
-    if artifact_summary is None:
-        raise FileNotFoundError(f"Summary artifact missing for run '{run_id}'.")
-    return artifact_summary
-
-
-def load_timeseries(run_id: str) -> pd.DataFrame:
-    return read_parquet_artifact(run_id, "timeseries.parquet")
-
-
-def load_trades(run_id: str) -> pd.DataFrame:
-    return read_parquet_artifact(run_id, "trades.parquet")
-
-
-def load_rolling_metrics(run_id: str, *, window_days: int = 63) -> pd.DataFrame:
-    artifact = read_parquet_artifact(run_id, "rolling_metrics.parquet")
-    if not artifact.empty and "window_days" in artifact.columns:
-        filtered = artifact[pd.to_numeric(artifact["window_days"], errors="coerce") == int(window_days)]
-        if not filtered.empty:
-            return filtered.reset_index(drop=True)
-    return _compute_rolling_metrics(load_timeseries(run_id), window_bars=max(2, int(window_days)))
+    persist_backtest_results(
+        dsn,
+        run_id,
+        summary=summary,
+        timeseries_rows=timeseries.to_dict("records"),
+        rolling_metric_rows=rolling_metrics.to_dict("records"),
+        trade_rows=trades.to_dict("records"),
+        selection_trace_rows=selection_trace.to_dict("records"),
+        regime_trace_rows=regime_trace.to_dict("records"),
+        results_schema_version=BACKTEST_RESULTS_SCHEMA_VERSION,
+    )
+    repo.complete_run(run_id, summary=summary)
+    return {"summary": summary}

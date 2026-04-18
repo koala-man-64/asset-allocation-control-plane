@@ -133,6 +133,43 @@ def _append_job_usage_percent_signals(
     return enriched_signals
 
 
+def build_backtest_operational_signals(
+    *,
+    summary: Dict[str, Any],
+    checked_at: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    timestamp = _iso(checked_at or _utc_now())
+    specs = [
+        ("BacktestQueuedCount", summary.get("queuedCount"), "Count"),
+        ("BacktestOldestQueuedAgeSeconds", summary.get("oldestQueuedAgeSeconds"), "Seconds"),
+        ("BacktestRunningCount", summary.get("runningCount"), "Count"),
+        ("BacktestStaleHeartbeatCount", summary.get("staleHeartbeatCount"), "Count"),
+        ("BacktestDispatchFailureCount", summary.get("dispatchFailureCount"), "Count"),
+        ("BacktestDurationP95Seconds", summary.get("durationP95Seconds"), "Seconds"),
+    ]
+    signals: List[Dict[str, Any]] = []
+    for name, value, unit in specs:
+        numeric_value = _signal_numeric_value({"value": value})
+        status = "healthy"
+        if name == "BacktestStaleHeartbeatCount" and numeric_value and numeric_value > 0:
+            status = "error"
+        elif name == "BacktestDispatchFailureCount" and numeric_value and numeric_value > 0:
+            status = "warning"
+        elif name == "BacktestOldestQueuedAgeSeconds" and numeric_value and numeric_value > 300:
+            status = "warning"
+        signals.append(
+            {
+                "name": name,
+                "value": numeric_value if numeric_value is not None else 0.0,
+                "unit": unit,
+                "timestamp": timestamp,
+                "status": status,
+                "source": "control-plane",
+            }
+        )
+    return signals
+
+
 def _parse_iso_start_time(value: Optional[str]) -> Optional[datetime]:
     text = (value or "").strip()
     if not text:

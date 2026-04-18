@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
+from psycopg import OperationalError
 
 from api.endpoints import backtests as backtest_endpoints
 from api.service.app import create_app
@@ -145,9 +146,6 @@ async def test_list_backtests_returns_repo_rows(monkeypatch: pytest.MonkeyPatch)
                 "run_name": "Smoke",
                 "start_date": "2026-03-01",
                 "end_date": "2026-03-08",
-                "output_dir": "/tmp/backtests",
-                "adls_container": "common",
-                "adls_prefix": "backtests/mom-spy-res",
                 "error": None,
             }
         ],
@@ -160,6 +158,7 @@ async def test_list_backtests_returns_repo_rows(monkeypatch: pytest.MonkeyPatch)
     assert response.status_code == 200
     payload = response.json()
     assert payload["runs"][0]["run_id"] == "run-1"
+    assert "output_dir" not in payload["runs"][0]
     assert payload["limit"] == 10
 
 
@@ -183,9 +182,6 @@ async def test_submit_backtest_freezes_pinned_versions_and_queues_run(
             "run_name": kwargs.get("run_name"),
             "start_date": "2026-03-01",
             "end_date": "2026-03-08",
-            "output_dir": kwargs.get("output_dir"),
-            "adls_container": kwargs.get("adls_container"),
-            "adls_prefix": kwargs.get("adls_prefix"),
             "error": None,
         }
 
@@ -232,15 +228,29 @@ async def test_submit_backtest_freezes_pinned_versions_and_queues_run(
     assert effective_config["pins"]["regimeModelName"] == "default-regime"
     assert effective_config["pins"]["regimeModelVersion"] == 1
     assert effective_config["execution"]["barsResolved"] == 2
+    assert "output_dir" not in captured
+    assert "adls_container" not in captured
+    assert "adls_prefix" not in captured
 
 
 @pytest.mark.asyncio
-async def test_get_summary_returns_runtime_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_summary_returns_postgres_summary(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     monkeypatch.setattr(
-        backtest_endpoints,
-        "load_summary",
-        lambda run_id, *, repo: {
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+            "bar_size": "5m",
+            "results_schema_version": 2,
+        },
+    )
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_summary",
+        lambda self, run_id: {
             "run_id": run_id,
             "run_name": "Intraday smoke",
             "total_return": 0.12,
@@ -259,4 +269,243 @@ async def test_get_summary_returns_runtime_summary(monkeypatch: pytest.MonkeyPat
         response = await client.get("/api/backtests/run-1/summary")
 
     assert response.status_code == 200
-    assert response.json()["sharpe_ratio"] == 2.5
+    payload = response.json()
+    assert payload["sharpe_ratio"] == 2.5
+    assert payload["metadata"] == {
+        "results_schema_version": 2,
+        "bar_size": "5m",
+        "periods_per_year": 19656,
+        "strategy_scope": "long_only",
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_summary_returns_404_for_unknown_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(BacktestRepository, "get_run", lambda self, run_id: None)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-404/summary")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_backtests_returns_503_when_postgres_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    def _raise_operational_error(self, **kwargs):  # type: ignore[no-untyped-def]
+        raise OperationalError("db unavailable")
+
+    monkeypatch.setattr(BacktestRepository, "list_runs", _raise_operational_error)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests")
+
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_get_summary_returns_409_for_unpublished_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {"run_id": run_id, "status": "running", "results_ready_at": None},
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/summary")
+
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_timeseries_returns_empty_payload_for_published_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+            "bar_size": "5m",
+            "results_schema_version": 2,
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_timeseries", lambda self, run_id: 0)
+    monkeypatch.setattr(BacktestRepository, "list_timeseries", lambda self, run_id, **kwargs: [])
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/metrics/timeseries")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "metadata": {
+            "results_schema_version": 2,
+            "bar_size": "5m",
+            "periods_per_year": 19656,
+            "strategy_scope": "long_only",
+        },
+        "points": [],
+        "total_points": 0,
+        "truncated": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_timeseries_synthesizes_period_return_from_daily_return(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+            "bar_size": "5m",
+            "results_schema_version": 2,
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_timeseries", lambda self, run_id: 1)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_timeseries",
+        lambda self, run_id, **kwargs: [
+            {
+                "date": "2026-03-08T10:00:00Z",
+                "portfolio_value": 101000.0,
+                "drawdown": -0.01,
+                "daily_return": 0.01,
+                "cumulative_return": 0.01,
+                "cash": 1000.0,
+                "gross_exposure": 1.0,
+                "net_exposure": 1.0,
+                "turnover": 0.1,
+                "commission": 1.0,
+                "slippage_cost": 0.5,
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/metrics/timeseries")
+
+    assert response.status_code == 200
+    point = response.json()["points"][0]
+    assert point["daily_return"] == 0.01
+    assert point["period_return"] == 0.01
+
+
+@pytest.mark.asyncio
+async def test_get_rolling_metrics_returns_empty_payload_for_published_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+            "bar_size": "5m",
+            "results_schema_version": 2,
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_rolling_metrics", lambda self, run_id, *, window_days: 0)
+    monkeypatch.setattr(BacktestRepository, "list_rolling_metrics", lambda self, run_id, **kwargs: [])
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/metrics/rolling?window_days=63")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "metadata": {
+            "results_schema_version": 2,
+            "bar_size": "5m",
+            "periods_per_year": 19656,
+            "strategy_scope": "long_only",
+        },
+        "points": [],
+        "total_points": 0,
+        "truncated": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_rolling_metrics_synthesizes_window_periods_from_window_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+            "bar_size": "5m",
+            "results_schema_version": 2,
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_rolling_metrics", lambda self, run_id, *, window_days: 1)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_rolling_metrics",
+        lambda self, run_id, **kwargs: [
+            {
+                "date": "2026-03-08T10:00:00Z",
+                "window_days": 63,
+                "rolling_return": 0.12,
+                "rolling_volatility": 0.2,
+                "rolling_sharpe": 0.6,
+                "rolling_max_drawdown": -0.08,
+                "turnover_sum": 2.5,
+                "commission_sum": 12.0,
+                "slippage_cost_sum": 4.0,
+                "n_trades_sum": 8.0,
+                "gross_exposure_avg": 0.95,
+                "net_exposure_avg": 0.95,
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/metrics/rolling?window_days=63")
+
+    assert response.status_code == 200
+    point = response.json()["points"][0]
+    assert point["window_days"] == 63
+    assert point["window_periods"] == 63
+
+
+@pytest.mark.asyncio
+async def test_get_trades_returns_empty_payload_for_published_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_trades", lambda self, run_id: 0)
+    monkeypatch.setattr(BacktestRepository, "list_trades", lambda self, run_id, **kwargs: [])
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/trades?limit=100&offset=0")
+
+    assert response.status_code == 200
+    assert response.json() == {"trades": [], "total": 0, "limit": 100, "offset": 0}

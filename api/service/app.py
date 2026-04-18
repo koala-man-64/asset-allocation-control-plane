@@ -14,6 +14,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from api.endpoints import (
+    auth,
     alpha_vantage,
     backtests,
     data,
@@ -420,6 +421,7 @@ def create_app() -> FastAPI:
 
     for api_prefix in api_prefixes:
         app.include_router(data.router, prefix=f"{api_prefix}/data", tags=["Data"])
+        app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Auth"])
         app.include_router(system.router, prefix=f"{api_prefix}/system", tags=["System"])
         app.include_router(postgres.router, prefix=f"{api_prefix}/system/postgres", tags=["Postgres"])
         app.include_router(universes.router, prefix=f"{api_prefix}/universes", tags=["Universes"])
@@ -458,6 +460,7 @@ def create_app() -> FastAPI:
                 "oidcClientId": settings.ui_oidc_config.get("clientId"),
                 "oidcScopes": settings.ui_oidc_config.get("scope"),
                 "oidcRedirectUri": settings.ui_oidc_config.get("redirectUri"),
+                "oidcPostLogoutRedirectUri": settings.ui_oidc_config.get("postLogoutRedirectUri"),
                 "oidcAudience": settings.oidc_audience,
                 "oidcEnabled": settings.browser_oidc_enabled,
                 "authRequired": settings.auth_required,

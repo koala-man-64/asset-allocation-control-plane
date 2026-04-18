@@ -33,16 +33,6 @@ os.environ.setdefault("SYSTEM_HEALTH_LOG_ANALYTICS_TIMEOUT_SECONDS", "5.0")
 os.environ.setdefault("SYSTEM_HEALTH_LOG_ANALYTICS_TIMESPAN_MINUTES", "15")
 os.environ.setdefault("SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB", "3")
 
-os.environ.setdefault("BACKTEST_OUTPUT_DIR", "/tmp/backtest_results")
-os.environ.setdefault("BACKTEST_DB_PATH", "/tmp/backtest_results/runs.sqlite3")
-os.environ.setdefault("BACKTEST_MAX_CONCURRENT", "1")
-os.environ.setdefault("BACKTEST_ALLOW_LOCAL_DATA", "false")
-os.environ.setdefault(
-    "BACKTEST_ADLS_CONTAINER_ALLOWLIST",
-    "bronze,silver,gold,platinum,common,test-container",
-)
-os.environ.setdefault("BACKTEST_RUN_STORE_MODE", "sqlite")
-
 # Container Mocks
 containers = [
     "AZURE_FOLDER_MARKET", "AZURE_FOLDER_FINANCE", 

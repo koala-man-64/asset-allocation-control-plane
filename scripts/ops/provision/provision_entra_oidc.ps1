@@ -543,6 +543,7 @@ function Ensure-UiApplicationConfiguration {
   param(
     [Parameter(Mandatory = $true)][object]$Application,
     [Parameter(Mandatory = $true)][string]$PublicRedirectUri,
+    [Parameter(Mandatory = $true)][string]$PublicPostLogoutRedirectUri,
     [Parameter(Mandatory = $true)][string]$LocalRedirectUri
   )
 
@@ -569,6 +570,9 @@ function Ensure-UiApplicationConfiguration {
     signInAudience = "AzureADMyOrg"
     spa            = [ordered]@{
       redirectUris = @($redirects)
+    }
+    web            = [ordered]@{
+      logoutUrl = $PublicPostLogoutRedirectUri
     }
   }
 
@@ -732,6 +736,23 @@ function Resolve-PublicRedirectUri {
   return "https://$ApiContainerApp.$($defaultDomain.Output.Trim())/auth/callback"
 }
 
+function Resolve-PostLogoutRedirectUri {
+  param([Parameter(Mandatory = $true)][string]$RedirectUri)
+
+  try {
+    $uri = [System.Uri]$RedirectUri
+  }
+  catch {
+    throw "Unable to derive the post-logout redirect URI from '$RedirectUri'."
+  }
+
+  if ((-not $uri.IsAbsoluteUri) -or [string]::IsNullOrWhiteSpace($uri.Scheme) -or [string]::IsNullOrWhiteSpace($uri.Host)) {
+    throw "Unable to derive the post-logout redirect URI from '$RedirectUri'."
+  }
+
+  return [System.Uri]::new($uri, "/auth/logout-complete").AbsoluteUri
+}
+
 $envPath = Resolve-EnvFilePath -RequestedPath $EnvFile
 $envLines = Get-EnvLines -Path $envPath
 $envLabel = Split-Path -Leaf $envPath
@@ -810,12 +831,17 @@ $publicRedirectUri = Resolve-PublicRedirectUri `
   -ExplicitRedirectUri $explicitRedirectUri `
   -ApiContainerApp $ApiContainerAppName `
   -ResourceGroupName $ResourceGroup
+$publicPostLogoutRedirectUri = Resolve-PostLogoutRedirectUri -RedirectUri $publicRedirectUri
 
 $uiAppResult = Ensure-Application -DisplayName $UiAppDisplayName -ExistingId $uiClientIdHint
 $uiApp = $uiAppResult.App
 $uiSpResult = Ensure-ServicePrincipal -AppId $uiApp.appId
 $null = $uiSpResult.ServicePrincipal
-Ensure-UiApplicationConfiguration -Application $uiApp -PublicRedirectUri $publicRedirectUri -LocalRedirectUri $LocalUiRedirectUri
+Ensure-UiApplicationConfiguration `
+  -Application $uiApp `
+  -PublicRedirectUri $publicRedirectUri `
+  -PublicPostLogoutRedirectUri $publicPostLogoutRedirectUri `
+  -LocalRedirectUri $LocalUiRedirectUri
 Ensure-UiDelegatedPermission -UiAppId $uiApp.appId -ApiAppId $apiApp.appId -ScopeId $apiConfig.ScopeId
 
 $managedIdentityPrincipalId = Resolve-ManagedIdentityPrincipalId -IdentityName $AcrPullIdentityName -ResourceGroupName $ResourceGroup
@@ -857,6 +883,7 @@ $outputs = [ordered]@{
   oidcAuthority                       = $authority
   oidcIssuer                          = $issuer
   uiRedirectUri                       = $publicRedirectUri
+  uiPostLogoutRedirectUri             = $publicPostLogoutRedirectUri
   apiDelegatedScopeId                 = $apiConfig.ScopeId
   apiAppRoleId                        = $apiConfig.AppRoleId
   operatorUserObjectId                = $OperatorUserObjectId

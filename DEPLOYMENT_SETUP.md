@@ -42,7 +42,7 @@ Use only these workflow entry points:
 - Run `compat.yml` when `contracts_released` or `runtime_common_released` is dispatched, or validate a candidate shared package ref manually with `dependency=contracts|runtime-common` and `ref=<sha-or-branch>`.
 - Use `release.yml` to fail fast on missing GitHub release configuration, unpublished shared-package versions, or missing Azure release RBAC before it exports contracts or builds the image.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
-- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, and `/openapi.json`.
+- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, `/openapi.json`, and the auth-session surface when OIDC is enabled.
 - Use `deploy_runtime` repository dispatch when automation or rollback needs to supply an explicit image digest.
 
 ## Shared Azure Foundation To Provision Once
@@ -116,7 +116,9 @@ GitHub variables:
    - `/healthz`
    - `/readyz`
    - `/config.js`
+   - `/config.js` exposes `oidcPostLogoutRedirectUri` whenever browser OIDC is enabled
    - `/openapi.json`
+   - `/api/auth/session` returns `401` without a bearer token on auth-required deployments and `200` with a valid operator token
 
 ## Rollback
 
@@ -134,7 +136,8 @@ GitHub variables:
 - If `release.yml` fails to build the image after preflight passes, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
 - If a manual `deploy-prod.yml` run fails before apply because no image can be resolved, verify ACR contains at least one released `asset-allocation-api` manifest.
 - If `deploy-prod.yml` fails before apply, verify `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `CONTAINER_APPS_ENVIRONMENT_NAME`, and `ACR_PULL_IDENTITY_NAME`.
-- If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/openapi.json` before retrying.
+- If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, `/openapi.json`, and `/api/auth/session` before retrying.
+- If browser sign-out lands on a blank or broken page, rerun `.\scripts\ops\provision\provision_entra_oidc.ps1` and confirm the UI app registration now has `web.logoutUrl` set to `https://<ui-origin>/auth/logout-complete`.
 - If `infra-shared-prod.yml` fails, regenerate `.env.web` with `scripts/dev/setup-env.ps1`, sync it with `scripts/repo/sync-all-to-github.ps1`, and verify the `prod` environment still has the required approvals and secrets.
 
 ## Dependencies

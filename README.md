@@ -8,8 +8,8 @@ Runtime-owned control-plane repository for:
 Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
-python -m pip install asset-allocation-contracts==0.1.0
-python -m pip install asset-allocation-runtime-common==0.1.0
+python -m pip install asset-allocation-contracts==1.1.0
+python -m pip install asset-allocation-runtime-common==1.0.2
 python -m pytest tests/api tests/monitoring -q
 ```
 
@@ -32,3 +32,13 @@ Canonical workflows live under `.github/workflows/`.
 - `scripts/dev/setup-env.ps1` builds repo-local `.env.web` using contract defaults and existing values.
 - `scripts/repo/sync-all-to-github.ps1` syncs the `.env.web` surface into repo vars and secrets.
 - `DEPLOYMENT_SETUP.md` is the canonical deploy, operate, and rollback runbook.
+
+## Backtesting Operations
+
+Backtest lifecycle state is owned here and the shared payloads live in `asset-allocation-contracts`.
+
+- `GET /api/internal/backtests/ready` is the authenticated, non-mutating readiness check for trusted backtest consumers. It validates auth and Postgres connectivity before a job attempts claim or dispatch.
+- `POST /api/internal/backtests/runs/reconcile` is the internal recovery endpoint used by the jobs repo scheduled reconcile task.
+- Reconcile dispatches old queued runs that never received an execution, re-dispatches queued runs whose recorded ACA execution is missing or terminal, and fails stale running runs when no active execution still exists.
+- Backtest read responses expose additive v2 metadata where needed. Summary, timeseries, and rolling payloads synthesize `metadata.bar_size`, `metadata.periods_per_year`, and `metadata.strategy_scope=long_only`, while timeseries points expose `period_return` and rolling points expose `window_periods` alongside legacy fields.
+- `monitoring/system_health.py` continues to be the operator surface. Backtest-specific queue depth, oldest queued age, running count, stale heartbeat count, dispatch-failure proxy count, and completion duration signals are attached to the `backtests-job` resource when that job is included in `SYSTEM_HEALTH_ARM_JOBS`.

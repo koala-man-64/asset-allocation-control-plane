@@ -24,6 +24,16 @@ def test_pyproject_pins_shared_packages() -> None:
     assert shared["asset-allocation-runtime-common"]
 
 
+def test_python_dependency_manifests_stay_in_sync() -> None:
+    shared = shared_dependencies()
+    requirements = (repo_root() / "requirements.txt").read_text(encoding="utf-8")
+    lockfile = (repo_root() / "requirements.lock.txt").read_text(encoding="utf-8")
+    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in requirements
+    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in lockfile
+    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in requirements
+    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in lockfile
+
+
 def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
     text = (repo_root() / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
     assert "COPY asset-allocation-contracts/" not in text

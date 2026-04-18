@@ -36,7 +36,7 @@ Evidence:
 
 | Surface | Responsibility | Current owner modules | Public facade | Compatibility-only seams | Enforcement tests / workflows |
 | --- | --- | --- | --- | --- | --- |
-| `api/` | HTTP transport, operator endpoints, realtime, health/config/docs surfaces | `api/service/app.py`, `api/service/*`, `api/endpoints/*` | `/healthz`, `/readyz`, `/config.js`, `/docs`, `/openapi.json`, `/api/*` | `api/endpoints/system.py` remains a facade and re-export surface | `tests/architecture/test_system_facade_guard.py`, `tests/api/*`, `.github/workflows/ci.yml` |
+| `api/` | HTTP transport, operator endpoints, realtime, health/config/docs surfaces | `api/service/app.py`, `api/service/*`, `api/endpoints/*` | `/healthz`, `/readyz`, `/config.js`, `/docs`, `/openapi.json`, `/api/*`, `/api/auth/session` | `api/endpoints/system.py` remains a facade and re-export surface | `tests/architecture/test_system_facade_guard.py`, `tests/api/*`, `.github/workflows/ci.yml` |
 | `core/` | Control-plane-side runtime logic, repositories, runtime config, backtest storage, storage helpers, strategy and ranking engines | `core/*.py`, `core/ranking_engine/*`, `core/strategy_engine/*` | Python package import surface used by API and monitoring layers | Historical split overlap exists, but direct `tasks.*` imports are prohibited here | `tests/architecture/test_python_module_boundaries.py`, `tests/core/*` |
 | `monitoring/` | System health collection, ARM/metrics/log analytics integration, control-plane resource inspection | `monitoring/system_health_modules/*`, `monitoring/control_plane.py`, `monitoring/*.py` | `monitoring/system_health.py` | `monitoring/system_health.py` remains the facade and patch surface | `tests/monitoring/*`, `docs/architecture/runtime-surface-ci-matrix.md` |
 | `alpha_vantage/`, `massive_provider/` | API-side provider clients and helper modules used by gateway endpoints | `alpha_vantage/*.py`, `massive_provider/*.py`, `api/service/*gateway*.py` | `/api/providers/alpha-vantage/*`, `/api/providers/massive/*` | Historical lineage overlaps with jobs-side ingestion ownership | `tests/alpha_vantage/*`, `tests/api/test_alpha_vantage_endpoints.py`, `tests/api/test_massive_endpoints.py` |
@@ -95,8 +95,8 @@ Evidence:
 2. Confirmed: `ServiceSettings.from_env()` validates auth-related environment inputs and distinguishes local anonymous mode from deployed OIDC-required mode.
 3. Confirmed: FastAPI lifespan startup initializes `AuthManager`, provider gateways, log streaming, websocket ticket storage, and system-health cache state.
 4. Confirmed: when `POSTGRES_DSN` is configured, startup applies Postgres-backed runtime config overrides and refreshes debug-symbol state into process memory and application state.
-5. Confirmed: the app exposes lightweight `/healthz` and `/readyz` routes, runtime browser configuration via `/config.js`, OpenAPI/docs routes, and the `/api/*` router tree.
-6. Confirmed: `api/endpoints/internal.py` exposes Postgres-backed internal control-plane reads and backtest coordination APIs for trusted runtime consumers.
+5. Confirmed: the app exposes lightweight `/healthz` and `/readyz` routes, runtime browser configuration via `/config.js`, OpenAPI/docs routes, `/api/auth/session`, and the `/api/*` router tree.
+6. Confirmed: `api/endpoints/internal.py` exposes Postgres-backed internal control-plane reads and backtest coordination APIs for trusted runtime consumers, including a non-mutating authenticated readiness check for backtest workers.
 7. Confirmed: `release.yml` builds and publishes one immutable API image, exports contract artifacts, writes a release manifest, and dispatches `control_plane_released` to the jobs repo.
 8. Inference: the jobs repo depends on this repo both at runtime, through internal and public HTTP surfaces, and at release time, through `control_plane_released` metadata and pinned shared package versions.
 
@@ -115,6 +115,7 @@ Evidence:
 - Confirmed: `/healthz`
 - Confirmed: `/readyz`
 - Confirmed: `/config.js`
+- Confirmed: `/api/auth/session`
 - Confirmed: docs and OpenAPI routes under `/docs`, `/openapi.json`, and the active API prefix
 
 ### Operator and runtime APIs
@@ -123,7 +124,7 @@ Evidence:
 - Confirmed: `/api/data/*` owns raw and derived data access surfaces.
 - Confirmed: `/api/backtests/*` owns backtest submission, status, summaries, metrics, and artifact retrieval.
 - Confirmed: `/api/providers/alpha-vantage/*` and `/api/providers/massive/*` own API-side provider gateway surfaces.
-- Confirmed: `/api/internal/*` owns trusted internal control-plane reads and backtest worker coordination.
+- Confirmed: `/api/internal/*` owns trusted internal control-plane reads and backtest worker coordination, including a readiness endpoint for auth and Postgres probing.
 - Confirmed: `/api/ws/updates` and realtime ticket issuance support browser realtime updates.
 
 ### Generated artifacts and release metadata

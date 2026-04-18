@@ -4,15 +4,19 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from psycopg import Error as PsycopgError
 from asset_allocation_contracts.backtest import (
     BacktestClaimRequest,
     BacktestCompleteRequest,
     BacktestFailRequest,
+    BacktestReconcileResponse,
     BacktestStartRequest,
 )
 
 from api.service.dependencies import validate_auth
-from core.backtest_repository import BacktestRepository
+from core.backtest_reconcile import reconcile_backtest_runs
+from core.backtest_repository import BacktestRepository, BacktestResultsNotReadyError
+from core.postgres import connect
 from core.ranking_repository import RankingRepository
 from core.regime_repository import RegimeRepository
 from core.strategy_repository import StrategyRepository
@@ -32,6 +36,13 @@ def _require_postgres_dsn(request: Request) -> str:
 
 def _not_found(kind: str, name: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{kind} '{name}' not found.")
+
+
+def _probe_postgres(dsn: str) -> None:
+    with connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
 
 
 @router.get("/strategies")
@@ -161,11 +172,28 @@ async def get_backtest_run(run_id: str, request: Request) -> dict[str, Any]:
     return run
 
 
+@router.get("/backtests/ready")
+async def ready_backtests(request: Request) -> dict[str, str]:
+    validate_auth(request)
+    dsn = _require_postgres_dsn(request)
+    try:
+        _probe_postgres(dsn)
+    except PsycopgError as exc:
+        raise HTTPException(status_code=503, detail="Postgres is unavailable for backtest readiness.") from exc
+    return {"status": "ready"}
+
+
 @router.post("/backtests/runs/claim")
 async def claim_backtest_run(payload: BacktestClaimRequest, request: Request) -> dict[str, Any]:
     validate_auth(request)
     run = BacktestRepository(_require_postgres_dsn(request)).claim_next_run(execution_name=payload.executionName)
     return {"run": run}
+
+
+@router.post("/backtests/runs/reconcile", response_model=BacktestReconcileResponse)
+async def reconcile_backtest_run_queue(request: Request) -> BacktestReconcileResponse:
+    validate_auth(request)
+    return reconcile_backtest_runs(_require_postgres_dsn(request))
 
 
 @router.post("/backtests/runs/{run_id}/start")
@@ -194,11 +222,10 @@ async def complete_backtest_run(run_id: str, payload: BacktestCompleteRequest, r
     repo = BacktestRepository(_require_postgres_dsn(request))
     if not repo.get_run(run_id):
         raise _not_found("Backtest run", run_id)
-    repo.complete_run(
-        run_id,
-        summary=payload.summary,
-        artifact_manifest_path=payload.artifactManifestPath,
-    )
+    try:
+        repo.complete_run(run_id, summary=payload.summary)
+    except BacktestResultsNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"status": "ok"}
 
 

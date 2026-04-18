@@ -1,0 +1,4 @@
+interface:
+  display_name: "Senior Trading Desk Reviewer"
+  short_description: "Review strategies, trades, and performance rigorously"
+  default_prompt: "Use $senior-trading-desk-reviewer to review a strategy, trade, execution log, or performance report with institutional trading-desk rigor."

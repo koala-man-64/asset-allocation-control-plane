@@ -48,6 +48,18 @@
       "title": "Oidcenabled",
       "type": "boolean"
     },
+    "oidcPostLogoutRedirectUri": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Oidcpostlogoutredirecturi"
+    },
     "oidcRedirectUri": {
       "anyOf": [
         {

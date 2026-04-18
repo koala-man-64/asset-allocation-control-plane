@@ -10,8 +10,9 @@ If GitHub Security Advisories are not available for this repo, report the issue 
 
 - Production deploys must configure `API_OIDC_ISSUER`, `API_OIDC_AUDIENCE`, `UI_OIDC_CLIENT_ID`, `UI_OIDC_AUTHORITY`, `UI_OIDC_SCOPES`, `UI_OIDC_REDIRECT_URI`, and `ASSET_ALLOCATION_API_SCOPE`.
 - OIDC auth validates issuer and audience and can require scopes and roles. The service discovers JWKS from the issuer unless `API_OIDC_JWKS_URL` is set explicitly.
-- The UI receives its runtime auth and API base URL settings from `/config.js`.
-- Browser OIDC requires an explicit absolute `UI_OIDC_REDIRECT_URI`; deployed environments should use `https://.../auth/callback`.
+- The UI receives its runtime auth and API base URL settings from `/config.js`, including the derived `oidcPostLogoutRedirectUri`.
+- Browser OIDC requires an explicit absolute `UI_OIDC_REDIRECT_URI`; deployed environments should use `https://.../auth/callback`, and the control plane derives `https://.../auth/logout-complete` from that callback origin for sign-out completion.
+- `GET /api/auth/session` returns a no-store auth session summary after the same bearer-token validation path used by other authenticated APIs; `401` and `403` still come from the shared auth validator.
 - Local development can fall back to anonymous access only when no auth providers are configured and the runtime is local. Deployed environments do not allow anonymous auth.
 
 ## Secrets and Identities
