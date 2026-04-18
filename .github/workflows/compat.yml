@@ -180,25 +180,23 @@ jobs:
           from pathlib import Path
 
           version = os.environ["CONTRACTS_VERSION"]
-          replacements = {
-              Path("asset-allocation-control-plane/pyproject.toml"): r'asset-allocation-contracts==[^"]+',
-              Path("asset-allocation-control-plane/requirements.txt"): r"asset-allocation-contracts==[^\r\n]+",
-              Path("asset-allocation-control-plane/requirements.lock.txt"): r"asset-allocation-contracts==[^\r\n]+",
-          }
-
-          for path, pattern in replacements.items():
-              text = path.read_text(encoding="utf-8")
-              updated, count = re.subn(
-                  pattern,
-                  f"asset-allocation-contracts=={version}",
-                  text,
-                  count=1,
-              )
-              if count != 1:
-                  raise SystemExit(f"Expected exactly one asset-allocation-contracts dependency in {path}.")
-              path.write_text(updated, encoding="utf-8")
+          path = Path("asset-allocation-control-plane/pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          updated, count = re.subn(
+              r'asset-allocation-contracts==[^"]+',
+              f"asset-allocation-contracts=={version}",
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f"Expected exactly one asset-allocation-contracts dependency in {path}.")
+          path.write_text(updated, encoding="utf-8")
           PY
-          python -m pytest asset-allocation-control-plane/tests/test_multirepo_dependency_contract.py -q
+          (
+            cd asset-allocation-control-plane
+            python scripts/repo/dependency_governance.py sync
+            python -m pytest tests/test_multirepo_dependency_contract.py tests/tools/test_python_runtime_dependency_manifests.py -q
+          )
 
       - name: Commit pinned contracts version
         if: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.contracts_version != '' }}

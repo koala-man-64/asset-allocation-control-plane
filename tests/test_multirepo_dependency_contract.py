@@ -28,10 +28,12 @@ def test_python_dependency_manifests_stay_in_sync() -> None:
     shared = shared_dependencies()
     requirements = (repo_root() / "requirements.txt").read_text(encoding="utf-8")
     lockfile = (repo_root() / "requirements.lock.txt").read_text(encoding="utf-8")
-    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in requirements
-    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in lockfile
-    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in requirements
-    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in lockfile
+    assert shared["asset-allocation-contracts"]
+    assert shared["asset-allocation-runtime-common"]
+    assert "asset-allocation-contracts==" not in requirements
+    assert "asset-allocation-contracts==" not in lockfile
+    assert "asset-allocation-runtime-common==" not in requirements
+    assert "asset-allocation-runtime-common==" not in lockfile
 
 
 def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
@@ -61,6 +63,7 @@ def test_contracts_release_dispatch_pins_current_manifest() -> None:
     assert "DISPATCH_CONTRACTS_VERSION" in compat
     assert "Pin released contracts version" in compat
     assert "client_payload.contracts_version" in compat
+    assert "scripts/repo/dependency_governance.py sync" in compat
     assert "git push origin HEAD:${{ steps.target.outputs.current_repo_ref }}" in compat
 
 
