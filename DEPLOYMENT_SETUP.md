@@ -28,10 +28,9 @@ Use only these workflow entry points:
 
 1. `.github/workflows/ci.yml`
 2. `.github/workflows/security.yml`
-3. `.github/workflows/compat.yml`
-4. `.github/workflows/release.yml`
-5. `.github/workflows/deploy-prod.yml`
-6. `.github/workflows/infra-shared-prod.yml`
+3. `.github/workflows/release.yml`
+4. `.github/workflows/deploy-prod.yml`
+5. `.github/workflows/infra-shared-prod.yml`
 
 `deploy-prod.yml` deploys only `asset-allocation-api`.
 
@@ -39,7 +38,6 @@ Use only these workflow entry points:
 
 ## Operate
 
-- Run `compat.yml` when `contracts_released` or `runtime_common_released` is dispatched, or validate a candidate shared package ref manually with `dependency=contracts|runtime-common` and `ref=<sha-or-branch>`.
 - Use `release.yml` to fail fast on missing GitHub release configuration, unpublished shared-package versions, or missing Azure release RBAC before it exports contracts or builds the image.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
 - Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, and the `/openapi.json` redirect path.
@@ -142,7 +140,7 @@ GitHub variables:
 
 ## Dependencies
 
-- Sibling contracts repo for CI, compatibility checks, and release builds
+- Published shared packages from the contracts and runtime-common repos
 - Azure OIDC credentials in GitHub variables
 - `prod` GitHub environment for deploy and infra workflows
 - Shared runtime resources in `AssetAllocationRG`

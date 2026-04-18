@@ -12,7 +12,6 @@ def test_control_plane_has_only_current_runtime_workflows() -> None:
     workflow_dir = repo_root() / ".github" / "workflows"
     expected = {
         "ci.yml",
-        "compat.yml",
         "deploy-prod.yml",
         "infra-shared-prod.yml",
         "release.yml",

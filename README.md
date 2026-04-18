@@ -8,7 +8,7 @@ Runtime-owned control-plane repository for:
 Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
-python -m pip install asset-allocation-contracts==1.2.0
+python -m pip install asset-allocation-contracts==2.0.0
 python -m pip install asset-allocation-runtime-common==2.0.1
 python -m pytest tests/api tests/monitoring -q
 ```
@@ -25,7 +25,6 @@ Canonical workflows live under `.github/workflows/`.
 
 - `ci.yml` is the required validation path for PRs and `main`.
 - `security.yml` runs scheduled or manual dependency audits and uploads SARIF for runtime dependency findings.
-- `compat.yml` is the only workflow allowed to validate candidate `asset-allocation-contracts` or `asset-allocation-runtime-common` refs.
 - `release.yml` builds the API image, exports contract artifacts, writes `release-manifest.json`, and dispatches `control_plane_released` to jobs.
 - `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`; manual runs auto-resolve the latest released ACR image, while `deploy_runtime` repository dispatch remains the explicit-digest path for automation and rollback.
 - `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure runtime substrate.
