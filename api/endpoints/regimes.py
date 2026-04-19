@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field
 
 from api.endpoints.backtests import _actor_from_request, _trigger_backtest_job
 from api.service.dependencies import validate_auth
-from asset_allocation_runtime_common.domain.regime import DEFAULT_REGIME_MODEL_NAME, RegimeModelConfig
+from asset_allocation_runtime_common.domain.regime import (
+    DEFAULT_REGIME_MODEL_NAME,
+    RegimeModelConfig,
+    canonical_default_regime_config_errors,
+)
 from core.regime_repository import RegimeRepository
 
 router = APIRouter()
@@ -44,6 +48,36 @@ def _trigger_regime_job_if_configured() -> dict[str, Any] | None:
         return _trigger_backtest_job(job_name)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"Failed to trigger regime job: {exc}") from exc
+
+
+def _validate_regime_config(*, model_name: str, config: dict[str, Any]) -> dict[str, Any]:
+    validated = RegimeModelConfig.model_validate(config or {})
+    if model_name != DEFAULT_REGIME_MODEL_NAME:
+        return validated.model_dump(mode="json")
+
+    errors = canonical_default_regime_config_errors(validated)
+    if errors:
+        raise HTTPException(
+            status_code=422,
+            detail="default-regime must use canonical v2 semantics: " + "; ".join(errors),
+        )
+    return validated.model_dump(mode="json")
+
+
+def _require_activatable_regime_revision(*, model_name: str, revision: dict[str, Any] | None) -> None:
+    if revision is None:
+        raise HTTPException(status_code=404, detail=f"Regime model revision not found for '{model_name}'.")
+    if model_name != DEFAULT_REGIME_MODEL_NAME:
+        return
+
+    validated = RegimeModelConfig.model_validate(revision.get("config") or {})
+    errors = canonical_default_regime_config_errors(validated)
+    if errors:
+        raise HTTPException(
+            status_code=409,
+            detail="default-regime revision cannot be activated because it does not use canonical v2 semantics: "
+            + "; ".join(errors),
+        )
 
 
 @router.get("/current")
@@ -112,9 +146,10 @@ async def get_regime_model_detail(model_name: str, request: Request) -> dict[str
 async def create_regime_model(payload: CreateRegimeModelRequest, request: Request) -> dict[str, Any]:
     validate_auth(request)
     repo = RegimeRepository(_require_postgres_dsn(request))
-    validated = RegimeModelConfig.model_validate(payload.config or {}).model_dump(mode="json")
+    model_name = payload.name.strip()
+    validated = _validate_regime_config(model_name=model_name, config=payload.config or {})
     created = repo.save_regime_model(
-        name=payload.name.strip(),
+        name=model_name,
         description=payload.description.strip(),
         config=validated,
     )
@@ -132,6 +167,8 @@ async def activate_regime_model(
 ) -> dict[str, Any]:
     validate_auth(request)
     repo = RegimeRepository(_require_postgres_dsn(request))
+    resolved_revision = repo.get_regime_model_revision(model_name, version=payload.version)
+    _require_activatable_regime_revision(model_name=model_name, revision=resolved_revision)
     activated = repo.activate_regime_model(
         name=model_name,
         version=payload.version,
