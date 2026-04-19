@@ -1,0 +1,4 @@
+interface:
+  display_name: "Strict Branch and Merge Discipline"
+  short_description: "Safe branch isolation and merge discipline"
+  default_prompt: "Use $strict-branch-and-merge-discipline to set up a safe task branch and worktree before editing code in this repository."

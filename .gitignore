@@ -73,3 +73,6 @@ audit_snapshot*.json
 .pytest_blob_store/
 .direnv/
 .envrc
+
+.codex/worktrees/**
+**/*worktrees*/**

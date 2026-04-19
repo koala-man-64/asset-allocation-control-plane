@@ -72,6 +72,8 @@ An agent is a repo-local instruction set stored in a `SKILL.md` file. The follow
 - technical-writer-dev-advocate: Turn engineering work into clear, accurate, usable documentation and developer enablement assets with evidence-backed traceability. Use when creating or updating docs from source code, specs, and tests, auditing docs for correctness and gaps, or preparing PR-ready docs changes that reduce support load and speed time-to-first-success. (file: /mnt/c/Users/rdpro/Projects/AssetAllocation/.codex/skills/technical-writer-dev-advocate/SKILL.md)
 - ui-testing-expert: Senior UI QA lead for web and mobile product changes. Use when reviewing UI PRs or diffs, creating risk-based UI test plans, designing exploratory charters, triaging UI bugs or flaky tests, or improving automation, accessibility, and cross-browser or device coverage without building brittle suites. (file: /mnt/c/Users/rdpro/Projects/AssetAllocation/.codex/skills/ui-testing-expert/SKILL.md)
 
+- strict-branch-and-merge-discipline: Mandatory git safety workflow for any task that changes code in one or more repositories. Use before editing files, creating branches or worktrees, committing, rebasing, pushing, syncing with base, opening PRs, or coordinating multi-repo changes when branch isolation, collision avoidance, ownership boundaries, and safe merge discipline matter. (file: /mnt/c/Users/rdpro/Projects/asset-allocation-control-plane/.codex/skills/strict-branch-and-merge-discipline/SKILL.md)
+
 ## How to Use Agents
 
 - Discovery: the list above is the authoritative repo-local agent inventory for this session. Agent bodies live on disk at the listed paths.

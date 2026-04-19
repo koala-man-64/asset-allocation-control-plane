@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gateway Agent"
+  short_description: "Coordinate agents via a shared project ledger"
+  default_prompt: "Use $gateway-agent to coordinate worker claims, heartbeats, blockers, handoffs, and completion through an append-only project ledger."
