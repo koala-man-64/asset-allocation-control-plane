@@ -19,6 +19,7 @@ from api.endpoints import (
     alpha_vantage,
     backtests,
     data,
+    etrade,
     internal,
     massive,
     portfolio_internal,
@@ -34,6 +35,7 @@ from api.endpoints import (
 from api.service.auth import AuthManager
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
 from api.service.dependencies import validate_auth
+from api.service.etrade_gateway import ETradeGateway
 from api.service.log_streaming import LogStreamManager
 from api.service.openapi_schema import stabilize_openapi_schema
 from api.service.massive_gateway import MassiveGateway
@@ -177,6 +179,8 @@ def create_app() -> FastAPI:
             app.state.alpha_vantage_gateway = AlphaVantageGateway()
         if not hasattr(app.state, "massive_gateway"):
             app.state.massive_gateway = MassiveGateway()
+        if not hasattr(app.state, "etrade_gateway"):
+            app.state.etrade_gateway = ETradeGateway(settings.etrade)
         if not hasattr(app.state, "ai_relay_gateway"):
             app.state.ai_relay_gateway = OpenAIResponsesGateway(settings.ai_relay)
         if not hasattr(app.state, "log_stream_manager"):
@@ -316,6 +320,11 @@ def create_app() -> FastAPI:
 
         try:
             app.state.massive_gateway.close()
+        except Exception:
+            pass
+
+        try:
+            app.state.etrade_gateway.close()
         except Exception:
             pass
 
@@ -478,6 +487,11 @@ def create_app() -> FastAPI:
             massive.router,
             prefix=f"{api_prefix}/providers/massive",
             tags=["Massive"],
+        )
+        app.include_router(
+            etrade.router,
+            prefix=f"{api_prefix}/providers/etrade",
+            tags=["ETrade"],
         )
 
     @app.get("/healthz")

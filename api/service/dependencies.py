@@ -4,6 +4,7 @@ from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
 
 from api.service.auth import AuthContext, AuthManager
+from api.service.etrade_gateway import ETradeGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.settings import ServiceSettings
@@ -22,6 +23,10 @@ def get_auth_manager(request: Request) -> AuthManager:
 
 def get_ai_relay_gateway(request: Request) -> OpenAIResponsesGateway:
     return request.app.state.ai_relay_gateway
+
+
+def get_etrade_gateway(request: Request) -> ETradeGateway:
+    return request.app.state.etrade_gateway
 
 
 def get_system_health_cache(request: Request) -> TtlCache[Dict[str, Any]]:
@@ -73,23 +78,66 @@ def _claim_roles(claims: dict[str, Any]) -> set[str]:
     return {str(role).strip() for role in raw_roles if str(role).strip()}
 
 
-def require_ai_relay_access(request: Request) -> AuthContext:
-    auth_context = validate_auth(request)
-    if auth_context.mode == "anonymous":
-        return auth_context
+def _require_roles(
+    *,
+    auth_context: AuthContext,
+    required_roles: set[str],
+    request: Request,
+    failure_prefix: str,
+) -> None:
+    if auth_context.mode == "anonymous" or not required_roles:
+        return
 
-    settings = get_settings(request)
-    required_roles = set(settings.ai_relay.required_roles)
     granted_roles = _claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {})
     missing = sorted(role for role in required_roles if role not in granted_roles)
     if missing:
         logger.warning(
-            "AI relay authz failed: subject=%s missing_roles=%s path=%s",
+            "%s authz failed: subject=%s missing_roles=%s path=%s",
+            failure_prefix,
             auth_context.subject or "-",
             missing,
             request.url.path,
         )
         raise HTTPException(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
+
+
+def require_ai_relay_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request)
+    _require_roles(
+        auth_context=auth_context,
+        required_roles=set(settings.ai_relay.required_roles),
+        request=request,
+        failure_prefix="AI relay",
+    )
+    return auth_context
+
+
+def require_etrade_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).etrade
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="E*TRADE integration is disabled.")
+    _require_roles(
+        auth_context=auth_context,
+        required_roles=set(settings.required_roles),
+        request=request,
+        failure_prefix="E*TRADE",
+    )
+    return auth_context
+
+
+def require_etrade_trade_access(request: Request) -> AuthContext:
+    auth_context = require_etrade_access(request)
+    settings = get_settings(request).etrade
+    if not settings.trading_enabled:
+        raise HTTPException(status_code=503, detail="E*TRADE trading is disabled.")
+    _require_roles(
+        auth_context=auth_context,
+        required_roles=set(settings.trading_required_roles),
+        request=request,
+        failure_prefix="E*TRADE trading",
+    )
     return auth_context
 
 
