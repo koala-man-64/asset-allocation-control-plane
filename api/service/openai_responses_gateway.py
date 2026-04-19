@@ -111,6 +111,30 @@ def _coerce_text(value: Any) -> str:
     return str(value)
 
 
+def _coerce_output_text(response: Any) -> str:
+    direct = _coerce_text(_safe_attr(response, "output_text"))
+    if direct:
+        return direct
+
+    output_items = _safe_attr(response, "output")
+    if not isinstance(output_items, list):
+        return ""
+
+    chunks: list[str] = []
+    for item in output_items:
+        content_items = _safe_attr(item, "content")
+        if not isinstance(content_items, list):
+            continue
+        for content in content_items:
+            content_type = _coerce_text(_safe_attr(content, "type")).strip().lower()
+            if content_type not in {"output_text", "text"}:
+                continue
+            text = _coerce_text(_safe_attr(content, "text"))
+            if text:
+                chunks.append(text)
+    return "".join(chunks)
+
+
 class OpenAIResponsesGateway:
     def __init__(self, settings: AiRelaySettings):
         self._settings = settings
@@ -167,15 +191,17 @@ class OpenAIResponsesGateway:
         auth_context: AuthContext,
         chat_request: AiChatRequest,
         attachments: Sequence[AiRelayAttachment],
+        model_override: str | None = None,
+        stream: bool = True,
     ) -> dict[str, Any]:
         input_items = self.build_input_items(chat_request, attachments)
         payload: dict[str, Any] = {
-            "model": self._settings.model,
+            "model": str(model_override or self._settings.model),
             "instructions": _SERVICE_INSTRUCTIONS,
             "input": input_items,
             "max_output_tokens": self._settings.max_output_tokens,
             "store": False,
-            "stream": True,
+            "stream": bool(stream),
             "reasoning": {
                 "effort": self._settings.reasoning_effort,
                 "summary": "auto",
@@ -184,16 +210,8 @@ class OpenAIResponsesGateway:
         }
         return payload
 
-    async def stream_response(
-        self,
-        *,
-        request_id: str,
-        auth_context: AuthContext,
-        chat_request: AiChatRequest,
-        attachments: Sequence[AiRelayAttachment],
-    ) -> AsyncIterator[AiChatStreamEvent]:
-        self.assert_ready()
-
+    @staticmethod
+    def _load_openai_sdk() -> tuple[type[Any], type[Exception], type[Exception], type[Exception], type[Exception]]:
         try:
             from openai import (  # type: ignore[import-not-found]
                 APIConnectionError,
@@ -209,6 +227,19 @@ class OpenAIResponsesGateway:
                 message="AI relay SDK is not installed.",
                 retryable=False,
             ) from exc
+        return AsyncOpenAI, APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
+
+    async def generate_text_response(
+        self,
+        *,
+        request_id: str,
+        auth_context: AuthContext,
+        chat_request: AiChatRequest,
+        attachments: Sequence[AiRelayAttachment],
+        model_override: str | None = None,
+    ) -> str:
+        self.assert_ready()
+        AsyncOpenAI, APIConnectionError, APIStatusError, APITimeoutError, RateLimitError = self._load_openai_sdk()
 
         client = AsyncOpenAI(
             api_key=self._settings.api_key,
@@ -219,6 +250,84 @@ class OpenAIResponsesGateway:
             auth_context=auth_context,
             chat_request=chat_request,
             attachments=attachments,
+            model_override=model_override,
+            stream=False,
+        )
+
+        try:
+            response = await client.responses.create(**payload)
+            return _coerce_output_text(response)
+        except RateLimitError as exc:  # pragma: no cover - integration behavior.
+            raise AiRelayGatewayError(
+                status_code=429,
+                code="upstream_rate_limited",
+                message="The upstream model provider rate-limited the request.",
+                retryable=True,
+            ) from exc
+        except APITimeoutError as exc:  # pragma: no cover - integration behavior.
+            raise AiRelayGatewayError(
+                status_code=504,
+                code="upstream_timeout",
+                message="The upstream model provider timed out.",
+                retryable=True,
+            ) from exc
+        except APIConnectionError as exc:  # pragma: no cover - integration behavior.
+            raise AiRelayGatewayError(
+                status_code=503,
+                code="upstream_connection_error",
+                message="The upstream model provider could not be reached.",
+                retryable=True,
+            ) from exc
+        except APIStatusError as exc:  # pragma: no cover - integration behavior.
+            if getattr(exc, "status_code", None) == 429:
+                raise AiRelayGatewayError(
+                    status_code=429,
+                    code="upstream_rate_limited",
+                    message="The upstream model provider rate-limited the request.",
+                    retryable=True,
+                ) from exc
+            raise AiRelayGatewayError(
+                status_code=502,
+                code="upstream_status_error",
+                message="The upstream model provider returned an unexpected error.",
+                retryable=False,
+            ) from exc
+        except AiRelayGatewayError:
+            raise
+        except Exception as exc:  # pragma: no cover - integration behavior.
+            raise AiRelayGatewayError(
+                status_code=502,
+                code="upstream_unexpected_error",
+                message="The upstream model provider returned an unexpected error.",
+                retryable=False,
+            ) from exc
+        finally:
+            if hasattr(client, "close"):
+                maybe_client_close = client.close()
+                if hasattr(maybe_client_close, "__await__"):
+                    await maybe_client_close
+
+    async def stream_response(
+        self,
+        *,
+        request_id: str,
+        auth_context: AuthContext,
+        chat_request: AiChatRequest,
+        attachments: Sequence[AiRelayAttachment],
+    ) -> AsyncIterator[AiChatStreamEvent]:
+        self.assert_ready()
+        AsyncOpenAI, APIConnectionError, APIStatusError, APITimeoutError, RateLimitError = self._load_openai_sdk()
+
+        client = AsyncOpenAI(
+            api_key=self._settings.api_key,
+            timeout=self._settings.timeout_seconds,
+        )
+        payload = self._build_request_payload(
+            request_id=request_id,
+            auth_context=auth_context,
+            chat_request=chat_request,
+            attachments=attachments,
+            stream=True,
         )
 
         sequence_number = 0
