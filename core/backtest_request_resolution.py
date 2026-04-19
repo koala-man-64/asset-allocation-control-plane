@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from asset_allocation_contracts.backtest import StrategyReferenceInput
 from asset_allocation_runtime_common import BACKTEST_RESULTS_SCHEMA_VERSION
 from pydantic import BaseModel
+from api.service.backtest_contracts_compat import StrategyReferenceInput
 
 from core.backtest_runtime import (
     ResolvedBacktestDefinition,

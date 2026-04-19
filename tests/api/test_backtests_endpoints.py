@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 import pytest
-from asset_allocation_contracts.backtest import StrategyReferenceInput
 from psycopg import OperationalError
 
 from api.endpoints import backtests as backtest_endpoints
+from api.service.backtest_contracts_compat import StrategyReferenceInput
 from api.service.app import create_app
 from core.backtest_request_resolution import ResolvedBacktestRequest
 from core.backtest_repository import BacktestRepository

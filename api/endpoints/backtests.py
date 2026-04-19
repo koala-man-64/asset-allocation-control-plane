@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from asset_allocation_contracts.backtest import (
+from api.service.backtest_contracts_compat import (
     BacktestLookupRequest,
     BacktestLookupResponse,
     BacktestResultLinks,
