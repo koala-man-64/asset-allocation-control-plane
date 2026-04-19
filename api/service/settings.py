@@ -80,14 +80,18 @@ def _is_local_runtime() -> bool:
     return not any((os.environ.get(key) or "").strip() for key in _LOCAL_RUNTIME_MARKER_ENV_VARS)
 
 
-def _validate_ui_redirect_uri(value: str) -> str:
+def _validate_absolute_http_url(value: str, *, env_name: str) -> str:
     parsed = urlparse(value)
     host = (parsed.hostname or "").strip().lower()
     if parsed.scheme not in {"http", "https"} or not host:
-        raise ValueError("UI_OIDC_REDIRECT_URI must be an absolute http(s) URL.")
+        raise ValueError(f"{env_name} must be an absolute http(s) URL.")
     if parsed.scheme != "https" and host not in {"localhost", "127.0.0.1"}:
-        raise ValueError("UI_OIDC_REDIRECT_URI must use https unless targeting localhost.")
+        raise ValueError(f"{env_name} must use https unless targeting localhost.")
     return value
+
+
+def _validate_ui_redirect_uri(value: str) -> str:
+    return _validate_absolute_http_url(value, env_name="UI_OIDC_REDIRECT_URI")
 
 
 def _derive_ui_post_logout_redirect_uri(redirect_uri: str | None) -> str | None:
@@ -207,6 +211,90 @@ class SymbolEnrichmentSettings:
 
 
 @dataclass(frozen=True)
+class ETradeSettings:
+    enabled: bool = False
+    trading_enabled: bool = False
+    callback_url: Optional[str] = None
+    timeout_seconds: float = 15.0
+    read_retry_attempts: int = 2
+    read_retry_base_delay_seconds: float = 1.0
+    pending_auth_ttl_seconds: int = 300
+    preview_ttl_seconds: int = 180
+    idle_renew_seconds: int = 7200
+    session_expiry_guard_seconds: int = 300
+    required_roles: list[str] = field(default_factory=list)
+    trading_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.ETrade.Trade"])
+    sandbox_consumer_key: Optional[str] = None
+    sandbox_consumer_secret: Optional[str] = None
+    live_consumer_key: Optional[str] = None
+    live_consumer_secret: Optional[str] = None
+
+    @staticmethod
+    def from_env() -> "ETradeSettings":
+        callback_url = _get_optional_str("ETRADE_CALLBACK_URL")
+        if callback_url:
+            callback_url = _validate_absolute_http_url(callback_url, env_name="ETRADE_CALLBACK_URL")
+
+        settings = ETradeSettings(
+            enabled=_get_optional_bool("ETRADE_ENABLED", default=False),
+            trading_enabled=_get_optional_bool("ETRADE_TRADING_ENABLED", default=False),
+            callback_url=callback_url,
+            timeout_seconds=_get_optional_float(
+                "ETRADE_TIMEOUT_SECONDS",
+                default=15.0,
+                minimum=1.0,
+                maximum=300.0,
+            ),
+            read_retry_attempts=_get_optional_int(
+                "ETRADE_READ_RETRY_ATTEMPTS",
+                default=2,
+                minimum=1,
+                maximum=5,
+            ),
+            read_retry_base_delay_seconds=_get_optional_float(
+                "ETRADE_READ_RETRY_BASE_DELAY_SECONDS",
+                default=1.0,
+                minimum=0.0,
+                maximum=30.0,
+            ),
+            pending_auth_ttl_seconds=_get_optional_int(
+                "ETRADE_PENDING_AUTH_TTL_SECONDS",
+                default=300,
+                minimum=60,
+                maximum=900,
+            ),
+            preview_ttl_seconds=_get_optional_int(
+                "ETRADE_PREVIEW_TTL_SECONDS",
+                default=180,
+                minimum=60,
+                maximum=300,
+            ),
+            idle_renew_seconds=_get_optional_int(
+                "ETRADE_IDLE_RENEW_SECONDS",
+                default=7200,
+                minimum=3600,
+                maximum=7200,
+            ),
+            session_expiry_guard_seconds=_get_optional_int(
+                "ETRADE_SESSION_EXPIRY_GUARD_SECONDS",
+                default=300,
+                minimum=60,
+                maximum=3600,
+            ),
+            required_roles=_split_csv(_get_optional_str("ETRADE_REQUIRED_ROLES")),
+            trading_required_roles=_split_csv(_get_optional_str("ETRADE_TRADING_REQUIRED_ROLES"))
+            or ["AssetAllocation.ETrade.Trade"],
+            sandbox_consumer_key=_get_optional_str("ETRADE_SANDBOX_CONSUMER_KEY"),
+            sandbox_consumer_secret=_get_optional_str("ETRADE_SANDBOX_CONSUMER_SECRET"),
+            live_consumer_key=_get_optional_str("ETRADE_LIVE_CONSUMER_KEY"),
+            live_consumer_secret=_get_optional_str("ETRADE_LIVE_CONSUMER_SECRET"),
+        )
+        if settings.trading_enabled and not settings.enabled:
+            raise ValueError("ETRADE_TRADING_ENABLED requires ETRADE_ENABLED=true.")
+        return settings
+
+
+@dataclass(frozen=True)
 class IntradayMonitorSettings:
     enabled: bool = False
     allowed_jobs: list[str] = field(default_factory=list)
@@ -239,6 +327,7 @@ class ServiceSettings:
     browser_oidc_enabled: bool
     ui_oidc_config: dict[str, Any]
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
+    etrade: ETradeSettings = field(default_factory=ETradeSettings)
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
 
@@ -298,6 +387,7 @@ class ServiceSettings:
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
+        etrade = ETradeSettings.from_env()
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
         ui_oidc_config = {
@@ -321,6 +411,7 @@ class ServiceSettings:
             browser_oidc_enabled=browser_oidc_enabled,
             ui_oidc_config=ui_oidc_config,
             ai_relay=ai_relay,
+            etrade=etrade,
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
         )

@@ -73,3 +73,50 @@ def test_symbol_enrichment_settings_parse_from_env(monkeypatch: pytest.MonkeyPat
         "symbol-cleanup-job",
         "symbol-cleanup-backfill-job",
     ]
+
+
+def test_etrade_trading_requires_etrade_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ETRADE_TRADING_ENABLED", "true")
+    monkeypatch.delenv("ETRADE_ENABLED", raising=False)
+
+    with pytest.raises(ValueError, match="ETRADE_TRADING_ENABLED requires ETRADE_ENABLED=true."):
+        ServiceSettings.from_env()
+
+
+def test_etrade_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ETRADE_ENABLED", "true")
+    monkeypatch.setenv("ETRADE_TRADING_ENABLED", "true")
+    monkeypatch.setenv("ETRADE_CALLBACK_URL", "http://localhost:8000/api/providers/etrade/connect/callback")
+    monkeypatch.setenv("ETRADE_TIMEOUT_SECONDS", "20")
+    monkeypatch.setenv("ETRADE_READ_RETRY_ATTEMPTS", "3")
+    monkeypatch.setenv("ETRADE_READ_RETRY_BASE_DELAY_SECONDS", "1.5")
+    monkeypatch.setenv("ETRADE_PENDING_AUTH_TTL_SECONDS", "300")
+    monkeypatch.setenv("ETRADE_PREVIEW_TTL_SECONDS", "180")
+    monkeypatch.setenv("ETRADE_IDLE_RENEW_SECONDS", "7200")
+    monkeypatch.setenv("ETRADE_SESSION_EXPIRY_GUARD_SECONDS", "420")
+    monkeypatch.setenv("ETRADE_REQUIRED_ROLES", "AssetAllocation.ETrade.Read")
+    monkeypatch.setenv("ETRADE_TRADING_REQUIRED_ROLES", "AssetAllocation.ETrade.Trade,AssetAllocation.Admin")
+    monkeypatch.setenv("ETRADE_SANDBOX_CONSUMER_KEY", "sandbox-key")
+    monkeypatch.setenv("ETRADE_SANDBOX_CONSUMER_SECRET", "sandbox-secret")
+    monkeypatch.setenv("ETRADE_LIVE_CONSUMER_KEY", "live-key")
+    monkeypatch.setenv("ETRADE_LIVE_CONSUMER_SECRET", "live-secret")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.etrade.enabled is True
+    assert settings.etrade.trading_enabled is True
+    assert settings.etrade.callback_url == "http://localhost:8000/api/providers/etrade/connect/callback"
+    assert settings.etrade.timeout_seconds == pytest.approx(20.0)
+    assert settings.etrade.read_retry_attempts == 3
+    assert settings.etrade.read_retry_base_delay_seconds == pytest.approx(1.5)
+    assert settings.etrade.pending_auth_ttl_seconds == 300
+    assert settings.etrade.preview_ttl_seconds == 180
+    assert settings.etrade.idle_renew_seconds == 7200
+    assert settings.etrade.session_expiry_guard_seconds == 420
+    assert settings.etrade.required_roles == ["AssetAllocation.ETrade.Read"]
+    assert settings.etrade.trading_required_roles == [
+        "AssetAllocation.ETrade.Trade",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.etrade.sandbox_consumer_key == "sandbox-key"
+    assert settings.etrade.live_consumer_secret == "live-secret"

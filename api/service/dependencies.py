@@ -4,6 +4,7 @@ from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
 
 from api.service.auth import AuthContext, AuthManager
+from api.service.etrade_gateway import ETradeGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.settings import ServiceSettings
@@ -22,6 +23,10 @@ def get_auth_manager(request: Request) -> AuthManager:
 
 def get_ai_relay_gateway(request: Request) -> OpenAIResponsesGateway:
     return request.app.state.ai_relay_gateway
+
+
+def get_etrade_gateway(request: Request) -> ETradeGateway:
+    return request.app.state.etrade_gateway
 
 
 def get_system_health_cache(request: Request) -> TtlCache[Dict[str, Any]]:
@@ -106,6 +111,36 @@ def require_ai_relay_access(request: Request) -> AuthContext:
         auth_context=auth_context,
         required_roles=settings.ai_relay.required_roles,
         log_prefix="AI relay",
+    )
+    return auth_context
+
+
+def require_etrade_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).etrade
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="E*TRADE integration is disabled.")
+
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="E*TRADE",
+    )
+    return auth_context
+
+
+def require_etrade_trade_access(request: Request) -> AuthContext:
+    auth_context = require_etrade_access(request)
+    settings = get_settings(request).etrade
+    if not settings.trading_enabled:
+        raise HTTPException(status_code=503, detail="E*TRADE trading is disabled.")
+
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.trading_required_roles,
+        log_prefix="E*TRADE trade",
     )
     return auth_context
 
