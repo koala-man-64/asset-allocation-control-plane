@@ -143,7 +143,9 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
     assert "API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api_public.yaml' }}" in text
     assert "ACA_NETWORK_SMOKE_JOB_NAME: ${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}" in text
-    assert 'manifest_path = Path(os.environ["API_DEPLOY_MANIFEST"])' in text
+    assert "python scripts/automation/render_control_plane_manifest.py \\" in text
+    assert '--template "${API_DEPLOY_MANIFEST}" \\' in text
+    assert "--output rendered-control-plane.yaml" in text
     assert 'expect_status 401 "https://${fqdn}/config.js"' in text
     assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
     assert 'expect_status 401 "https://${fqdn}/api/docs"' in text
@@ -160,7 +162,8 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
 def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
     assert "AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}" in text
-    assert 'template = template.replace("${" + key + "}", value)' in text
+    assert "CONTAINER_APPS_ENVIRONMENT_ID: ${{ steps.azure.outputs.environment_id }}" in text
+    assert "ACR_PULL_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.identity_client_id }}" in text
 
 
 def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> None:

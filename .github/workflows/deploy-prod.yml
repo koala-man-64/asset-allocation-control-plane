@@ -191,18 +191,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          import os
-
-          manifest_path = Path(os.environ["API_DEPLOY_MANIFEST"])
-          if not manifest_path.exists():
-              raise SystemExit(f"API deploy manifest not found: {manifest_path}")
-          template = manifest_path.read_text(encoding="utf-8")
-          for key, value in os.environ.items():
-              template = template.replace("${" + key + "}", value)
-          Path("rendered-control-plane.yaml").write_text(template, encoding="utf-8")
-          PY
+          python scripts/automation/render_control_plane_manifest.py \
+            --template "${API_DEPLOY_MANIFEST}" \
+            --output rendered-control-plane.yaml
 
       - name: Apply control-plane app manifest
         shell: bash
