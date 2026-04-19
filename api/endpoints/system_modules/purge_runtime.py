@@ -1090,12 +1090,14 @@ _RULE_DATA_PREFIXES: Dict[str, Dict[str, str]] = {
         "finance": "finance-data/",
         "earnings": "earnings-data/",
         "price-target": "price-target-data/",
+        "government-signals": f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/",
     },
     "gold": {
         "market": "market/",
         "finance": "finance/",
         "earnings": "earnings/",
         "price-target": "targets/",
+        "government-signals": f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/",
     },
 }
 
@@ -1284,18 +1286,21 @@ _DOMAIN_PREFIXES: Dict[str, Dict[str, List[str]]] = {
         "finance": ["finance-data/"],
         "earnings": ["earnings-data/"],
         "price-target": ["price-target-data/"],
+        "government-signals": [f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/runs/"],
     },
     "silver": {
         "market": ["market-data/"],
         "finance": ["finance-data/"],
         "earnings": ["earnings-data/"],
         "price-target": ["price-target-data/"],
+        "government-signals": [f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/"],
     },
     "gold": {
         "market": ["market/"],
         "finance": ["finance/"],
         "earnings": ["earnings/"],
         "price-target": ["targets/"],
+        "government-signals": [f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/"],
     },
     "platinum": {
         "platinum": ["platinum/"],
@@ -1307,6 +1312,7 @@ _SILVER_JOB_CHECKPOINT_KEYS: Dict[str, Tuple[str, str]] = {
     "finance": ("bronze_finance_data", "silver_finance_data"),
     "earnings": ("bronze_earnings_data", "silver_earnings_data"),
     "price-target": ("bronze_price_target_data", "silver_price_target_data"),
+    "government-signals": ("bronze_government_signal_data", "silver_government_signal_data"),
 }
 
 _GOLD_JOB_WATERMARK_KEYS: Dict[str, str] = {
@@ -1314,6 +1320,7 @@ _GOLD_JOB_WATERMARK_KEYS: Dict[str, str] = {
     "finance": "gold_finance_features",
     "earnings": "gold_earnings_features",
     "price-target": "gold_price_target_features",
+    "government-signals": "gold_government_signals",
 }
 
 

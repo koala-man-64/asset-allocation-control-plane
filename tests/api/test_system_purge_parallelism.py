@@ -154,6 +154,8 @@ def test_build_silver_checkpoint_reset_targets_for_layer_scope_includes_all_silv
         "system/watermarks/runs/silver_earnings_data.json",
         "system/watermarks/bronze_price_target_data.json",
         "system/watermarks/runs/silver_price_target_data.json",
+        "system/watermarks/bronze_government_signal_data.json",
+        "system/watermarks/runs/silver_government_signal_data.json",
     ]
 
 
@@ -167,6 +169,7 @@ def test_build_gold_checkpoint_reset_targets_for_layer_scope_includes_all_gold_j
         "system/watermarks/gold_finance_features.json",
         "system/watermarks/gold_earnings_features.json",
         "system/watermarks/gold_price_target_features.json",
+        "system/watermarks/gold_government_signals.json",
     ]
 
 
@@ -266,6 +269,7 @@ def test_run_purge_operation_marks_all_layer_metadata_purged(monkeypatch: pytest
         {"layer": "silver", "domain": "finance", "container": "silver-container"},
         {"layer": "silver", "domain": "earnings", "container": "silver-container"},
         {"layer": "silver", "domain": "price-target", "container": "silver-container"},
+        {"layer": "silver", "domain": "government-signals", "container": "silver-container"},
     ]
 
 

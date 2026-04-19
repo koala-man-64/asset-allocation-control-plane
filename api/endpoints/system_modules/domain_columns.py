@@ -27,12 +27,14 @@ _RULE_DATA_PREFIXES: Dict[str, Dict[str, str]] = {
         "finance": "finance-data/",
         "earnings": "earnings-data/",
         "price-target": "price-target-data/",
+        "government-signals": f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/",
     },
     "gold": {
         "market": "market/",
         "finance": "finance/",
         "earnings": "earnings/",
         "price-target": "targets/",
+        "government-signals": f"{str(os.environ.get('AZURE_FOLDER_GOVERNMENT_SIGNALS') or 'government-signals').strip().strip('/')}/",
     },
 }
 _T = TypeVar("_T")
@@ -69,7 +71,7 @@ def _fallback_normalize_layer(value: str) -> Optional[str]:
 
 def _fallback_normalize_domain(value: str) -> Optional[str]:
     normalized = str(value or "").strip().lower()
-    return normalized if normalized in {"market", "finance", "earnings", "price-target"} else None
+    return normalized if normalized in {"market", "finance", "earnings", "price-target", "government-signals"} else None
 
 
 def _fallback_resolve_container(layer: str) -> str:

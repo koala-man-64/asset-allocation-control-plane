@@ -144,12 +144,17 @@ def _delta_table_path(layer: LayerKey, domain: DomainKey) -> Optional[str]:
 def _blob_prefix(layer: LayerKey, domain: DomainKey) -> Optional[str]:
     layer_key = _normalize_key(layer)
     domain_key = _normalize_key(domain)
+    government_signals_slug = str(
+        os.environ.get("AZURE_FOLDER_GOVERNMENT_SIGNALS") or "government-signals"
+    ).strip().strip("/")
 
     if layer_key == "bronze":
         if domain_key in {"market", "finance", "earnings"}:
             return f"{domain_key}-data/"
         if domain_key == "price-target":
             return "price-target-data/"
+        if domain_key == "government-signals":
+            return f"{government_signals_slug}/runs/"
         if domain_key == "platinum":
             return "platinum/"
     if layer_key == "silver":
@@ -157,11 +162,15 @@ def _blob_prefix(layer: LayerKey, domain: DomainKey) -> Optional[str]:
             return f"{domain_key}-data/"
         if domain_key == "price-target":
             return "price-target-data/"
+        if domain_key == "government-signals":
+            return f"{government_signals_slug}/"
     if layer_key == "gold":
         if domain_key in {"market", "finance", "earnings"}:
             return f"{domain_key}/"
         if domain_key == "price-target":
             return "targets/"
+        if domain_key == "government-signals":
+            return f"{government_signals_slug}/"
         if domain_key == "regime":
             return "regime/"
     if layer_key == "platinum":
