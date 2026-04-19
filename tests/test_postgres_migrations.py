@@ -297,6 +297,32 @@ def test_backtest_request_fingerprint_migration_adds_lookup_columns_and_indexes(
     assert "config_fingerprint IS NOT NULL" in text
 
 
+def test_symbol_enrichment_migration_creates_profile_tables_and_current_view() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0039_symbol_enrichment.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.symbol_profiles" in text
+    assert "CREATE TABLE IF NOT EXISTS core.symbol_profile_history" in text
+    assert "CREATE TABLE IF NOT EXISTS core.symbol_profile_overrides" in text
+    assert "CREATE TABLE IF NOT EXISTS core.symbol_cleanup_runs" in text
+    assert "CREATE TABLE IF NOT EXISTS core.symbol_cleanup_work_queue" in text
+    assert "CREATE OR REPLACE VIEW core.symbol_catalog_current AS" in text
+    assert "market_cap_bucket" in text
+    assert "avg_dollar_volume_20d" in text
+    assert "liquidity_bucket" in text
+    assert "is_tradeable_common_equity" in text
+    assert "data_completeness_score" in text
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE core.symbol_profiles TO backtest_service;" in text
+
+
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"

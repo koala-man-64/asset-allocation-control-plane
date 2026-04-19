@@ -1,4 +1,4 @@
 interface:
   display_name: "Software Testing & Validation Architect"
-  short_description: "Audit and strengthen software test confidence"
-  default_prompt: "Use $software-testing-validation-architect to assess this codebase's testing posture, identify meaningful coverage gaps, and recommend the right unit, integration, contract, and E2E improvements."
+  short_description: "Assess release confidence and test risk"
+  default_prompt: "Use $software-testing-validation-architect to assess this application's quality posture, design risk-based tests, and return a Go / Go with conditions / No-go recommendation."
