@@ -681,6 +681,54 @@
     {
       "schema_name": "gold",
       "table_name": "market_data",
+      "column_name": "dividend_amount",
+      "description": "Cash dividend amount aligned to the market row date from the Alpha Vantage adjusted-daily corporate-action overlay.",
+      "calculation_type": "source",
+      "calculation_notes": "Replicated from canonical gold dataset columns during Postgres serving sync after upstream Alpha Vantage corporate-action enrichment.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "split_coefficient",
+      "description": "Split coefficient aligned to the market row date from the Alpha Vantage adjusted-daily corporate-action overlay.",
+      "calculation_type": "source",
+      "calculation_notes": "Replicated from canonical gold dataset columns during Postgres serving sync after upstream Alpha Vantage corporate-action enrichment.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "is_dividend_day",
+      "description": "Binary corporate-action flag set when the market row carries a positive cash dividend amount.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from canonical domain inputs; see DATA.md for lineage context.",
+      "calculation_expression": "dividend_amount > 0",
+      "calculation_dependencies": [
+        "dividend_amount"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "is_split_day",
+      "description": "Binary corporate-action flag set when the market row carries a non-neutral split coefficient.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from canonical domain inputs; see DATA.md for lineage context.",
+      "calculation_expression": "split_coefficient != 1",
+      "calculation_dependencies": [
+        "split_coefficient"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
       "column_name": "return_1d",
       "description": "Rolling return feature over the suffix lookback window.",
       "calculation_type": "derived_python",
