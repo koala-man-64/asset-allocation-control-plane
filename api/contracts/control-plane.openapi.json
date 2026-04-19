@@ -1674,6 +1674,316 @@
         "title": "DomainMetadataSnapshotResponse",
         "type": "object"
       },
+      "ETradeCancelOrderRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "account_key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Account Key",
+            "type": "string"
+          },
+          "environment": {
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "order_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Order Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "environment",
+          "account_key",
+          "order_id"
+        ],
+        "title": "ETradeCancelOrderRequest",
+        "type": "object"
+      },
+      "ETradeConnectCompleteRequest": {
+        "properties": {
+          "environment": {
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "verifier": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Verifier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment",
+          "verifier"
+        ],
+        "title": "ETradeConnectCompleteRequest",
+        "type": "object"
+      },
+      "ETradeConnectStartRequest": {
+        "properties": {
+          "environment": {
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment"
+        ],
+        "title": "ETradeConnectStartRequest",
+        "type": "object"
+      },
+      "ETradeDisconnectRequest": {
+        "properties": {
+          "environment": {
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment"
+        ],
+        "title": "ETradeDisconnectRequest",
+        "type": "object"
+      },
+      "ETradeOptionContractRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "call_put": {
+            "enum": [
+              "CALL",
+              "PUT"
+            ],
+            "title": "Call Put",
+            "type": "string"
+          },
+          "expiry_day": {
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Expiry Day",
+            "type": "integer"
+          },
+          "expiry_month": {
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Expiry Month",
+            "type": "integer"
+          },
+          "expiry_year": {
+            "maximum": 2100.0,
+            "minimum": 2000.0,
+            "title": "Expiry Year",
+            "type": "integer"
+          },
+          "strike_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Strike Price"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "call_put",
+          "expiry_year",
+          "expiry_month",
+          "expiry_day",
+          "strike_price"
+        ],
+        "title": "ETradeOptionContractRequest",
+        "type": "object"
+      },
+      "ETradeOrderPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "account_key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Account Key",
+            "type": "string"
+          },
+          "all_or_none": {
+            "default": false,
+            "title": "All Or None",
+            "type": "boolean"
+          },
+          "asset_type": {
+            "enum": [
+              "equity",
+              "option"
+            ],
+            "title": "Asset Type",
+            "type": "string"
+          },
+          "environment": {
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "limit_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Price"
+          },
+          "option": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ETradeOptionContractRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price_type": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Price Type",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "session": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Session",
+            "type": "string"
+          },
+          "side": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Side",
+            "type": "string"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "term": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Term",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment",
+          "account_key",
+          "asset_type",
+          "side",
+          "quantity",
+          "price_type",
+          "term",
+          "session"
+        ],
+        "title": "ETradeOrderPreviewRequest",
+        "type": "object"
+      },
+      "ETradePlaceOrderRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "preview_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Preview Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment",
+          "preview_id"
+        ],
+        "title": "ETradePlaceOrderRequest",
+        "type": "object"
+      },
       "ExitRule": {
         "additionalProperties": false,
         "properties": {
@@ -14928,6 +15238,1034 @@
         "summary": "Get Daily Time Series",
         "tags": [
           "AlphaVantage"
+        ]
+      }
+    },
+    "/api/providers/etrade/accounts": {
+      "get": {
+        "operationId": "etrade_accounts_api_providers_etrade_accounts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Accounts",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/accounts/{account_key}/balance": {
+      "get": {
+        "operationId": "etrade_balance_api_providers_etrade_accounts__account_key__balance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "real_time_nav",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Real Time Nav",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Balance",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/accounts/{account_key}/portfolio": {
+      "get": {
+        "operationId": "etrade_portfolio_api_providers_etrade_accounts__account_key__portfolio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 50,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Count"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageNumber",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pagenumber"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sortby"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortOrder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sortorder"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marketSession",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Marketsession"
+            }
+          },
+          {
+            "in": "query",
+            "name": "totalsRequired",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Totalsrequired",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lotsRequired",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Lotsrequired",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "View"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Portfolio",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/connect/callback": {
+      "get": {
+        "operationId": "etrade_connect_callback_api_providers_etrade_connect_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "oauth_token",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Oauth Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oauth_verifier",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Oauth Verifier",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Connect Callback",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/connect/complete": {
+      "post": {
+        "operationId": "etrade_connect_complete_api_providers_etrade_connect_complete_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETradeConnectCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Connect Complete",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/connect/start": {
+      "post": {
+        "operationId": "etrade_connect_start_api_providers_etrade_connect_start_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETradeConnectStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Connect Start",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/disconnect": {
+      "post": {
+        "operationId": "etrade_disconnect_api_providers_etrade_disconnect_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETradeDisconnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Disconnect",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/orders": {
+      "get": {
+        "operationId": "etrade_orders_api_providers_etrade_orders_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Count"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marker",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Marker"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fromdate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Todate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "securityType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Securitytype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "transactionType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transactiontype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marketSession",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Marketsession"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Orders",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/orders/cancel": {
+      "post": {
+        "operationId": "etrade_cancel_order_api_providers_etrade_orders_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETradeCancelOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Cancel Order",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/orders/place": {
+      "post": {
+        "operationId": "etrade_place_order_api_providers_etrade_orders_place_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETradePlaceOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Place Order",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/orders/preview": {
+      "post": {
+        "operationId": "etrade_preview_order_api_providers_etrade_orders_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETradeOrderPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Preview Order",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/quotes": {
+      "get": {
+        "operationId": "etrade_quotes_api_providers_etrade_quotes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated E*TRADE symbols or option symbols.",
+            "in": "query",
+            "name": "symbols",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated E*TRADE symbols or option symbols.",
+              "title": "Symbols",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "detailFlag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Detailflag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "requireEarningsDate",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Requireearningsdate",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overrideSymbolCount",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Overridesymbolcount",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skipMiniOptionsCheck",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Skipminioptionscheck",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Quotes",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/session": {
+      "get": {
+        "operationId": "etrade_session_api_providers_etrade_session_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "sandbox",
+                    "live"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Session",
+        "tags": [
+          "ETrade"
         ]
       }
     },
