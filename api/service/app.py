@@ -20,6 +20,7 @@ from api.endpoints import (
     backtests,
     data,
     etrade,
+    intraday,
     internal,
     massive,
     portfolio_internal,
@@ -466,6 +467,7 @@ def create_app() -> FastAPI:
         app.include_router(ai.router, prefix=f"{api_prefix}/ai", tags=["AI"])
         app.include_router(data.router, prefix=f"{api_prefix}/data", tags=["Data"])
         app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Auth"])
+        app.include_router(intraday.router, prefix=f"{api_prefix}/intraday", tags=["Intraday"])
         app.include_router(system.router, prefix=f"{api_prefix}/system", tags=["System"])
         app.include_router(postgres.router, prefix=f"{api_prefix}/system/postgres", tags=["Postgres"])
         app.include_router(universes.router, prefix=f"{api_prefix}/universes", tags=["Universes"])

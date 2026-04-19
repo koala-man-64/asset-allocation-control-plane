@@ -307,6 +307,71 @@ def test_system_health_control_plane_redacts_resource_ids(monkeypatch: pytest.Mo
     assert all("azureId" in item for item in verbose["resources"])
 
 
+def test_system_health_includes_intraday_monitor_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_RESOURCE_GROUP", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_CONTAINERAPPS", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_JOBS", raising=False)
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    class _FakeBlobConfig:
+        @classmethod
+        def from_env(cls) -> "_FakeBlobConfig":
+            return cls()
+
+    monkeypatch.setattr(system_health, "_default_layer_specs", lambda: [])
+    monkeypatch.setattr(system_health, "AzureBlobStoreConfig", _FakeBlobConfig)
+    monkeypatch.setattr(system_health, "AzureBlobStore", lambda _cfg: object())
+    monkeypatch.setattr(
+        system_health,
+        "get_intraday_health_summary",
+        lambda _dsn: {"dueRunBacklogCount": 2, "failedRunCount": 1},
+    )
+
+    payload = system_health.collect_system_health_snapshot(
+        now=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        include_resource_ids=False,
+    )
+
+    assert payload["overall"] == "healthy"
+    assert payload["intradayMonitor"] == {"dueRunBacklogCount": 2, "failedRunCount": 1}
+
+
+def test_system_health_warns_when_intraday_monitor_summary_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_RESOURCE_GROUP", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_CONTAINERAPPS", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_JOBS", raising=False)
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    class _FakeBlobConfig:
+        @classmethod
+        def from_env(cls) -> "_FakeBlobConfig":
+            return cls()
+
+    monkeypatch.setattr(system_health, "_default_layer_specs", lambda: [])
+    monkeypatch.setattr(system_health, "AzureBlobStoreConfig", _FakeBlobConfig)
+    monkeypatch.setattr(system_health, "AzureBlobStore", lambda _cfg: object())
+
+    def _raise_intraday(_dsn: str) -> dict[str, object]:
+        raise RuntimeError("intraday db unavailable")
+
+    monkeypatch.setattr(system_health, "get_intraday_health_summary", _raise_intraday)
+
+    payload = system_health.collect_system_health_snapshot(
+        now=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        include_resource_ids=False,
+    )
+
+    assert "intradayMonitor" not in payload
+    assert any(
+        alert["title"] == "Intraday monitoring unavailable" and alert["severity"] == "warning"
+        for alert in payload["alerts"]
+    )
+
+
 def test_system_health_derives_job_cpu_and_memory_percent_signals(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

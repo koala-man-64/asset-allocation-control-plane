@@ -26,6 +26,7 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     body = openapi.json()
     assert body["info"]["title"] == "Asset Allocation API"
     assert "/api/ai/chat/stream" in body["paths"]
+    assert "/api/intraday/watchlists" in body["paths"]
     assert "/api/system/symbol-enrichment/summary" in body["paths"]
     assert "/api/backtests/results/lookup" in body["paths"]
     assert "/api/backtests/runs" in body["paths"]

@@ -2297,6 +2297,1130 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IntradayMonitorClaimRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "executionName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          }
+        },
+        "title": "IntradayMonitorClaimRequest",
+        "type": "object"
+      },
+      "IntradayMonitorClaimResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "claimToken": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimtoken"
+          },
+          "currentSymbolStatuses": {
+            "items": {
+              "$ref": "#/components/schemas/IntradaySymbolStatus"
+            },
+            "title": "Currentsymbolstatuses",
+            "type": "array"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watchlist": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntradayWatchlistDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "IntradayMonitorClaimResponse",
+        "type": "object"
+      },
+      "IntradayMonitorCompleteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "claimToken": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/IntradayMonitorEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "refreshSymbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refreshsymbols",
+            "type": "array"
+          },
+          "symbolStatuses": {
+            "items": {
+              "$ref": "#/components/schemas/IntradaySymbolStatus"
+            },
+            "title": "Symbolstatuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "claimToken"
+        ],
+        "title": "IntradayMonitorCompleteRequest",
+        "type": "object"
+      },
+      "IntradayMonitorEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "eventId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eventid"
+          },
+          "eventType": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Eventtype",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runid"
+          },
+          "severity": {
+            "default": "info",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "watchlistId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watchlistid"
+          }
+        },
+        "required": [
+          "eventType",
+          "message"
+        ],
+        "title": "IntradayMonitorEvent",
+        "type": "object"
+      },
+      "IntradayMonitorFailRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "claimToken": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "error": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimToken",
+          "error"
+        ],
+        "title": "IntradayMonitorFailRequest",
+        "type": "object"
+      },
+      "IntradayMonitorRunSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "claimedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimedat"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "dueAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dueat"
+          },
+          "eligibleRefreshCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Eligiblerefreshcount",
+            "type": "integer"
+          },
+          "executionName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          },
+          "forceRefresh": {
+            "default": false,
+            "title": "Forcerefresh",
+            "type": "boolean"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          },
+          "observedSymbolCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Observedsymbolcount",
+            "type": "integer"
+          },
+          "queuedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queuedat"
+          },
+          "refreshBatchCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Refreshbatchcount",
+            "type": "integer"
+          },
+          "runId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "status": {
+            "default": "queued",
+            "enum": [
+              "queued",
+              "claimed",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbolCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Symbolcount",
+            "type": "integer"
+          },
+          "triggerKind": {
+            "default": "scheduled",
+            "enum": [
+              "scheduled",
+              "manual"
+            ],
+            "title": "Triggerkind",
+            "type": "string"
+          },
+          "watchlistId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Watchlistid",
+            "type": "string"
+          },
+          "watchlistName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watchlistname"
+          }
+        },
+        "required": [
+          "runId",
+          "watchlistId"
+        ],
+        "title": "IntradayMonitorRunSummary",
+        "type": "object"
+      },
+      "IntradayRefreshBatchSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "batchId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Batchid",
+            "type": "string"
+          },
+          "bucketLetter": {
+            "maxLength": 1,
+            "minLength": 1,
+            "title": "Bucketletter",
+            "type": "string"
+          },
+          "claimedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimedat"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "domain": {
+            "default": "market",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "executionName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          },
+          "runId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "status": {
+            "default": "queued",
+            "enum": [
+              "queued",
+              "claimed",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbolCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Symbolcount",
+            "type": "integer"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "watchlistId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Watchlistid",
+            "type": "string"
+          },
+          "watchlistName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watchlistname"
+          }
+        },
+        "required": [
+          "batchId",
+          "runId",
+          "watchlistId",
+          "bucketLetter"
+        ],
+        "title": "IntradayRefreshBatchSummary",
+        "type": "object"
+      },
+      "IntradayRefreshClaimRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "executionName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          }
+        },
+        "title": "IntradayRefreshClaimRequest",
+        "type": "object"
+      },
+      "IntradayRefreshClaimResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "batch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntradayRefreshBatchSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claimToken": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimtoken"
+          }
+        },
+        "title": "IntradayRefreshClaimResponse",
+        "type": "object"
+      },
+      "IntradayRefreshCompleteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "claimToken": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimToken"
+        ],
+        "title": "IntradayRefreshCompleteRequest",
+        "type": "object"
+      },
+      "IntradayRefreshFailRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "claimToken": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "error": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimToken",
+          "error"
+        ],
+        "title": "IntradayRefreshFailRequest",
+        "type": "object"
+      },
+      "IntradayStatusCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "dueRunBacklogCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Duerunbacklogcount",
+            "type": "integer"
+          },
+          "enabledWatchlistCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Enabledwatchlistcount",
+            "type": "integer"
+          },
+          "failedRunCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Failedruncount",
+            "type": "integer"
+          },
+          "refreshBatchBacklogAgeSeconds": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Refreshbatchbacklogageseconds",
+            "type": "number"
+          },
+          "staleSymbolCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Stalesymbolcount",
+            "type": "integer"
+          },
+          "watchlistCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Watchlistcount",
+            "type": "integer"
+          }
+        },
+        "title": "IntradayStatusCounts",
+        "type": "object"
+      },
+      "IntradayStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/IntradayStatusCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IntradaySymbolStatus"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "latestMonitorRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestRefreshBatch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntradayRefreshBatchSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "counts"
+        ],
+        "title": "IntradayStatusResponse",
+        "type": "object"
+      },
+      "IntradaySymbolStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "lastError": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          },
+          "lastObservedPrice": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastobservedprice"
+          },
+          "lastRunId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastrunid"
+          },
+          "lastSnapshotAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastsnapshotat"
+          },
+          "lastSuccessfulMarketRefreshAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastsuccessfulmarketrefreshat"
+          },
+          "monitorStatus": {
+            "default": "idle",
+            "enum": [
+              "idle",
+              "observed",
+              "refresh_queued",
+              "refreshed",
+              "failed"
+            ],
+            "title": "Monitorstatus",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "watchlistId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watchlistid"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "IntradaySymbolStatus",
+        "type": "object"
+      },
+      "IntradayWatchlistDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "autoRefreshEnabled": {
+            "default": true,
+            "title": "Autorefreshenabled",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastrunat"
+          },
+          "marketSession": {
+            "const": "us_equities_regular",
+            "default": "us_equities_regular",
+            "title": "Marketsession",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "nextDueAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextdueat"
+          },
+          "pollIntervalMinutes": {
+            "default": 5,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Pollintervalminutes",
+            "type": "integer"
+          },
+          "refreshCooldownMinutes": {
+            "default": 15,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Refreshcooldownminutes",
+            "type": "integer"
+          },
+          "symbolCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Symbolcount",
+            "type": "integer"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "watchlistId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Watchlistid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "watchlistId",
+          "name"
+        ],
+        "title": "IntradayWatchlistDetail",
+        "type": "object"
+      },
+      "IntradayWatchlistSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "autoRefreshEnabled": {
+            "default": true,
+            "title": "Autorefreshenabled",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastrunat"
+          },
+          "marketSession": {
+            "const": "us_equities_regular",
+            "default": "us_equities_regular",
+            "title": "Marketsession",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "nextDueAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextdueat"
+          },
+          "pollIntervalMinutes": {
+            "default": 5,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Pollintervalminutes",
+            "type": "integer"
+          },
+          "refreshCooldownMinutes": {
+            "default": 15,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Refreshcooldownminutes",
+            "type": "integer"
+          },
+          "symbolCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Symbolcount",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "watchlistId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Watchlistid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "watchlistId",
+          "name"
+        ],
+        "title": "IntradayWatchlistSummary",
+        "type": "object"
+      },
+      "IntradayWatchlistUpsertRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "autoRefreshEnabled": {
+            "default": true,
+            "title": "Autorefreshenabled",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "marketSession": {
+            "const": "us_equities_regular",
+            "default": "us_equities_regular",
+            "title": "Marketsession",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "pollIntervalMinutes": {
+            "default": 5,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Pollintervalminutes",
+            "type": "integer"
+          },
+          "refreshCooldownMinutes": {
+            "default": 15,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Refreshcooldownminutes",
+            "type": "integer"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "IntradayWatchlistUpsertRequest",
+        "type": "object"
+      },
       "PortfolioAccount": {
         "additionalProperties": false,
         "properties": {
@@ -12385,6 +13509,321 @@
         ]
       }
     },
+    "/api/internal/intraday-monitor/claim": {
+      "post": {
+        "operationId": "claim_intraday_monitor_run_route_api_internal_intraday_monitor_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayMonitorClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayMonitorClaimResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Intraday Monitor Run Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/intraday-monitor/runs/{run_id}/complete": {
+      "post": {
+        "operationId": "complete_intraday_monitor_run_route_api_internal_intraday_monitor_runs__run_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayMonitorCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Intraday Monitor Run Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/intraday-monitor/runs/{run_id}/fail": {
+      "post": {
+        "operationId": "fail_intraday_monitor_run_route_api_internal_intraday_monitor_runs__run_id__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayMonitorFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fail Intraday Monitor Run Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/intraday-refresh/batches/{batch_id}/complete": {
+      "post": {
+        "operationId": "complete_intraday_refresh_batch_route_api_internal_intraday_refresh_batches__batch_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayRefreshCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayRefreshBatchSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Intraday Refresh Batch Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/intraday-refresh/batches/{batch_id}/fail": {
+      "post": {
+        "operationId": "fail_intraday_refresh_batch_route_api_internal_intraday_refresh_batches__batch_id__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayRefreshFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayRefreshBatchSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fail Intraday Refresh Batch Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/intraday-refresh/claim": {
+      "post": {
+        "operationId": "claim_intraday_refresh_batch_route_api_internal_intraday_refresh_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayRefreshClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayRefreshClaimResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Intraday Refresh Batch Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/intraday/ready": {
+      "get": {
+        "operationId": "ready_intraday_api_internal_intraday_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ready Intraday Api Internal Intraday Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Intraday",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
     "/api/internal/portfolio-accounts/{account_id}": {
       "get": {
         "operationId": "get_portfolio_account_detail_compat_api_internal_portfolio_accounts__account_id__get",
@@ -14269,6 +15708,615 @@
         "summary": "Get Universe Config Revision",
         "tags": [
           "Internal"
+        ]
+      }
+    },
+    "/api/intraday/events": {
+      "get": {
+        "operationId": "list_intraday_events_endpoint_api_intraday_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "watchlistId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Watchlistid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Runid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IntradayMonitorEvent"
+                  },
+                  "title": "Response List Intraday Events Endpoint Api Intraday Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Intraday Events Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/refresh-batches": {
+      "get": {
+        "operationId": "list_intraday_refresh_batches_endpoint_api_intraday_refresh_batches_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "watchlistId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Watchlistid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IntradayRefreshBatchSummary"
+                  },
+                  "title": "Response List Intraday Refresh Batches Endpoint Api Intraday Refresh Batches Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Intraday Refresh Batches Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/runs": {
+      "get": {
+        "operationId": "list_intraday_runs_endpoint_api_intraday_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "watchlistId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Watchlistid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+                  },
+                  "title": "Response List Intraday Runs Endpoint Api Intraday Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Intraday Runs Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/status": {
+      "get": {
+        "operationId": "get_intraday_status_endpoint_api_intraday_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "watchlistId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Watchlistid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Intraday Status Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/watchlists": {
+      "get": {
+        "operationId": "list_intraday_watchlists_endpoint_api_intraday_watchlists_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IntradayWatchlistSummary"
+                  },
+                  "title": "Response List Intraday Watchlists Endpoint Api Intraday Watchlists Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Intraday Watchlists Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      },
+      "post": {
+        "operationId": "create_intraday_watchlist_endpoint_api_intraday_watchlists_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayWatchlistUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayWatchlistDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Intraday Watchlist Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/watchlists/{watchlist_id}": {
+      "delete": {
+        "operationId": "delete_intraday_watchlist_endpoint_api_intraday_watchlists__watchlist_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Delete Intraday Watchlist Endpoint Api Intraday Watchlists  Watchlist Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Intraday Watchlist Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      },
+      "get": {
+        "operationId": "get_intraday_watchlist_endpoint_api_intraday_watchlists__watchlist_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayWatchlistDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Intraday Watchlist Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      },
+      "put": {
+        "operationId": "update_intraday_watchlist_endpoint_api_intraday_watchlists__watchlist_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayWatchlistUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayWatchlistDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Intraday Watchlist Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/watchlists/{watchlist_id}/run": {
+      "post": {
+        "operationId": "enqueue_intraday_watchlist_run_endpoint_api_intraday_watchlists__watchlist_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enqueue Intraday Watchlist Run Endpoint",
+        "tags": [
+          "Intraday"
         ]
       }
     },

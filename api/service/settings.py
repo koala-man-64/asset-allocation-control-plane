@@ -295,6 +295,26 @@ class ETradeSettings:
 
 
 @dataclass(frozen=True)
+class IntradayMonitorSettings:
+    enabled: bool = False
+    allowed_jobs: list[str] = field(default_factory=list)
+    operator_required_roles: list[str] = field(default_factory=list)
+    jobs_required_roles: list[str] = field(default_factory=list)
+
+    @staticmethod
+    def from_env() -> "IntradayMonitorSettings":
+        settings = IntradayMonitorSettings(
+            enabled=_get_optional_bool("INTRADAY_MONITOR_ENABLED", default=False),
+            allowed_jobs=_split_csv(_get_optional_str("INTRADAY_MONITOR_ALLOWED_JOBS")),
+            operator_required_roles=_split_csv(_get_optional_str("INTRADAY_MONITOR_OPERATOR_REQUIRED_ROLES")),
+            jobs_required_roles=_split_csv(_get_optional_str("INTRADAY_MONITOR_JOBS_REQUIRED_ROLES")),
+        )
+        if settings.enabled and not settings.allowed_jobs:
+            raise ValueError("INTRADAY_MONITOR_ALLOWED_JOBS is required when INTRADAY_MONITOR_ENABLED=true.")
+        return settings
+
+
+@dataclass(frozen=True)
 class ServiceSettings:
     oidc_auth_enabled: bool
     anonymous_local_auth_enabled: bool
@@ -309,6 +329,7 @@ class ServiceSettings:
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
+    intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
 
     @property
     def auth_required(self) -> bool:
@@ -368,6 +389,7 @@ class ServiceSettings:
         ai_relay = AiRelaySettings.from_env()
         etrade = ETradeSettings.from_env()
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
+        intraday_monitor = IntradayMonitorSettings.from_env()
         ui_oidc_config = {
             "authority": ui_authority,
             "clientId": ui_client_id,
@@ -391,4 +413,5 @@ class ServiceSettings:
             ai_relay=ai_relay,
             etrade=etrade,
             symbol_enrichment=symbol_enrichment,
+            intraday_monitor=intraday_monitor,
         )

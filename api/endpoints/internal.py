@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
+from anyio import from_thread
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from psycopg import Error as PsycopgError
@@ -19,13 +21,27 @@ from asset_allocation_contracts.backtest import (
     BacktestReconcileResponse,
     BacktestStartRequest,
 )
+from api.service.intraday_contracts_compat import (
+    IntradayMonitorClaimRequest,
+    IntradayMonitorClaimResponse,
+    IntradayMonitorCompleteRequest,
+    IntradayMonitorFailRequest,
+    IntradayMonitorRunSummary,
+    IntradayRefreshBatchSummary,
+    IntradayRefreshClaimRequest,
+    IntradayRefreshClaimResponse,
+    IntradayRefreshCompleteRequest,
+    IntradayRefreshFailRequest,
+)
 
 from api.service.dependencies import (
     get_ai_relay_gateway,
     get_settings,
+    require_intraday_monitor_job_access,
     require_symbol_enrichment_job_access,
     validate_auth,
 )
+from api.service.realtime import manager as realtime_manager
 from api.service.symbol_enrichment_service import resolve_symbol_profile as resolve_symbol_profile_via_ai
 from core.backtest_reconcile import reconcile_backtest_runs
 from core.backtest_repository import BacktestRepository, BacktestResultsNotReadyError
@@ -44,8 +60,18 @@ from core.results_freshness import (
     fail_ranking_refresh,
     reconcile_results_freshness,
 )
+from core.intraday_monitor_repository import (
+    claim_next_intraday_monitor_run,
+    claim_next_intraday_refresh_batch,
+    complete_intraday_monitor_run,
+    complete_intraday_refresh_batch,
+    fail_intraday_monitor_run,
+    fail_intraday_refresh_batch,
+    list_intraday_symbol_status,
+)
 from core.strategy_repository import StrategyRepository
 from core.universe_repository import UniverseRepository
+from .intraday import REALTIME_TOPIC_INTRADAY_MONITOR, REALTIME_TOPIC_INTRADAY_REFRESH
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +119,20 @@ def _require_postgres_dsn(request: Request) -> str:
 
 def _not_found(kind: str, name: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{kind} '{name}' not found.")
+
+
+def _emit_intraday_realtime(topic: str, event_type: str, payload: dict[str, Any] | None = None) -> None:
+    message = {
+        "type": event_type,
+        "payload": payload or {},
+        "emittedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        from_thread.run(realtime_manager.broadcast, topic, message)
+    except RuntimeError:
+        return
+    except Exception:
+        logger.debug("Failed to broadcast intraday realtime event.", exc_info=True)
 
 
 def _probe_postgres(dsn: str) -> None:
@@ -264,6 +304,161 @@ async def get_symbol_cleanup_run_route(run_id: str, request: Request) -> SymbolC
     return run
 
 
+@router.post("/intraday-monitor/claim", response_model=IntradayMonitorClaimResponse)
+async def claim_intraday_monitor_run_route(
+    payload: IntradayMonitorClaimRequest,
+    request: Request,
+) -> IntradayMonitorClaimResponse:
+    require_intraday_monitor_job_access(request)
+    dsn = _require_postgres_dsn(request)
+    claimed = claim_next_intraday_monitor_run(
+        dsn,
+        execution_name=payload.executionName,
+    )
+    if claimed is None:
+        return IntradayMonitorClaimResponse(run=None, watchlist=None, currentSymbolStatuses=[], claimToken=None)
+    run, watchlist, claim_token = claimed
+    _, current_statuses = list_intraday_symbol_status(
+        dsn,
+        watchlist_id=run.watchlistId,
+        limit=max(len(watchlist.symbols), 1),
+        offset=0,
+    )
+    response = IntradayMonitorClaimResponse(
+        run=run,
+        watchlist=watchlist,
+        currentSymbolStatuses=current_statuses,
+        claimToken=claim_token,
+    )
+    _emit_intraday_realtime(
+        REALTIME_TOPIC_INTRADAY_MONITOR,
+        "run.claimed",
+        {"run": run.model_dump(mode="json")},
+    )
+    return response
+
+
+@router.post("/intraday-monitor/runs/{run_id}/complete", response_model=IntradayMonitorRunSummary)
+async def complete_intraday_monitor_run_route(
+    run_id: str,
+    payload: IntradayMonitorCompleteRequest,
+    request: Request,
+) -> IntradayMonitorRunSummary:
+    require_intraday_monitor_job_access(request, require_enabled=False)
+    try:
+        run = complete_intraday_monitor_run(
+            _require_postgres_dsn(request),
+            run_id=run_id,
+            claim_token=payload.claimToken,
+            symbol_statuses=payload.symbolStatuses,
+            events=payload.events,
+            refresh_symbols=payload.refreshSymbols,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _emit_intraday_realtime(
+        REALTIME_TOPIC_INTRADAY_MONITOR,
+        "run.completed",
+        {"run": run.model_dump(mode="json")},
+    )
+    return run
+
+
+@router.post("/intraday-monitor/runs/{run_id}/fail", response_model=IntradayMonitorRunSummary)
+async def fail_intraday_monitor_run_route(
+    run_id: str,
+    payload: IntradayMonitorFailRequest,
+    request: Request,
+) -> IntradayMonitorRunSummary:
+    require_intraday_monitor_job_access(request, require_enabled=False)
+    try:
+        run = fail_intraday_monitor_run(
+            _require_postgres_dsn(request),
+            run_id=run_id,
+            claim_token=payload.claimToken,
+            error=payload.error,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _emit_intraday_realtime(
+        REALTIME_TOPIC_INTRADAY_MONITOR,
+        "run.failed",
+        {"run": run.model_dump(mode="json")},
+    )
+    return run
+
+
+@router.post("/intraday-refresh/claim", response_model=IntradayRefreshClaimResponse)
+async def claim_intraday_refresh_batch_route(
+    payload: IntradayRefreshClaimRequest,
+    request: Request,
+) -> IntradayRefreshClaimResponse:
+    require_intraday_monitor_job_access(request)
+    claimed = claim_next_intraday_refresh_batch(
+        _require_postgres_dsn(request),
+        execution_name=payload.executionName,
+    )
+    if claimed is None:
+        return IntradayRefreshClaimResponse(batch=None, claimToken=None)
+    batch, claim_token = claimed
+    response = IntradayRefreshClaimResponse(batch=batch, claimToken=claim_token)
+    _emit_intraday_realtime(
+        REALTIME_TOPIC_INTRADAY_REFRESH,
+        "refresh.claimed",
+        {"batch": batch.model_dump(mode="json")},
+    )
+    return response
+
+
+@router.post("/intraday-refresh/batches/{batch_id}/complete", response_model=IntradayRefreshBatchSummary)
+async def complete_intraday_refresh_batch_route(
+    batch_id: str,
+    payload: IntradayRefreshCompleteRequest,
+    request: Request,
+) -> IntradayRefreshBatchSummary:
+    require_intraday_monitor_job_access(request, require_enabled=False)
+    try:
+        batch = complete_intraday_refresh_batch(
+            _require_postgres_dsn(request),
+            batch_id=batch_id,
+            claim_token=payload.claimToken,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _emit_intraday_realtime(
+        REALTIME_TOPIC_INTRADAY_REFRESH,
+        "refresh.completed",
+        {"batch": batch.model_dump(mode="json")},
+    )
+    return batch
+
+
+@router.post("/intraday-refresh/batches/{batch_id}/fail", response_model=IntradayRefreshBatchSummary)
+async def fail_intraday_refresh_batch_route(
+    batch_id: str,
+    payload: IntradayRefreshFailRequest,
+    request: Request,
+) -> IntradayRefreshBatchSummary:
+    require_intraday_monitor_job_access(request, require_enabled=False)
+    try:
+        batch = fail_intraday_refresh_batch(
+            _require_postgres_dsn(request),
+            batch_id=batch_id,
+            claim_token=payload.claimToken,
+            error=payload.error,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _emit_intraday_realtime(
+        REALTIME_TOPIC_INTRADAY_REFRESH,
+        "refresh.failed",
+        {"batch": batch.model_dump(mode="json")},
+    )
+    return batch
+
+
 @router.post("/symbol-enrichment/resolve", response_model=SymbolEnrichmentResolveResponse)
 async def resolve_symbol_enrichment_route(
     payload: SymbolEnrichmentResolveRequest,
@@ -375,6 +570,17 @@ async def ready_backtests(request: Request) -> dict[str, str]:
         _probe_postgres(dsn)
     except PsycopgError as exc:
         raise HTTPException(status_code=503, detail="Postgres is unavailable for backtest readiness.") from exc
+    return {"status": "ready"}
+
+
+@router.get("/intraday/ready")
+async def ready_intraday(request: Request) -> dict[str, str]:
+    require_intraday_monitor_job_access(request)
+    dsn = _require_postgres_dsn(request)
+    try:
+        _probe_postgres(dsn)
+    except PsycopgError as exc:
+        raise HTTPException(status_code=503, detail="Postgres is unavailable for intraday readiness.") from exc
     return {"status": "ready"}
 
 
