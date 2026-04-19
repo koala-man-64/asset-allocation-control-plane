@@ -114,6 +114,18 @@ def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_upd
     assert "AI_RELAY_REQUIRED_ROLES" in text, (
         "Entra provisioner must persist the AI relay role requirement into the env file"
     )
+    assert 'Get-EnvValueFirst -Keys @("AZURE_CLIENT_ID")' in text, (
+        "Entra provisioner must resolve the GitHub Actions Azure client id from env state"
+    )
+    assert 'Deploy Azure client ID:' in text, (
+        "Entra provisioner should report which Azure deploy principal receives protected smoke access"
+    )
+    assert '$deploySpResult = Ensure-ServicePrincipal -AppId $deployAzureClientId' in text, (
+        "Entra provisioner must resolve the GitHub Actions deploy service principal"
+    )
+    assert '-PrincipalObjectId $deployServicePrincipal.id `' in text, (
+        "Entra provisioner must assign the API access app role to the GitHub Actions deploy principal"
+    )
     assert 'logoutUrl = $PublicPostLogoutRedirectUri' in text, (
         "Entra provisioner must register the logout-complete landing route on the UI app registration"
     )

@@ -149,9 +149,11 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert 'expect_status 401 "https://${fqdn}/config.js"' in text
     assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
     assert 'expect_status 401 "https://${fqdn}/api/docs"' in text
-    assert 'expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/docs"' in text
-    assert 'expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/openapi.json"' in text
-    assert '-H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \\' in text
+    assert 'az account get-access-token \\' in text
+    assert '--scope "api://${API_OIDC_AUDIENCE}/.default" \\' in text
+    assert 'expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/docs"' in text
+    assert 'expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/openapi.json"' in text
+    assert '-H "Authorization: Bearer ${deploy_smoke_token}" \\' in text
     assert 'if [ "${API_DEPLOY_MANIFEST}" = "deploy/app_api.yaml" ]; then' in text
     assert "az containerapp job start \\" in text
     assert "az containerapp job execution show \\" in text
@@ -168,7 +170,7 @@ def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> Non
 
 def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
-    assert "DEPLOY_SMOKE_BEARER_TOKEN: ${{ secrets.DEPLOY_SMOKE_BEARER_TOKEN }}" in text
+    assert "DEPLOY_SMOKE_BEARER_TOKEN" not in text
     assert "AI_RELAY_ENABLED: ${{ vars.AI_RELAY_ENABLED || 'false' }}" in text
     assert "AI_RELAY_API_KEY: ${{ secrets.AI_RELAY_API_KEY }}" in text
     assert "/api/ai/chat/stream" in text

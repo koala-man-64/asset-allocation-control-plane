@@ -91,7 +91,6 @@ SYSTEM_HEALTH_MONITOR_METRICS_TIMESPAN_MINUTES,deploy_var,var,deploy_config,true
 SYSTEM_HEALTH_RESOURCE_HEALTH_API_VERSION,deploy_var,var,deploy_config,true,Resource health api version.
 SYSTEM_HEALTH_VERBOSE_IDS,deploy_var,var,deploy_config,true,Whether to emit verbose Azure resource ids.
 ALPHA_VANTAGE_API_KEY,secret,secret,secret_store,true,Alpha Vantage API key. Never auto-discovered.
-DEPLOY_SMOKE_BEARER_TOKEN,secret,secret,secret_store,true,Required bearer token used by deploy smoke to verify auth-protected docs, OpenAPI, and config surfaces with the minimum AssetAllocation.Access role.
 AI_RELAY_API_KEY,secret,secret,secret_store,true,OpenAI API key used by the control-plane AI relay. Never auto-discovered.
 AI_RELAY_SMOKE_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify an authorized AI relay stream.
 AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify AI relay role-denied behavior.

@@ -60,11 +60,13 @@ If you want the AI relay live after bootstrap:
    - `AI_RELAY_ENABLED=true`
    - `AI_RELAY_API_KEY=<real OpenAI API key>`
    - `AI_RELAY_REQUIRED_ROLES=AssetAllocation.AiRelay.Use`
-7. Optionally add deploy-smoke tokens:
+7. Optionally add AI relay deploy-smoke tokens:
    - `AI_RELAY_SMOKE_BEARER_TOKEN=<authorized bearer token>`
    - `AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN=<authenticated token without AssetAllocation.AiRelay.Use>`
 8. Rerun `powershell -ExecutionPolicy Bypass -File .\scripts\sync-all-to-github.ps1`.
 9. Rerun `powershell -ExecutionPolicy Bypass -File .\scripts\ops\provision\provision_azure.ps1` to push the AI relay secret and runtime env vars onto the existing API Container App.
+
+Protected docs and OpenAPI deploy smoke no longer use a stored GitHub bearer token. `deploy-prod.yml` now mints that token from the Azure login identity using `API_OIDC_AUDIENCE`, and `scripts/ops/provision/provision_entra_oidc.ps1` grants `AssetAllocation.Access` to the `AZURE_CLIENT_ID` service principal.
 
 Those scripts currently provision or expect:
 
@@ -169,7 +171,7 @@ GitHub variables:
 - If `release.yml` fails to build the image after preflight passes, verify the private package index settings and pinned shared package versions resolve before Docker builds from the shared workspace root.
 - If a manual `deploy-prod.yml` run fails before apply because no image can be resolved, verify ACR contains at least one released `asset-allocation-api` manifest.
 - If `deploy-prod.yml` fails before apply, verify `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `CONTAINER_APPS_ENVIRONMENT_NAME`, and `ACR_PULL_IDENTITY_NAME`.
-- If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/openapi.json` before retrying. Check `/api/auth/session` separately when auth behavior is also suspect.
+- If `deploy-prod.yml` fails verification, inspect the deployed FQDN, `/healthz`, `/readyz`, `/config.js`, and `/openapi.json` before retrying. Check `/api/auth/session` separately when auth behavior is also suspect. If token minting fails, rerun `.\scripts\ops\provision\provision_entra_oidc.ps1` after confirming `AZURE_CLIENT_ID` points at the GitHub Actions Azure app registration.
 - If browser sign-out lands on a blank or broken page, rerun `.\scripts\ops\provision\provision_entra_oidc.ps1` and confirm the UI app registration now has `web.logoutUrl` set to `https://<ui-origin>/auth/logout-complete`.
 - If `infra-shared-prod.yml` fails, regenerate `.env.web` with `scripts/setup-env.ps1`, sync it with `scripts/sync-all-to-github.ps1`, and verify the `prod` environment still has the required approvals and secrets.
 - If AI relay deploy smoke fails with `503`, confirm `AI_RELAY_ENABLED=true`, `AI_RELAY_API_KEY` is present in GitHub secrets, and rerun `scripts/ops/provision/provision_azure.ps1` so the API Container App secret `ai-relay-api-key` is updated.

@@ -107,7 +107,11 @@ function Get-ObjectPropertyValue {
         [AllowNull()]$Object,
         [Parameter(Mandatory = $true)][string]$PropertyName
     )
-    if ($null -eq $Object -or $null -eq $Object.PSObject) { return $null }
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [System.Collections.IDictionary] -and $Object.Contains($PropertyName)) {
+        return $Object[$PropertyName]
+    }
+    if ($null -eq $Object.PSObject) { return $null }
     $property = $Object.PSObject.Properties[$PropertyName]
     if ($null -eq $property) { return $null }
     return $property.Value
@@ -192,7 +196,6 @@ foreach ($requiredKey in @(
     "UI_OIDC_REDIRECT_URI",
     "DISPATCH_APP_ID",
     "ALPHA_VANTAGE_API_KEY",
-    "DEPLOY_SMOKE_BEARER_TOKEN",
     "AZURE_STORAGE_CONNECTION_STRING",
     "DISPATCH_APP_PRIVATE_KEY",
     "MASSIVE_API_KEY",
@@ -546,6 +549,58 @@ function Get-ContainerAppRedirectUri {
     return "https://$fqdn/auth/callback"
 }
 
+function Convert-ToAbsoluteOrigin {
+    param(
+        [AllowNull()][string]$Value,
+        [switch]$AssumeHttpsHostname
+    )
+    $candidate = (Normalize-EnvValue -Value $Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) { return "" }
+    $candidate = ($candidate -replace '^[''"]+', '' -replace '[''"]+$', '').Trim()
+    if ($AssumeHttpsHostname -and $candidate -notmatch "^[a-zA-Z][a-zA-Z0-9+\-.]*://") {
+        $candidate = "https://$candidate"
+    }
+    try {
+        $uri = [Uri]$candidate
+    } catch {
+        return ""
+    }
+    if (-not $uri.IsAbsoluteUri) { return "" }
+    if ($uri.Scheme -notin @("http", "https")) { return "" }
+    if ([string]::IsNullOrWhiteSpace($uri.Host)) { return "" }
+    return $uri.GetLeftPart([System.UriPartial]::Authority).TrimEnd("/")
+}
+
+function Join-DistinctCsvValues {
+    param([AllowNull()][string[]]$Values)
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $ordered = New-Object System.Collections.Generic.List[string]
+    foreach ($value in @($Values)) {
+        $normalizedValue = Normalize-EnvValue -Value $value
+        foreach ($part in ($normalizedValue -split ",")) {
+            $candidate = $part.Trim().TrimEnd("/")
+            if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+            if ($seen.Add($candidate)) {
+                [void]$ordered.Add($candidate)
+            }
+        }
+    }
+    return ($ordered -join ",")
+}
+
+function Get-ApiCorsAllowOrigins {
+    $uiPublicHostname = Get-ConfiguredValue -Keys @("UI_PUBLIC_HOSTNAME")
+    $uiRedirectUri = Get-ConfiguredValue -Keys @("UI_OIDC_REDIRECT_URI")
+    $uiApp = Get-ContainerApp -AppName (Get-UiContainerAppName)
+    $uiAppRedirectUri = Get-ContainerAppRedirectUri -App $uiApp
+
+    return (Join-DistinctCsvValues -Values @(
+        (Convert-ToAbsoluteOrigin -Value $uiPublicHostname -AssumeHttpsHostname),
+        (Convert-ToAbsoluteOrigin -Value $uiRedirectUri),
+        (Convert-ToAbsoluteOrigin -Value $uiAppRedirectUri)
+    ))
+}
+
 function Get-ContainerAppEnvironmentName {
     if ($null -eq $script:ContainerAppEnvironmentName) {
         $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
@@ -818,6 +873,12 @@ function Resolve-DiscoveredValue {
             $app = Get-ContainerApp -AppName (Get-UiContainerAppName)
             $redirectUri = Get-ContainerAppRedirectUri -App $app
             if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { return (New-Resolution -Value $redirectUri -Source "azure") }
+        }
+        "API_CORS_ALLOW_ORIGINS" {
+            $origins = Get-ApiCorsAllowOrigins
+            if (-not [string]::IsNullOrWhiteSpace($origins)) {
+                return (New-Resolution -Value $origins -Source "azure")
+            }
         }
         "CONTRACTS_REPOSITORY" {
             $slug = Get-RepoSlug -RepoName "asset-allocation-contracts"

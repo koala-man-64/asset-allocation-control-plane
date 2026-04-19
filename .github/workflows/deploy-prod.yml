@@ -98,7 +98,6 @@ jobs:
       REALTIME_LOG_STREAM_BATCH_SIZE: ${{ vars.REALTIME_LOG_STREAM_BATCH_SIZE }}
       AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-      DEPLOY_SMOKE_BEARER_TOKEN: ${{ secrets.DEPLOY_SMOKE_BEARER_TOKEN }}
       AI_RELAY_API_KEY: ${{ secrets.AI_RELAY_API_KEY }}
       AI_RELAY_SMOKE_BEARER_TOKEN: ${{ secrets.AI_RELAY_SMOKE_BEARER_TOKEN }}
       AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN: ${{ secrets.AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN }}
@@ -267,20 +266,28 @@ jobs:
           else
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/healthz" > /dev/null
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/readyz" > /dev/null
-            : "${DEPLOY_SMOKE_BEARER_TOKEN:?DEPLOY_SMOKE_BEARER_TOKEN secret is required for protected endpoint smoke tests.}"
+            : "${API_OIDC_AUDIENCE:?API_OIDC_AUDIENCE is required for protected endpoint smoke tests.}"
+            deploy_smoke_token="$(
+              az account get-access-token \
+                --scope "api://${API_OIDC_AUDIENCE}/.default" \
+                --query accessToken \
+                -o tsv \
+                --only-show-errors
+            )"
+            : "${deploy_smoke_token:?Failed to mint deploy smoke bearer token. Ensure the Azure deploy principal has the AssetAllocation.Access app role.}"
             expect_status 401 "https://${fqdn}/config.js"
             expect_status 401 "https://${fqdn}/api/openapi.json"
             expect_status 401 "https://${fqdn}/api/docs"
-            expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/docs"
-            expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/openapi.json"
+            expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/docs"
+            expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/openapi.json"
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
-              -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \
+              -H "Authorization: Bearer ${deploy_smoke_token}" \
               "https://${fqdn}/config.js" > /dev/null
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
-              -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \
+              -H "Authorization: Bearer ${deploy_smoke_token}" \
               "https://${fqdn}/api/openapi.json" > /dev/null
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
-              -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \
+              -H "Authorization: Bearer ${deploy_smoke_token}" \
               "https://${fqdn}/api/docs" > /dev/null
             unauth_status="$(curl -sS -o /dev/null -w '%{http_code}' \
               -X POST \

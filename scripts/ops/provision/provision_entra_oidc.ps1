@@ -841,6 +841,15 @@ $operatorUserAssignment = Resolve-OperatorUserAssignment `
   -EnvLabel $envLabel
 $OperatorUserObjectId = $operatorUserAssignment.ObjectId
 
+$deployAzureClientId = Get-EnvValueFirst -Keys @("AZURE_CLIENT_ID") -Lines $envLines
+if ([string]::IsNullOrWhiteSpace($deployAzureClientId)) {
+  $deployAzureClientId = $env:AZURE_CLIENT_ID
+}
+if ([string]::IsNullOrWhiteSpace($deployAzureClientId)) {
+  throw "AZURE_CLIENT_ID is required in $envLabel or the current process so deploy-prod.yml can mint a protected endpoint smoke token."
+}
+$deployAzureClientId = $deployAzureClientId.Trim()
+
 $apiAudienceHint = Resolve-FirstCsvToken (Get-EnvValue -Key "API_OIDC_AUDIENCE" -Lines $envLines)
 $uiClientIdHint = Resolve-FirstCsvToken (Get-EnvValue -Key "UI_OIDC_CLIENT_ID" -Lines $envLines)
 $explicitRedirectUri = Get-EnvValue -Key "UI_OIDC_REDIRECT_URI" -Lines $envLines
@@ -856,6 +865,7 @@ Write-Host "API container app: $ApiContainerAppName"
 Write-Host "UI container app: $UiContainerAppName"
 Write-Host "UI public hostname: $(if ([string]::IsNullOrWhiteSpace($UiPublicHostname)) { '<container-app-fqdn>' } else { $UiPublicHostname })"
 Write-Host "Managed identity: $AcrPullIdentityName"
+Write-Host "Deploy Azure client ID: $deployAzureClientId"
 Write-Host "Operator user source: $($operatorUserAssignment.Source)"
 Write-Host ""
 
@@ -884,10 +894,16 @@ Ensure-UiApplicationConfiguration `
   -LocalRedirectUri $LocalUiRedirectUri
 Ensure-UiDelegatedPermission -UiAppId $uiApp.appId -ApiAppId $apiApp.appId -ScopeId $apiConfig.ScopeId
 
+$deploySpResult = Ensure-ServicePrincipal -AppId $deployAzureClientId
+$deployServicePrincipal = $deploySpResult.ServicePrincipal
 $managedIdentityPrincipalId = Resolve-ManagedIdentityPrincipalId -IdentityName $AcrPullIdentityName -ResourceGroupName $ResourceGroup
 $operatorAssignmentCreated = Ensure-AppRoleAssignment `
   -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
   -PrincipalObjectId $OperatorUserObjectId `
+  -AppRoleId $apiConfig.AccessAppRoleId
+$deployAssignmentCreated = Ensure-AppRoleAssignment `
+  -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
+  -PrincipalObjectId $deployServicePrincipal.id `
   -AppRoleId $apiConfig.AccessAppRoleId
 $runtimeAssignmentCreated = Ensure-AppRoleAssignment `
   -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
@@ -923,6 +939,8 @@ $outputs = [ordered]@{
   apiAppObjectId                      = $apiApp.id
   apiAppClientId                      = $apiApp.appId
   apiServicePrincipalObjectId         = $apiServicePrincipal.id
+  deployAzureClientId                 = $deployAzureClientId
+  deployServicePrincipalObjectId      = $deployServicePrincipal.id
   uiAppDisplayName                    = $UiAppDisplayName
   uiAppObjectId                       = $uiApp.id
   uiAppClientId                       = $uiApp.appId
@@ -940,6 +958,7 @@ $outputs = [ordered]@{
   operatorUserResolutionSource        = $operatorUserAssignment.Source
   managedIdentityPrincipalId          = $managedIdentityPrincipalId
   operatorRoleAssignmentCreated       = [bool]$operatorAssignmentCreated
+  deployPrincipalRoleAssignmentCreated = [bool]$deployAssignmentCreated
   operatorAiRelayRoleAssignmentCreated = [bool]$operatorAiRelayAssignmentCreated
   managedIdentityRoleAssignmentCreated = [bool]$runtimeAssignmentCreated
 }

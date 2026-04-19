@@ -202,6 +202,10 @@ def test_setup_env_uses_github_and_runtime_discovery_paths() -> None:
     assert 'function Get-RequirementLevel' in text
     assert 'function Format-SuggestedDisplayValue' in text
     assert 'function Get-UiContainerAppName' in text
+    assert 'function Get-ApiCorsAllowOrigins' in text
+    assert '"API_CORS_ALLOW_ORIGINS" {' in text
+    assert 'Convert-ToAbsoluteOrigin -Value $uiPublicHostname -AssumeHttpsHostname' in text
+    assert 'Convert-ToAbsoluteOrigin -Value $uiRedirectUri' in text
     assert 'Get-ContainerApp -AppName (Get-UiContainerAppName)' in text
     assert 'DispatchAppPrivateKeyFilePath' in text
     assert 'function Read-SecretFileValue' in text
@@ -270,7 +274,6 @@ def test_setup_env_makes_ai_requirements_conditional(tmp_path: Path) -> None:
 
 def test_ai_relay_smoke_tokens_are_documented_as_secrets() -> None:
     contract = contract_map()
-    assert contract["DEPLOY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
     assert contract["AI_RELAY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
     assert contract["AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN"]["github_storage"] == "secret"
 
@@ -297,7 +300,7 @@ def test_sync_script_fails_fast_when_required_values_are_blank(tmp_path: Path) -
     )
     write_env_file(
         temp_repo / ".env.web",
-        build_contract_env_values({"DEPLOY_SMOKE_BEARER_TOKEN": ""}),
+        build_contract_env_values({"ALPHA_VANTAGE_API_KEY": ""}),
     )
 
     stub_dir = tmp_path / "bin"
@@ -322,7 +325,7 @@ def test_sync_script_fails_fast_when_required_values_are_blank(tmp_path: Path) -
     assert completed.returncode != 0
     error_output = completed.stdout + completed.stderr
     assert ".env.web is missing required values" in error_output
-    assert "DEPLOY_SMOKE_BEARER_TOKEN" in error_output
+    assert "ALPHA_VANTAGE_API_KEY" in error_output
 
 
 def test_setup_env_dry_run_tolerates_mixed_shape_discovery_results(tmp_path: Path) -> None:
@@ -427,6 +430,7 @@ else:
 
     stdout = completed.stdout
     assert "API_APP_NAME=" in stdout
+    assert "API_CORS_ALLOW_ORIGINS=https://asset-allocation-ui.example.test" in stdout
     assert "UI_OIDC_CLIENT_ID=" in stdout
     assert "LOG_ANALYTICS_WORKSPACE_NAME=" in stdout
     assert "UI_OIDC_REDIRECT_URI=" in stdout
