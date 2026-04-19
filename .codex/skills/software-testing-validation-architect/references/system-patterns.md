@@ -1,227 +1,261 @@
-# Testing Heuristics by System Pattern
+# Testing Heuristics By System Pattern
 
-## Table of Contents
+## Table Of Contents
 
-- Web Apps and APIs
-- Microservices and Distributed Flows
-- Background Jobs, Schedulers, and Workers
-- Queues, Pub/Sub, and Event-Driven Systems
-- Databases and Repositories
-- Authentication and Authorization Flows
-- File and Document Processing
-- Legacy Systems with Weak Tests
-- CI/CD and Release Validation
+- Web Apps And APIs
+- Background Jobs, Schedulers, And Data Pipelines
+- Queues, Pub/Sub, And Event-Driven Systems
+- Microservices And Distributed Flows
+- Databases, Repositories, And Migrations
+- Authentication And Authorization
+- Frontend, Accessibility, And Client State
+- CLI And Desktop Applications
+- File And Document Processing
+- Feature Flags, Analytics, And Experimentation
+- Legacy Systems With Weak Tests
+- CI/CD And Release Validation
 
-## Web Apps and APIs
+## Web Apps And APIs
 
-### Protect with unit tests
+### High-value coverage
 
-- request validation and normalization
+- request validation, normalization, and error shapes
 - business rules behind endpoints
-- mapping between DTOs, domain models, and persistence models
-- pagination, filtering, sorting, and field selection rules
-- authorization decisions that can be isolated from framework glue
+- DTO, domain, and persistence mapping
+- pagination, filtering, sorting, partial updates, and idempotent writes
+- authorization and tenant isolation
+- transaction boundaries and cache coordination
 
-### Protect with integration tests
+### Common failure modes
 
-- routing, middleware, dependency wiring, and persistence behavior
-- serialization and deserialization
-- transaction handling
-- cache and repository coordination
-- idempotent write behavior where relevant
+- happy-path tests miss deny-by-default behavior
+- partial update semantics corrupt data
+- null, optional, or default fields behave differently than expected
+- retries or duplicate requests create duplicate side effects
+- timezone and locale handling drift around boundaries
 
-### Protect with contract tests
+### Observability and recovery
 
-- request and response schemas
-- error shapes
-- backward compatibility for versioned endpoints
+- verify logs, metrics, traces, and alerting for failed writes, timeouts, and auth failures
+- verify rollback or compensation for multi-step writes
 
-### Protect with end-to-end tests
+## Background Jobs, Schedulers, And Data Pipelines
 
-- a thin set of critical user journeys
-- login, checkout, approval, onboarding, or other business-critical flows
+### High-value coverage
 
-### Common blind spots
+- schedule triggers, missed-run logic, and rerun safety
+- item selection rules and cutoff windows
+- retries, backoff, poison-item handling, and dead-letter behavior
+- idempotency on rerun or restart
+- partial completion, checkpointing, resume logic, and concurrency controls
+- DST, timezone, and date-boundary behavior
 
-- authorization gaps hidden behind happy-path tests
-- pagination or filter edge cases
-- partial update semantics
-- retry and timeout behavior
-- null and optional field handling
-- timezone and locale assumptions
+### Common failure modes
 
-## Microservices and Distributed Flows
+- jobs succeed in unit tests but fail under real schedule timing
+- retries duplicate writes, notifications, or downstream events
+- partial failures leave state inconsistent or invisible
+- cutoff logic skips or double-processes records around date boundaries
+- watermark or checkpoint logic regresses silently
 
-### Focus areas
+### Observability and recovery
 
-- service contracts and backward compatibility
-- retries, backoff, and timeout behavior
-- partial failure handling
-- duplicate message or request handling
-- eventual consistency and ordering assumptions
-- saga or compensation logic where relevant
+- verify job-level metrics, lag, throughput, retry counts, dead-letter counts, and error visibility
+- verify runbooks, replay procedures, and safe rollback or replay controls
 
-### Recommended balance
+## Queues, Pub/Sub, And Event-Driven Systems
 
-- keep most business logic at unit level
-- verify service seams and persistence in integration tests
-- use contract tests aggressively between services
-- use workflow tests sparingly for the most critical cross-service flows
-
-### Common blind spots
-
-- one service changes payload shape without downstream protection
-- retry logic causes duplicate side effects
-- partial success leaves state inconsistent
-- consumer assumptions are not version-safe
-
-## Background Jobs, Schedulers, and Workers
-
-### High-value scenarios
-
-- schedule triggers and missed-run behavior
-- retries, backoff, and poison-item handling
-- idempotency on rerun
-- partial completion and resume logic
-- concurrency controls and duplicate execution
-- cutoff times, DST changes, and timezone boundaries
-
-### Strong test mix
-
-- unit tests for decision logic and item-selection rules
-- integration tests for persistence, locking, and external calls
-- workflow tests for trigger-to-side-effect behavior when jobs are mission-critical
-
-### Common blind spots
-
-- jobs that succeed locally but fail under real schedule timing
-- duplicated work after retries or restarts
-- state not rolled back after partial failure
-- skipped or double-processed records at date boundaries
-
-## Queues, Pub/Sub, and Event-Driven Systems
-
-### High-value scenarios
+### High-value coverage
 
 - publish and consume payload correctness
 - ack, nack, retry, dead-letter, and poison-message behavior
-- deduplication and idempotency
-- out-of-order delivery
-- reprocessing and replay handling
-- version compatibility of events
+- deduplication, idempotency, replay, and reprocessing
+- out-of-order delivery and eventual consistency assumptions
+- event version compatibility
 
-### Recommended balance
-
-- unit tests for handlers and routing decisions
-- integration tests for queue adapters and persistence interactions
-- contract tests for event schemas and compatibility
-- selective workflow tests for critical event chains
-
-### Common blind spots
+### Common failure modes
 
 - handlers assume ordering guarantees that do not exist
-- retries create duplicate writes or notifications
-- dead-letter paths are untested
-- consumer silently ignores new or missing fields
+- consumer code silently ignores new or missing fields
+- retries create duplicate side effects
+- dead-letter handling exists on paper but not in tests
 
-## Databases and Repositories
+### Observability and recovery
 
-### High-value scenarios
+- verify correlation IDs, queue depth metrics, consumer lag, dead-letter visibility, and replay tooling
+- verify operational guidance for reprocessing and safe backfills
 
-- query correctness under realistic data shape
-- transaction boundaries
-- migrations and backward-compatible rollout assumptions
-- unique constraints, null handling, and soft-delete behavior
-- optimistic locking or concurrency behavior where relevant
+## Microservices And Distributed Flows
 
-### Recommended balance
+### High-value coverage
 
-- unit tests for query-building helpers only when logic is non-trivial
-- integration tests for actual repository behavior and migrations
-- contract tests only when DB-facing interfaces are versioned across components
+- service contracts and backward compatibility
+- timeouts, retries, circuit breaking, and compensation
+- partial failure handling across service boundaries
+- saga orchestration or workflow state transitions
+- authentication propagation and tenant context propagation
 
-### Common blind spots
+### Common failure modes
 
-- tests using fake repositories that miss SQL or ORM behavior
-- migration order problems
-- collation, timezone, or encoding differences
-- missing rollback tests around multi-step persistence flows
+- one service changes a payload shape without downstream protection
+- retries multiply side effects
+- partial success leaves the system in an inconsistent state
+- workflow state machines accept invalid transitions
 
-## Authentication and Authorization Flows
+### Observability and recovery
 
-### High-value scenarios
+- verify cross-service traceability, correlation IDs, failure alarms, and compensation visibility
+- verify rollback, replay, or manual repair procedures for partial failures
+
+## Databases, Repositories, And Migrations
+
+### High-value coverage
+
+- query correctness against realistic data shape
+- transaction behavior and rollback assumptions
+- unique constraints, null handling, soft-delete semantics, and optimistic locking
+- migration ordering and backward-compatible rollout assumptions
+- concurrent writes and stale-read behavior
+
+### Common failure modes
+
+- fake repositories hide SQL or ORM behavior
+- migration order or backfill assumptions fail in production
+- collation, timezone, precision, or encoding mismatches corrupt data
+- rollback paths for multi-step persistence flows are untested
+
+### Observability and recovery
+
+- verify migration monitoring, audit trails, backfill metrics, and rollback plans
+- verify enough logging exists to diagnose partial writes or lock contention
+
+## Authentication And Authorization
+
+### High-value coverage
 
 - deny-by-default behavior
 - role and permission matrix coverage
 - tenant isolation
-- expired, revoked, or malformed credentials
-- session refresh and revocation
-- privileged workflow approvals and step-up auth when relevant
+- expired, revoked, malformed, and stale credentials
+- privileged approvals, step-up auth, and delegated access when relevant
 
-### Recommended balance
+### Common failure modes
 
-- unit tests for policy evaluation rules
-- integration tests for framework wiring and token/session handling
-- workflow tests for a few critical role-based journeys
+- only happy-path or admin roles are tested
+- negative permission cases are missing
+- revoked sessions still work
+- tenant boundaries leak through caching or shared queries
 
-### Common blind spots
+### Observability and recovery
 
-- only admin or happy-path roles tested
-- missing negative permission cases
-- stale or revoked tokens still work
-- tenant boundary leakage
+- verify security-significant auth events are logged and alertable
+- verify operators can revoke access, expire sessions, or disable a feature safely
 
-## File and Document Processing
+## Frontend, Accessibility, And Client State
 
-### High-value scenarios
+### High-value coverage
+
+- critical user journeys and client-side validation
+- loading, empty, error, offline, and retry states
+- keyboard navigation, focus order, screen-reader cues, and color contrast
+- client-side permission handling without trusting it as the only gate
+- browser, viewport, and device-specific behavior for critical flows
+
+### Common failure modes
+
+- optimistic UI hides backend failures
+- stale client state causes invalid transitions or duplicate submissions
+- accessibility only works on the happy path
+- analytics fire on success but not on failure or abandonment
+
+### Observability and recovery
+
+- verify client error capture, meaningful user-facing messages, and breadcrumbs for failed flows
+- verify users can recover from interrupted or stale sessions
+
+## CLI And Desktop Applications
+
+### High-value coverage
+
+- argument parsing, config loading, and environment fallback behavior
+- file permission, path, encoding, and newline handling
+- interrupted execution, partial output cleanup, and rerun safety
+- upgrade and backward-compatibility behavior for persisted state or config
+
+### Common failure modes
+
+- tests only cover clean paths and default config
+- partial writes leave corrupted local state
+- interactive flows break in unattended or headless environments
+
+### Observability and recovery
+
+- verify logs, exit codes, and diagnostic output are actionable
+- verify resumable or repair-safe behavior after interrupted execution
+
+## File And Document Processing
+
+### High-value coverage
 
 - malformed, partial, oversized, duplicate, and unsupported inputs
-- encoding and locale issues
-- parse failures and fallback behavior
-- temporary file cleanup
-- resumable or retry-safe processing
-- content-driven branching and metadata extraction
+- encoding, locale, and metadata issues
+- parser failures, fallback behavior, and temporary file cleanup
+- resumable processing and content-driven branching
 
-### Recommended balance
-
-- unit tests for parsers, validators, and transformation rules
-- integration tests with real sample files
-- workflow tests only for business-critical file ingestion paths
-
-### Common blind spots
+### Common failure modes
 
 - tests use only clean sample files
 - large-file behavior is never exercised
-- parser exceptions are swallowed without clear failure signals
+- parser exceptions are swallowed or downgraded silently
 - temp files or partial outputs accumulate after failure
 
-## Legacy Systems with Weak Tests
+### Observability and recovery
+
+- verify parse failures, skip counts, and output integrity are visible
+- verify cleanup, replay, and quarantine flows are safe
+
+## Feature Flags, Analytics, And Experimentation
+
+### High-value coverage
+
+- flag-off, flag-on, and mid-rollout behavior
+- compatibility between old and new code paths
+- analytics events on success, failure, abandonment, and retry
+- experiment assignment consistency and exposure logging
+
+### Common failure modes
+
+- flag defaults differ across environments
+- stale clients or workers execute the wrong code path
+- analytics blind spots hide failed or abandoned journeys
+- experiment cohorts are polluted by missing exposure or segmentation logic
+
+### Observability and recovery
+
+- verify dashboards, event validation, and rollout kill switches
+- verify operators can disable a flag without leaving inconsistent state behind
+
+## Legacy Systems With Weak Tests
 
 ### Starting strategy
 
 - protect critical paths first
 - add characterization tests before refactoring risky behavior
 - anchor external interfaces with contract or integration tests
-- extract seams that let logic move toward unit-testable code
+- extract seams that move important logic toward deterministic lower layers
 
-### Practical priorities
+### Common failure modes
 
-- payment, authorization, reporting, scheduling, and data-integrity paths
-- modules with incident history
-- change-prone areas without focused tests
+- teams chase broad coverage numbers before understanding business risk
+- refactors land without characterization tests
+- large end-to-end suites mask the absence of focused lower-level coverage
 
-### Common blind spots
-
-- teams chase broad coverage numbers before understanding system risk
-- refactors happen without characterization tests
-- heavy end-to-end suites mask the absence of targeted lower-level protection
-
-## CI/CD and Release Validation
+## CI/CD And Release Validation
 
 ### Strong sequencing
 
-- run lint and fast unit tests early
-- run focused integration or contract checks on PR when change risk justifies it
+- run lint and fast deterministic tests early
+- run focused integration or contract checks on PR when the change risk justifies it
 - run broader suites on merge, nightly, or pre-release based on cost and risk
 - gate releases with the smallest set of checks that proves critical behavior
 
@@ -230,10 +264,10 @@
 - migration validation
 - smoke tests for deployment readiness
 - environment parity for critical dependencies
-- flake tracking with ownership and burn-down expectations
-- test result visibility tied to release decisions
+- flake tracking with ownership and exit criteria
+- monitoring validation and rollback readiness tied to the release decision
 
-### Common blind spots
+### Common failure modes
 
 - expensive suites block developers but still miss key regressions
 - flaky tests are normalized and ignored

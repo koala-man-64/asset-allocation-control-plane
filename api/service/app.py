@@ -21,6 +21,8 @@ from api.endpoints import (
     data,
     internal,
     massive,
+    portfolio_internal,
+    portfolios,
     postgres,
     rankings,
     realtime,
@@ -459,10 +461,13 @@ def create_app() -> FastAPI:
         app.include_router(postgres.router, prefix=f"{api_prefix}/system/postgres", tags=["Postgres"])
         app.include_router(universes.router, prefix=f"{api_prefix}/universes", tags=["Universes"])
         app.include_router(strategies.router, prefix=f"{api_prefix}/strategies", tags=["Strategies"])
+        app.include_router(portfolios.router, prefix=api_prefix, tags=["Portfolios"])
         app.include_router(rankings.router, prefix=f"{api_prefix}/rankings", tags=["Rankings"])
         app.include_router(regimes.router, prefix=f"{api_prefix}/regimes", tags=["Regimes"])
         app.include_router(backtests.router, prefix=f"{api_prefix}/backtests", tags=["Backtests"])
         app.include_router(internal.router, prefix=f"{api_prefix}/internal", tags=["Internal"])
+        app.include_router(portfolio_internal.router, prefix=f"{api_prefix}/internal/portfolios", tags=["Internal"])
+        app.include_router(portfolio_internal.compat_router, prefix=f"{api_prefix}/internal", tags=["Internal"])
         app.include_router(realtime.router, prefix=api_prefix, tags=["Realtime"])
         app.include_router(
             alpha_vantage.router,
