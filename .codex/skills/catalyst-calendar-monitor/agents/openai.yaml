@@ -1,0 +1,4 @@
+interface:
+  display_name: "Catalyst & Calendar Monitor"
+  short_description: "Monitor forward event risk and catalysts"
+  default_prompt: "Use $catalyst-calendar-monitor to review upcoming earnings, macro, and corporate catalysts for portfolio event risk."

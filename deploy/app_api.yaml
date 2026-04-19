@@ -26,6 +26,8 @@ properties:
       value: "${MASSIVE_API_KEY}"
     - name: backtest-pg-dsn
       value: "${POSTGRES_DSN}"
+    - name: ai-relay-api-key
+      value: "${AI_RELAY_API_KEY}"
   template:
     serviceAccountName: ${SERVICE_ACCOUNT_NAME}
     containers:
@@ -87,6 +89,28 @@ properties:
         value: "${API_OIDC_REQUIRED_SCOPES}"
       - name: API_OIDC_REQUIRED_ROLES
         value: "${API_OIDC_REQUIRED_ROLES}"
+      - name: AI_RELAY_ENABLED
+        value: "${AI_RELAY_ENABLED}"
+      - name: AI_RELAY_MODEL
+        value: "${AI_RELAY_MODEL}"
+      - name: AI_RELAY_REASONING_EFFORT
+        value: "${AI_RELAY_REASONING_EFFORT}"
+      - name: AI_RELAY_TIMEOUT_SECONDS
+        value: "${AI_RELAY_TIMEOUT_SECONDS}"
+      - name: AI_RELAY_MAX_PROMPT_CHARS
+        value: "${AI_RELAY_MAX_PROMPT_CHARS}"
+      - name: AI_RELAY_MAX_FILES
+        value: "${AI_RELAY_MAX_FILES}"
+      - name: AI_RELAY_MAX_FILE_BYTES
+        value: "${AI_RELAY_MAX_FILE_BYTES}"
+      - name: AI_RELAY_MAX_TOTAL_FILE_BYTES
+        value: "${AI_RELAY_MAX_TOTAL_FILE_BYTES}"
+      - name: AI_RELAY_MAX_OUTPUT_TOKENS
+        value: "${AI_RELAY_MAX_OUTPUT_TOKENS}"
+      - name: AI_RELAY_REQUIRED_ROLES
+        value: "${AI_RELAY_REQUIRED_ROLES}"
+      - name: AI_RELAY_API_KEY
+        secretRef: ai-relay-api-key
       - name: API_CSP
         value: "${API_CSP}"
       - name: API_CORS_ALLOW_ORIGINS

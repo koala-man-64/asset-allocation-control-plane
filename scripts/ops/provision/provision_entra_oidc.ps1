@@ -5,6 +5,8 @@ param(
   [string]$ApiAppDisplayName = "asset-allocation-api",
   [string]$UiAppDisplayName = "asset-allocation-ui",
   [string]$ApiContainerAppName = "",
+  [string]$UiContainerAppName = "",
+  [string]$UiPublicHostname = "",
   [string]$AcrPullIdentityName = "",
   [string]$OperatorUserObjectId = "",
   [string]$LocalUiRedirectUri = "http://localhost:5174/auth/callback"
@@ -500,26 +502,42 @@ function Ensure-ApiApplicationConfiguration {
     value                   = "user_impersonation"
   }
 
-  $appRoleId = ""
+  $accessAppRoleId = ""
+  $aiRelayAppRoleId = ""
   $existingRoles = @()
   foreach ($role in @($graphApp.appRoles)) {
     if ($null -eq $role) { continue }
     if ([string]$role.value -eq "AssetAllocation.Access") {
-      $appRoleId = [string]$role.id
+      $accessAppRoleId = [string]$role.id
+      continue
+    }
+    if ([string]$role.value -eq "AssetAllocation.AiRelay.Use") {
+      $aiRelayAppRoleId = [string]$role.id
       continue
     }
     $existingRoles += (ConvertTo-AppRolePayload -Role $role -FallbackId ([guid]::NewGuid().Guid))
   }
-  if ([string]::IsNullOrWhiteSpace($appRoleId)) {
-    $appRoleId = [guid]::NewGuid().Guid
+  if ([string]::IsNullOrWhiteSpace($accessAppRoleId)) {
+    $accessAppRoleId = [guid]::NewGuid().Guid
   }
-  $targetRole = [ordered]@{
+  if ([string]::IsNullOrWhiteSpace($aiRelayAppRoleId)) {
+    $aiRelayAppRoleId = [guid]::NewGuid().Guid
+  }
+  $accessTargetRole = [ordered]@{
     allowedMemberTypes = @("User", "Application")
     description        = "Access the Asset Allocation operator API and UI."
     displayName        = "AssetAllocation.Access"
-    id                 = $appRoleId
+    id                 = $accessAppRoleId
     isEnabled          = $true
     value              = "AssetAllocation.Access"
+  }
+  $aiRelayTargetRole = [ordered]@{
+    allowedMemberTypes = @("User", "Application")
+    description        = "Use the Asset Allocation AI relay endpoint."
+    displayName        = "AssetAllocation.AiRelay.Use"
+    id                 = $aiRelayAppRoleId
+    isEnabled          = $true
+    value              = "AssetAllocation.AiRelay.Use"
   }
 
   $patch = [ordered]@{
@@ -529,13 +547,14 @@ function Ensure-ApiApplicationConfiguration {
       requestedAccessTokenVersion = 2
       oauth2PermissionScopes      = @($existingScopes + $targetScope)
     }
-    appRoles       = @($existingRoles + $targetRole)
+    appRoles       = @($existingRoles + $accessTargetRole + $aiRelayTargetRole)
   }
 
   Invoke-GraphJson -Method PATCH -Url "https://graph.microsoft.com/v1.0/applications/$($Application.id)" -Body $patch | Out-Null
   return [pscustomobject]@{
-    ScopeId   = $scopeId
-    AppRoleId = $appRoleId
+    ScopeId          = $scopeId
+    AccessAppRoleId  = $accessAppRoleId
+    AiRelayAppRoleId = $aiRelayAppRoleId
   }
 }
 
@@ -692,7 +711,8 @@ function Resolve-ManagedIdentityPrincipalId {
 function Resolve-PublicRedirectUri {
   param(
     [AllowEmptyString()][string]$ExplicitRedirectUri = "",
-    [Parameter(Mandatory = $true)][string]$ApiContainerApp,
+    [AllowEmptyString()][string]$UiPublicHostname = "",
+    [Parameter(Mandatory = $true)][string]$UiContainerApp,
     [Parameter(Mandatory = $true)][string]$ResourceGroupName
   )
 
@@ -710,30 +730,30 @@ function Resolve-PublicRedirectUri {
     return $candidate
   }
 
-  $managedEnvironmentId = Invoke-AzCliRaw -Arguments @(
+  if (-not [string]::IsNullOrWhiteSpace($UiPublicHostname)) {
+    $candidateHost = $UiPublicHostname.Trim()
+    if ($candidateHost -match "^[a-z][a-z0-9+\.-]*://") {
+      throw "UI_PUBLIC_HOSTNAME must be a bare hostname, not a URL."
+    }
+    if ($candidateHost.Contains("/") -or $candidateHost.Contains("?") -or $candidateHost.Contains("#")) {
+      throw "UI_PUBLIC_HOSTNAME must be a bare hostname without path, query, or fragment."
+    }
+    return "https://$candidateHost/auth/callback"
+  }
+
+  $uiIngressFqdn = Invoke-AzCliRaw -Arguments @(
     "containerapp", "show",
-    "--name", $ApiContainerApp,
+    "--name", $UiContainerApp,
     "--resource-group", $ResourceGroupName,
-    "--query", "properties.managedEnvironmentId",
+    "--query", "properties.configuration.ingress.fqdn",
     "-o", "tsv",
     "--only-show-errors"
   )
-  if ($managedEnvironmentId.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($managedEnvironmentId.Output)) {
-    throw "Failed to resolve the Container Apps managed environment for '$ApiContainerApp'. Set UI_OIDC_REDIRECT_URI explicitly or provision the API Container App first."
+  if ($uiIngressFqdn.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($uiIngressFqdn.Output)) {
+    throw "Failed to resolve the public ingress FQDN for UI Container App '$UiContainerApp'. Set UI_OIDC_REDIRECT_URI explicitly or provision the UI Container App first."
   }
 
-  $defaultDomain = Invoke-AzCliRaw -Arguments @(
-    "containerapp", "env", "show",
-    "--ids", $managedEnvironmentId.Output.Trim(),
-    "--query", "properties.defaultDomain",
-    "-o", "tsv",
-    "--only-show-errors"
-  )
-  if ($defaultDomain.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($defaultDomain.Output)) {
-    throw "Failed to resolve the Container Apps environment default domain. Set UI_OIDC_REDIRECT_URI explicitly."
-  }
-
-  return "https://$ApiContainerApp.$($defaultDomain.Output.Trim())/auth/callback"
+  return "https://$($uiIngressFqdn.Output.Trim())/auth/callback"
 }
 
 function Resolve-PostLogoutRedirectUri {
@@ -791,6 +811,23 @@ if ([string]::IsNullOrWhiteSpace($ApiContainerAppName)) {
   $ApiContainerAppName = "asset-allocation-api"
 }
 
+if ([string]::IsNullOrWhiteSpace($UiContainerAppName)) {
+  $UiContainerAppName = Get-EnvValueFirst -Keys @("UI_APP_NAME", "CONTAINER_APP_UI_NAME") -Lines $envLines
+}
+if ([string]::IsNullOrWhiteSpace($UiContainerAppName)) {
+  $UiContainerAppName = $UiAppDisplayName
+}
+if ([string]::IsNullOrWhiteSpace($UiContainerAppName)) {
+  $UiContainerAppName = "asset-allocation-ui"
+}
+
+if ([string]::IsNullOrWhiteSpace($UiPublicHostname)) {
+  $UiPublicHostname = Get-EnvValueFirst -Keys @("UI_PUBLIC_HOSTNAME") -Lines $envLines
+}
+if (-not [string]::IsNullOrWhiteSpace($UiPublicHostname)) {
+  $UiPublicHostname = $UiPublicHostname.Trim()
+}
+
 if ([string]::IsNullOrWhiteSpace($AcrPullIdentityName)) {
   $AcrPullIdentityName = Get-EnvValueFirst -Keys @("ACR_PULL_IDENTITY_NAME", "ACR_PULL_USER_ASSIGNED_IDENTITY_NAME") -Lines $envLines
 }
@@ -816,6 +853,8 @@ Write-Host "Resource group: $ResourceGroup"
 Write-Host "API app display name: $ApiAppDisplayName"
 Write-Host "UI app display name: $UiAppDisplayName"
 Write-Host "API container app: $ApiContainerAppName"
+Write-Host "UI container app: $UiContainerAppName"
+Write-Host "UI public hostname: $(if ([string]::IsNullOrWhiteSpace($UiPublicHostname)) { '<container-app-fqdn>' } else { $UiPublicHostname })"
 Write-Host "Managed identity: $AcrPullIdentityName"
 Write-Host "Operator user source: $($operatorUserAssignment.Source)"
 Write-Host ""
@@ -829,7 +868,8 @@ Ensure-AppRoleAssignmentRequired -ServicePrincipalObjectId $apiServicePrincipal.
 
 $publicRedirectUri = Resolve-PublicRedirectUri `
   -ExplicitRedirectUri $explicitRedirectUri `
-  -ApiContainerApp $ApiContainerAppName `
+  -UiPublicHostname $UiPublicHostname `
+  -UiContainerApp $UiContainerAppName `
   -ResourceGroupName $ResourceGroup
 $publicPostLogoutRedirectUri = Resolve-PostLogoutRedirectUri -RedirectUri $publicRedirectUri
 
@@ -848,11 +888,15 @@ $managedIdentityPrincipalId = Resolve-ManagedIdentityPrincipalId -IdentityName $
 $operatorAssignmentCreated = Ensure-AppRoleAssignment `
   -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
   -PrincipalObjectId $OperatorUserObjectId `
-  -AppRoleId $apiConfig.AppRoleId
+  -AppRoleId $apiConfig.AccessAppRoleId
 $runtimeAssignmentCreated = Ensure-AppRoleAssignment `
   -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
   -PrincipalObjectId $managedIdentityPrincipalId `
-  -AppRoleId $apiConfig.AppRoleId
+  -AppRoleId $apiConfig.AccessAppRoleId
+$operatorAiRelayAssignmentCreated = Ensure-AppRoleAssignment `
+  -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
+  -PrincipalObjectId $OperatorUserObjectId `
+  -AppRoleId $apiConfig.AiRelayAppRoleId
 
 $authority = "https://login.microsoftonline.com/$tenantId"
 $issuer = "$authority/v2.0"
@@ -863,10 +907,12 @@ $envUpdates = [ordered]@{
   API_OIDC_AUDIENCE           = [string]$apiApp.appId
   API_OIDC_REQUIRED_ROLES     = "AssetAllocation.Access"
   API_OIDC_REQUIRED_SCOPES    = ""
+  AI_RELAY_REQUIRED_ROLES     = "AssetAllocation.AiRelay.Use"
   UI_OIDC_CLIENT_ID           = [string]$uiApp.appId
   UI_OIDC_AUTHORITY           = $authority
   UI_OIDC_SCOPES              = "api://$($apiApp.appId)/user_impersonation openid profile offline_access"
   UI_OIDC_REDIRECT_URI        = $publicRedirectUri
+  UI_PUBLIC_HOSTNAME          = $UiPublicHostname
   ASSET_ALLOCATION_API_SCOPE  = "api://$($apiApp.appId)/.default"
 }
 Set-EnvValues -Path $envPath -Values $envUpdates
@@ -882,15 +928,19 @@ $outputs = [ordered]@{
   uiAppClientId                       = $uiApp.appId
   oidcAuthority                       = $authority
   oidcIssuer                          = $issuer
+  uiPublicHostname                    = $UiPublicHostname
   uiRedirectUri                       = $publicRedirectUri
   uiPostLogoutRedirectUri             = $publicPostLogoutRedirectUri
   apiDelegatedScopeId                 = $apiConfig.ScopeId
-  apiAppRoleId                        = $apiConfig.AppRoleId
+  apiAppRoleId                        = $apiConfig.AccessAppRoleId
+  apiAccessAppRoleId                  = $apiConfig.AccessAppRoleId
+  apiAiRelayAppRoleId                 = $apiConfig.AiRelayAppRoleId
   operatorUserObjectId                = $OperatorUserObjectId
   operatorUserPrincipalName           = $operatorUserAssignment.UserPrincipalName
   operatorUserResolutionSource        = $operatorUserAssignment.Source
   managedIdentityPrincipalId          = $managedIdentityPrincipalId
   operatorRoleAssignmentCreated       = [bool]$operatorAssignmentCreated
+  operatorAiRelayRoleAssignmentCreated = [bool]$operatorAiRelayAssignmentCreated
   managedIdentityRoleAssignmentCreated = [bool]$runtimeAssignmentCreated
 }
 

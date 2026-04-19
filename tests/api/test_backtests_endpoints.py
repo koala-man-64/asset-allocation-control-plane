@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
+from asset_allocation_contracts.backtest import StrategyReferenceInput
 from psycopg import OperationalError
 
 from api.endpoints import backtests as backtest_endpoints
 from api.service.app import create_app
+from core.backtest_request_resolution import ResolvedBacktestRequest
 from core.backtest_repository import BacktestRepository
 from core.backtest_runtime import ResolvedBacktestDefinition
 from core.ranking_engine.contracts import RankingSchemaConfig
@@ -126,6 +129,62 @@ def _sample_definition() -> ResolvedBacktestDefinition:
         regime_model_name="default-regime",
         regime_model_version=1,
         regime_model_config={"highVolEnterThreshold": 28.0},
+    )
+
+
+def _sample_resolved_request(*, input_mode: str = "strategy_ref") -> ResolvedBacktestRequest:
+    definition = _sample_definition()
+    strategy_ref = (
+        StrategyReferenceInput(strategyName=definition.strategy_name or "mom-spy-res", strategyVersion=definition.strategy_version)
+        if input_mode == "strategy_ref"
+        else None
+    )
+    return ResolvedBacktestRequest(
+        input_mode=input_mode,
+        start_ts=datetime(2026, 3, 3, 14, 30, tzinfo=timezone.utc),
+        end_ts=datetime(2026, 3, 3, 14, 35, tzinfo=timezone.utc),
+        bar_size="5m",
+        schedule=[
+            datetime(2026, 3, 3, 14, 30, tzinfo=timezone.utc),
+            datetime(2026, 3, 3, 14, 35, tzinfo=timezone.utc),
+        ],
+        definition=definition,
+        strategy_ref=strategy_ref,
+        request_payload={
+            "strategyRef": strategy_ref.model_dump(mode="json") if strategy_ref is not None else None,
+            "strategyConfig": definition.strategy_config_raw if input_mode == "inline" else None,
+            "startTs": "2026-03-03T14:30:00+00:00",
+            "endTs": "2026-03-03T14:35:00+00:00",
+            "barSize": "5m",
+        },
+        effective_config={
+            "schemaVersion": 1,
+            "inputMode": input_mode,
+            "strategy": definition.strategy_config_raw,
+            "pins": {
+                "strategyName": definition.strategy_name,
+                "strategyVersion": definition.strategy_version,
+                "rankingSchemaName": definition.ranking_schema_name,
+                "rankingSchemaVersion": definition.ranking_schema_version,
+                "universeName": definition.ranking_universe_name,
+                "universeVersion": definition.ranking_universe_version,
+                "regimeModelName": definition.regime_model_name,
+                "regimeModelVersion": definition.regime_model_version,
+            },
+            "execution": {
+                "startTs": "2026-03-03T14:30:00+00:00",
+                "endTs": "2026-03-03T14:35:00+00:00",
+                "barSize": "5m",
+                "barsResolved": 2,
+            },
+            "fingerprints": {
+                "configFingerprint": "config-fp-1",
+                "requestFingerprint": "request-fp-1",
+                "resultsSchemaVersion": 4,
+            },
+        },
+        config_fingerprint="config-fp-1",
+        request_fingerprint="request-fp-1",
     )
 
 
@@ -250,14 +309,10 @@ async def test_submit_backtest_freezes_pinned_versions_and_queues_run(
         }
 
     monkeypatch.setattr(BacktestRepository, "create_run", fake_create_run)
-    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_definition", lambda *args, **kwargs: _sample_definition())
     monkeypatch.setattr(
         backtest_endpoints,
-        "validate_backtest_submission",
-        lambda *args, **kwargs: [
-            datetime(2026, 3, 3, 14, 30, tzinfo=timezone.utc),
-            datetime(2026, 3, 3, 14, 35, tzinfo=timezone.utc),
-        ],
+        "resolve_backtest_request",
+        lambda *args, **kwargs: _sample_resolved_request(),
     )
     monkeypatch.setattr(
         backtest_endpoints,
@@ -292,9 +347,356 @@ async def test_submit_backtest_freezes_pinned_versions_and_queues_run(
     assert effective_config["pins"]["regimeModelName"] == "default-regime"
     assert effective_config["pins"]["regimeModelVersion"] == 1
     assert effective_config["execution"]["barsResolved"] == 2
+    assert captured["config_fingerprint"] == "config-fp-1"
+    assert captured["request_fingerprint"] == "request-fp-1"
     assert "output_dir" not in captured
     assert "adls_container" not in captured
     assert "adls_prefix" not in captured
+
+
+@pytest.mark.asyncio
+async def test_lookup_backtest_returns_completed_exact_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", lambda *args, **kwargs: _sample_resolved_request())
+    monkeypatch.setattr(
+        BacktestRepository,
+        "find_latest_completed_request_run",
+        lambda self, *, request_fingerprint: {
+            "run_id": "run-lookup-1",
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "completed_at": datetime(2026, 3, 8, 0, 30, tzinfo=timezone.utc),
+            "results_ready_at": datetime(2026, 3, 8, 0, 35, tzinfo=timezone.utc),
+            "results_schema_version": 4,
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": request_fingerprint,
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "find_latest_inflight_request_run", lambda self, *, request_fingerprint: None)
+    monkeypatch.setattr(BacktestRepository, "find_latest_failed_request_run", lambda self, *, request_fingerprint: None)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_summary",
+        lambda self, run_id: {"run_id": run_id, "total_return": 0.12, "trades": 5},
+    )
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend", "strategyVersion": 4},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/results/lookup", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is True
+    assert body["state"] == "completed"
+    assert body["run"]["run_id"] == "run-lookup-1"
+    assert body["result"]["total_return"] == 0.12
+    assert body["links"]["summaryUrl"] == "/api/backtests/run-lookup-1/summary"
+
+
+@pytest.mark.asyncio
+async def test_lookup_backtest_returns_not_run_when_no_exact_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", lambda *args, **kwargs: _sample_resolved_request())
+    monkeypatch.setattr(BacktestRepository, "find_latest_completed_request_run", lambda self, *, request_fingerprint: None)
+    monkeypatch.setattr(BacktestRepository, "find_latest_inflight_request_run", lambda self, *, request_fingerprint: None)
+    monkeypatch.setattr(BacktestRepository, "find_latest_failed_request_run", lambda self, *, request_fingerprint: None)
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/results/lookup", json=payload)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "found": False,
+        "state": "not_run",
+        "run": None,
+        "result": None,
+        "links": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_lookup_backtest_returns_inflight_state_without_creating_work(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", lambda *args, **kwargs: _sample_resolved_request())
+    monkeypatch.setattr(BacktestRepository, "find_latest_completed_request_run", lambda self, *, request_fingerprint: None)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "find_latest_inflight_request_run",
+        lambda self, *, request_fingerprint: {
+            "run_id": "run-inflight-1",
+            "status": "running",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "started_at": datetime(2026, 3, 8, 0, 5, tzinfo=timezone.utc),
+            "results_ready_at": None,
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": request_fingerprint,
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "find_latest_failed_request_run", lambda self, *, request_fingerprint: None)
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/results/lookup", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is False
+    assert body["state"] == "running"
+    assert body["run"]["run_id"] == "run-inflight-1"
+    assert body["result"] is None
+    assert body["links"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_creates_new_run_even_when_completed_match_exists(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setenv("BACKTEST_ACA_JOB_NAME", "backtests-job")
+    captured: dict[str, Any] = {}
+
+    def fake_create_run(self, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return {
+            "run_id": "run-created-1",
+            "status": "queued",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "strategy_name": kwargs.get("strategy_name"),
+            "strategy_version": kwargs.get("strategy_version"),
+            "bar_size": kwargs.get("bar_size"),
+            "request_fingerprint": kwargs.get("request_fingerprint"),
+            "effective_config": kwargs.get("effective_config"),
+        }
+
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", lambda *args, **kwargs: _sample_resolved_request())
+    monkeypatch.setattr(BacktestRepository, "find_latest_inflight_request_run", lambda self, *, request_fingerprint: None)
+    monkeypatch.setattr(BacktestRepository, "create_run", fake_create_run)
+    monkeypatch.setattr(backtest_endpoints, "_trigger_backtest_job", lambda job_name: {"status": "queued", "jobName": job_name})
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/runs", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created"] is True
+    assert body["reusedInflight"] is False
+    assert body["streamUrl"] == "/api/backtests/run-created-1/events"
+    assert captured["request_fingerprint"] == "request-fp-1"
+    assert captured["config_fingerprint"] == "config-fp-1"
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_reuses_inflight_exact_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", lambda *args, **kwargs: _sample_resolved_request())
+    monkeypatch.setattr(
+        BacktestRepository,
+        "find_latest_inflight_request_run",
+        lambda self, *, request_fingerprint: {
+            "run_id": "run-existing-1",
+            "status": "queued",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": request_fingerprint,
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    )
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/runs", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created"] is False
+    assert body["reusedInflight"] is True
+    assert body["run"]["run_id"] == "run-existing-1"
+    assert body["streamUrl"] == "/api/backtests/run-existing-1/events"
+
+
+@pytest.mark.asyncio
+async def test_split_backtest_endpoints_reject_invalid_strategy_input(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    app = create_app()
+    invalid_payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "strategyConfig": _sample_definition().strategy_config_raw,
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+
+    async with get_test_client(app) as client:
+        lookup_response = await client.post("/api/backtests/results/lookup", json=invalid_payload)
+        run_response = await client.post("/api/backtests/runs", json=invalid_payload)
+
+    assert lookup_response.status_code == 422
+    assert run_response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_stream_backtest_events_emits_accepted_heartbeat_and_completed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    runs = [
+        {
+            "run_id": "run-stream-1",
+            "status": "queued",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": "request-fp-1",
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+        {
+            "run_id": "run-stream-1",
+            "status": "running",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "started_at": datetime(2026, 3, 8, 0, 1, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": "request-fp-1",
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+        {
+            "run_id": "run-stream-1",
+            "status": "running",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "started_at": datetime(2026, 3, 8, 0, 1, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": "request-fp-1",
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+        {
+            "run_id": "run-stream-1",
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "started_at": datetime(2026, 3, 8, 0, 1, tzinfo=timezone.utc),
+            "completed_at": datetime(2026, 3, 8, 0, 2, tzinfo=timezone.utc),
+            "results_ready_at": datetime(2026, 3, 8, 0, 3, tzinfo=timezone.utc),
+            "results_schema_version": 4,
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": "request-fp-1",
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    ]
+
+    def fake_get_run(self, run_id):  # type: ignore[no-untyped-def]
+        if len(runs) > 1:
+            return runs.pop(0)
+        return runs[0]
+
+    monkeypatch.setattr(BacktestRepository, "get_run", fake_get_run)
+    monkeypatch.setattr(BacktestRepository, "get_summary", lambda self, run_id: {"run_id": run_id, "total_return": 0.12})
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        async with client.stream("GET", "/api/backtests/run-stream-1/events") as response:
+            chunks: list[str] = []
+            async for text in response.aiter_text():
+                chunks.append(text)
+        body = "".join(chunks)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.headers["cache-control"] == "no-cache"
+    assert "event: accepted" in body
+    assert "event: status" in body
+    assert "event: heartbeat" in body
+    assert "event: completed" in body
+    assert '"summaryUrl":"/api/backtests/run-stream-1/summary"' in body
+
+
+@pytest.mark.asyncio
+async def test_stream_backtest_events_emits_failed_terminal_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    runs = [
+        {
+            "run_id": "run-stream-2",
+            "status": "queued",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": "request-fp-2",
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+        {
+            "run_id": "run-stream-2",
+            "status": "failed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "completed_at": datetime(2026, 3, 8, 0, 2, tzinfo=timezone.utc),
+            "error": "boom",
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": "request-fp-2",
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    ]
+
+    def fake_get_run(self, run_id):  # type: ignore[no-untyped-def]
+        if len(runs) > 1:
+            return runs.pop(0)
+        return runs[0]
+
+    monkeypatch.setattr(BacktestRepository, "get_run", fake_get_run)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        async with client.stream("GET", "/api/backtests/run-stream-2/events") as response:
+            chunks: list[str] = []
+            async for text in response.aiter_text():
+                chunks.append(text)
+        body = "".join(chunks)
+
+    assert response.status_code == 200
+    assert "event: accepted" in body
+    assert "event: failed" in body
+    assert '"error":"boom"' in body
 
 
 @pytest.mark.asyncio

@@ -65,6 +65,8 @@ def build_command(gate: str) -> tuple[list[str], pathlib.Path]:
                 "tests/test_multirepo_dependency_contract.py",
                 "tests/test_workflow_runtime_ownership.py",
                 "tests/test_deploy_manifests.py",
+                "tests/api/test_ai_chat_stream.py",
+                "tests/api/test_ai_gateway_service.py",
                 "tests/api/test_config_js_contract.py",
                 "tests/api/test_internal_endpoints.py",
             ],

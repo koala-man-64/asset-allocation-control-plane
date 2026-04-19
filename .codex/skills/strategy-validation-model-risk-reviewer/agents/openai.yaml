@@ -1,0 +1,4 @@
+interface:
+  display_name: "Strategy Validation & Model Risk Reviewer"
+  short_description: "Validate trading strategies with independent model-risk rigor"
+  default_prompt: "Use $strategy-validation-model-risk-reviewer to review an existing trading strategy, backtest, or monitoring proposal like an independent institutional model validation function."

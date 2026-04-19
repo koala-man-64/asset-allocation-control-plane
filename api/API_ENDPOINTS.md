@@ -12,6 +12,8 @@ API Root
     |-- /docs [GET] (app.swagger_ui) - Browser Swagger UI docs :: api/service/app.py
     |-- /openapi.json [GET] (app.openapi_json) - OpenAPI spec payload :: api/service/app.py
     |-- /auth/session [GET] (auth.get_auth_session) - Returns the authenticated session summary used by the UI auth boundary :: api/endpoints/auth.py
+    |-- /ai
+    |   `-- /chat/stream [POST] (ai.stream_chat) - Authenticated SSE relay to the OpenAI Responses API; accepts JSON or multipart with optional files :: api/endpoints/ai.py
     |-- /realtime/ticket [POST] (realtime.issue_realtime_ticket) - Issues a single-use websocket ticket for authenticated clients :: api/endpoints/realtime.py <== ui/src/hooks/useRealtime.ts
     |-- /ws/updates [WebSocket] (realtime.websocket_updates) - Real-time updates (system health/jobs/container apps/runtime config/debug symbols) :: api/endpoints/realtime.py <== ui/src/hooks/useRealtime.ts
 

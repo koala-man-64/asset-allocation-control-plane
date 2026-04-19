@@ -31,6 +31,12 @@ function Load-EnvContract {
     return $map
 }
 
+function Test-TruthyValue {
+    param([AllowNull()][string]$Value)
+    if ($null -eq $Value) { return $false }
+    return @("1", "true", "t", "yes", "y", "on") -contains $Value.Trim().ToLowerInvariant()
+}
+
 if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scripts/setup-env.ps1 first." }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) is required to sync vars and secrets." }
 
@@ -38,6 +44,19 @@ $envMap = Parse-EnvFile -Path $envPath
 $contractMap = Load-EnvContract -Path $contractPath
 $undocumented = @($envMap.Keys | Where-Object { -not $contractMap.ContainsKey($_) } | Sort-Object -Unique)
 if ($undocumented.Count -gt 0) { throw ".env.web contains undocumented keys: $($undocumented -join ', ')" }
+
+$aiRelayEnabled = $false
+if ($envMap.ContainsKey("AI_RELAY_ENABLED")) {
+    $aiRelayEnabled = Test-TruthyValue -Value $envMap["AI_RELAY_ENABLED"]
+}
+if ($aiRelayEnabled) {
+    foreach ($requiredName in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
+        $value = if ($envMap.ContainsKey($requiredName)) { $envMap[$requiredName] } else { "" }
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            throw "AI relay is enabled, but required value '$requiredName' is blank in .env.web."
+        }
+    }
+}
 
 $expectedVars = New-Object System.Collections.Generic.List[string]
 $expectedSecrets = New-Object System.Collections.Generic.List[string]

@@ -277,6 +277,26 @@ def test_results_freshness_migration_creates_refresh_tables_and_canonical_run_co
     assert "fk_core_runs_canonical_target" in text
 
 
+def test_backtest_request_fingerprint_migration_adds_lookup_columns_and_indexes() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0038_backtest_request_fingerprints.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS config_fingerprint TEXT" in text
+    assert "ADD COLUMN IF NOT EXISTS request_fingerprint TEXT" in text
+    assert "idx_core_runs_request_fingerprint_submitted_at" in text
+    assert "request_fingerprint IS NOT NULL" in text
+    assert "idx_core_runs_config_fingerprint_submitted_at" in text
+    assert "config_fingerprint IS NOT NULL" in text
+
+
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"

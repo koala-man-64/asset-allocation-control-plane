@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Librarian & Evidence Packager"
+  short_description: "Package traceable research evidence"
+  default_prompt: "Use $research-librarian-evidence-packager to gather sources, separate facts from inference, and package a traceable evidence pack for review."

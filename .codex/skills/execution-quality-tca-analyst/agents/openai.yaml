@@ -1,0 +1,4 @@
+interface:
+  display_name: "Execution Quality & TCA Analyst"
+  short_description: "Assess execution drag and transaction costs"
+  default_prompt: "Use $execution-quality-tca-analyst to review order logs, fills, benchmarks, and routing for implementation shortfall, execution quality, and avoidable transaction-cost drag."

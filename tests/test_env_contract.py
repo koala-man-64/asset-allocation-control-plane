@@ -119,6 +119,8 @@ def test_sync_script_reads_repo_local_contract() -> None:
     text = (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8")
     assert 'Join-Path $repoRoot "docs\\ops\\env-contract.csv"' in text
     assert 'Join-Path $repoRoot ".env.web"' in text
+    assert "AI_RELAY_ENABLED" in text
+    assert "AI_RELAY_API_KEY" in text
 
 
 def test_sync_script_is_powershell_parseable() -> None:
@@ -171,6 +173,8 @@ def test_setup_env_uses_github_and_runtime_discovery_paths() -> None:
     assert 'function Get-PreferredPostgresDatabaseName' in text
     assert 'function Get-RequirementLevel' in text
     assert 'function Format-SuggestedDisplayValue' in text
+    assert 'function Get-UiContainerAppName' in text
+    assert 'Get-ContainerApp -AppName (Get-UiContainerAppName)' in text
     assert 'DispatchAppPrivateKeyFilePath' in text
     assert 'function Read-SecretFileValue' in text
 
@@ -209,6 +213,38 @@ def test_setup_env_can_read_dispatch_private_key_from_file(tmp_path: Path) -> No
     assert "DISPATCH_APP_PRIVATE_KEY=<redacted>" in stdout
     assert "source=file" in stdout
     assert "prompt_required=false" in stdout
+
+
+def test_setup_env_makes_ai_requirements_conditional(tmp_path: Path) -> None:
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env_file = tmp_path / "ai.env.web"
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-DryRun",
+            "-EnvFilePath",
+            str(env_file),
+            "-Set",
+            "AI_RELAY_ENABLED=true",
+        ],
+        cwd=repo_root(),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    stdout = completed.stdout
+    assert "AI_RELAY_API_KEY=<redacted> [requirement=required;" in stdout
+    assert "AI_RELAY_REQUIRED_ROLES=AssetAllocation.AiRelay.Use [requirement=required;" in stdout
+
+
+def test_ai_relay_smoke_tokens_are_documented_as_secrets() -> None:
+    contract = contract_map()
+    assert contract["DEPLOY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
+    assert contract["AI_RELAY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
+    assert contract["AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN"]["github_storage"] == "secret"
 
 
 def test_setup_env_dry_run_tolerates_mixed_shape_discovery_results(tmp_path: Path) -> None:
@@ -257,15 +293,22 @@ elif args[:3] == ["containerapp", "env", "show"]:
 elif args[:3] == ["containerapp", "env", "list"]:
     print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-env"}]))
 elif args[:2] == ["containerapp", "show"]:
-    print(json.dumps({
-        "name": "asset-allocation-api",
+    app_name = args[args.index("--name") + 1] if "--name" in args else "asset-allocation-api"
+    fqdn = f"{app_name}.example.test"
+    payload = {
+        "name": app_name,
         "properties": {
-            "configuration": {"ingress": {"fqdn": "asset-allocation-api.example.test"}},
+            "configuration": {"ingress": {"fqdn": fqdn}},
             "template": {"containers": [{"env": [{"name": "API_ROOT_PREFIX", "value": "asset-allocation"}]}]},
         },
-    }))
+    }
+    print(json.dumps(payload))
 elif args[:2] == ["containerapp", "list"]:
-    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-api"}]))
+    print(json.dumps([
+        {"resourceGroup": "ignored"},
+        {"name": "asset-allocation-api"},
+        {"name": "asset-allocation-ui"},
+    ]))
 elif args[:4] == ["monitor", "log-analytics", "workspace", "list"]:
     print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-law", "customerId": "workspace-id"}]))
 elif args[:3] == ["storage", "account", "list"]:
@@ -308,3 +351,4 @@ else:
     assert "API_APP_NAME=" in stdout
     assert "UI_OIDC_CLIENT_ID=" in stdout
     assert "LOG_ANALYTICS_WORKSPACE_NAME=" in stdout
+    assert "UI_OIDC_REDIRECT_URI=" in stdout

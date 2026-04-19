@@ -1,31 +1,39 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
-from datetime import datetime, timezone
+import time
+from datetime import datetime
 from collections.abc import Callable
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from asset_allocation_contracts.backtest import (
+    BacktestLookupRequest,
+    BacktestLookupResponse,
+    BacktestResultLinks,
+    BacktestRunResponse,
+    BacktestRunRequest,
     BacktestSummary,
+    BacktestStreamEvent,
     ClosedPositionListResponse,
     RunListResponse,
     RunPinsResponse,
     RunRecordResponse,
     RunStatusResponse,
+    StrategyReferenceInput,
     TradeRole,
 )
 from pydantic import BaseModel, ConfigDict, Field
 from psycopg import Error as PsycopgError
+from starlette.responses import StreamingResponse
 
 from api.service.dependencies import get_auth_manager, get_settings, validate_auth
 from core.backtest_job_control import resolve_backtest_job_name, trigger_backtest_job
+from core.backtest_request_resolution import ResolvedBacktestRequest, resolve_backtest_request
 from core.backtest_repository import BacktestRepository
-from core.backtest_runtime import (
-    resolve_backtest_definition,
-    validate_backtest_submission,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -135,12 +143,6 @@ def _require_postgres_dsn(request: Request) -> str:
     return dsn
 
 
-def _ensure_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
 def _periods_per_year_for_bar_size(bar_size: str | None) -> int | None:
     raw = str(bar_size or "").strip().lower()
     if not raw:
@@ -212,6 +214,112 @@ def _run_status_payload(run: dict[str, Any]) -> dict[str, Any]:
         "results_schema_version": run.get("results_schema_version"),
         "pins": pins_payload,
     }
+
+
+def _result_links_payload(run_id: str) -> dict[str, Any]:
+    base_path = f"/api/backtests/{run_id}"
+    return BacktestResultLinks.model_validate(
+        {
+            "summaryUrl": f"{base_path}/summary",
+            "metricsTimeseriesUrl": f"{base_path}/metrics/timeseries",
+            "metricsRollingUrl": f"{base_path}/metrics/rolling",
+            "tradesUrl": f"{base_path}/trades",
+            "closedPositionsUrl": f"{base_path}/positions/closed",
+        }
+    ).model_dump(mode="json")
+
+
+def _stream_url(run_id: str) -> str:
+    return f"/api/backtests/{run_id}/events"
+
+
+def _create_run_from_resolved_request(
+    repo: BacktestRepository,
+    *,
+    resolved_request: ResolvedBacktestRequest,
+    run_name: str | None,
+    submitted_by: str | None,
+) -> dict[str, Any]:
+    return repo.create_run(
+        config=resolved_request.request_payload,
+        effective_config=resolved_request.effective_config,
+        run_name=run_name,
+        start_ts=resolved_request.start_ts,
+        end_ts=resolved_request.end_ts,
+        bar_size=resolved_request.bar_size,
+        strategy_name=resolved_request.definition.strategy_name,
+        strategy_version=resolved_request.definition.strategy_version,
+        ranking_schema_name=resolved_request.definition.ranking_schema_name,
+        ranking_schema_version=resolved_request.definition.ranking_schema_version,
+        universe_name=resolved_request.definition.ranking_universe_name,
+        universe_version=resolved_request.definition.ranking_universe_version,
+        regime_model_name=resolved_request.definition.regime_model_name,
+        regime_model_version=resolved_request.definition.regime_model_version,
+        config_fingerprint=resolved_request.config_fingerprint,
+        request_fingerprint=resolved_request.request_fingerprint,
+        submitted_by=submitted_by,
+    )
+
+
+def _dispatch_backtest_run(
+    repo: BacktestRepository,
+    *,
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        job_name = resolve_backtest_job_name()
+    except ValueError:
+        raise HTTPException(status_code=500, detail="BACKTEST_ACA_JOB_NAME is invalid.")
+
+    try:
+        job_response = _trigger_backtest_job(job_name)
+    except ValueError as exc:
+        logger.warning(
+            "backtest_run_event outcome=dispatch_failed run_id=%s request_fingerprint=%s error=%s",
+            run.get("run_id"),
+            run.get("request_fingerprint"),
+            exc,
+        )
+        raise HTTPException(status_code=502, detail=f"Failed to trigger backtest job: {exc}") from exc
+
+    execution_name = str(job_response.get("executionName") or "").strip() or None
+    if execution_name:
+        _postgres_or_503(
+            "Postgres is unavailable for backtest submission.",
+            lambda: repo.set_execution_name(str(run["run_id"]), execution_name),
+        )
+        run = _postgres_or_503(
+            "Postgres is unavailable for backtest submission.",
+            lambda: repo.get_run(str(run["run_id"])),
+        ) or run
+    return run
+
+
+def _terminal_stream_payload(
+    repo: BacktestRepository,
+    *,
+    event: Literal["completed", "failed"],
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "event": event,
+        "run": _run_status_payload(run),
+    }
+    if event == "completed":
+        summary = _postgres_or_503(
+            "Postgres is unavailable for backtest features.",
+            lambda: repo.get_summary(str(run["run_id"])),
+        )
+        if summary is not None:
+            payload["summary"] = summary
+        payload["metadata"] = _backtest_metadata(run).model_dump(mode="json")
+        payload["links"] = _result_links_payload(str(run["run_id"]))
+    return BacktestStreamEvent.model_validate(payload).model_dump(mode="json")
+
+
+def _encode_sse_event(event: str, payload: dict[str, Any]) -> bytes:
+    body = json.dumps(payload, separators=(",", ":"), default=str)
+    return f"event: {event}\ndata: {body}\n\n".encode("utf-8")
 
 
 def _actor_from_request(request: Request) -> str | None:
@@ -288,99 +396,359 @@ async def submit_backtest(payload: SubmitBacktestRequest, request: Request) -> R
     validate_auth(request)
     dsn = _require_postgres_dsn(request)
     repo = BacktestRepository(dsn)
-    start_ts = _ensure_utc(payload.startTs)
-    end_ts = _ensure_utc(payload.endTs)
-    if end_ts <= start_ts:
-        raise HTTPException(status_code=400, detail="endTs must be after startTs.")
-
+    started_at = time.perf_counter()
     try:
-        definition = _postgres_or_503(
+        resolved_request = _postgres_or_503(
             "Postgres is unavailable for backtest submission.",
-            lambda: resolve_backtest_definition(
+            lambda: resolve_backtest_request(
                 dsn,
-                strategy_name=payload.strategyName,
-                strategy_version=payload.strategyVersion,
-            ),
-        )
-        schedule = _postgres_or_503(
-            "Postgres is unavailable for backtest submission.",
-            lambda: validate_backtest_submission(
-                dsn,
-                definition=definition,
-                start_ts=start_ts,
-                end_ts=end_ts,
+                strategy_ref=StrategyReferenceInput(
+                    strategyName=payload.strategyName,
+                    strategyVersion=payload.strategyVersion,
+                ),
+                strategy_config=None,
+                start_ts=payload.startTs,
+                end_ts=payload.endTs,
                 bar_size=payload.barSize,
             ),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    effective_config = {
-        "strategy": definition.strategy_config_raw,
-        "pins": {
-            "strategyName": definition.strategy_name,
-            "strategyVersion": definition.strategy_version,
-            "rankingSchemaName": definition.ranking_schema_name,
-            "rankingSchemaVersion": definition.ranking_schema_version,
-            "universeName": definition.ranking_universe_name,
-            "universeVersion": definition.ranking_universe_version,
-            "regimeModelName": definition.regime_model_name,
-            "regimeModelVersion": definition.regime_model_version,
-        },
-        "execution": {
-            "startTs": start_ts.isoformat(),
-            "endTs": end_ts.isoformat(),
-            "barSize": payload.barSize,
-            "barsResolved": len(schedule),
-        },
-    }
     run = _postgres_or_503(
         "Postgres is unavailable for backtest submission.",
-        lambda: repo.create_run(
-            config=payload.model_dump(mode="json"),
-            effective_config=effective_config,
+        lambda: _create_run_from_resolved_request(
+            repo,
+            resolved_request=resolved_request,
             run_name=payload.runName,
-            start_ts=start_ts,
-            end_ts=end_ts,
-            bar_size=payload.barSize,
-            strategy_name=definition.strategy_name,
-            strategy_version=definition.strategy_version,
-            ranking_schema_name=definition.ranking_schema_name,
-            ranking_schema_version=definition.ranking_schema_version,
-            universe_name=definition.ranking_universe_name,
-            universe_version=definition.ranking_universe_version,
-            regime_model_name=definition.regime_model_name,
-            regime_model_version=definition.regime_model_version,
             submitted_by=_actor_from_request(request),
         ),
     )
-
-    try:
-        job_name = resolve_backtest_job_name()
-    except ValueError:
-        raise HTTPException(status_code=500, detail="BACKTEST_ACA_JOB_NAME is invalid.")
-    try:
-        job_response = _trigger_backtest_job(job_name)
-    except ValueError as exc:
-        logger.warning("backtest_lifecycle_event submit_dispatch_failed run_id=%s error=%s", run.get("run_id"), exc)
-        raise HTTPException(status_code=502, detail=f"Failed to trigger backtest job: {exc}") from exc
-
-    if job_response.get("executionName"):
-        _postgres_or_503(
-            "Postgres is unavailable for backtest submission.",
-            lambda: repo.set_execution_name(str(run["run_id"]), str(job_response["executionName"])),
-        )
-        run = _postgres_or_503(
-            "Postgres is unavailable for backtest submission.",
-            lambda: repo.get_run(str(run["run_id"])),
-        ) or run
+    run = _dispatch_backtest_run(repo, run=run)
     logger.info(
-        "backtest_lifecycle_event submit_dispatched run_id=%s execution_name=%s strategy_name=%s",
+        "backtest_run_event outcome=legacy_submit_created run_id=%s request_fingerprint=%s execution_name=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
         run.get("run_id"),
-        job_response.get("executionName"),
+        run.get("request_fingerprint"),
+        run.get("execution_name"),
         run.get("strategy_name"),
+        run.get("strategy_version"),
+        _actor_from_request(request),
+        round((time.perf_counter() - started_at) * 1000, 2),
     )
     return RunRecordResponse.model_validate(_run_record_payload(run))
+
+
+@router.post("/results/lookup", response_model=BacktestLookupResponse)
+async def lookup_backtest_results(
+    payload: BacktestLookupRequest,
+    request: Request,
+) -> BacktestLookupResponse:
+    validate_auth(request)
+    dsn = _require_postgres_dsn(request)
+    repo = BacktestRepository(dsn)
+    actor = _actor_from_request(request)
+    started_at = time.perf_counter()
+
+    logger.info("backtest_lookup_event outcome=request_received actor=%s", actor)
+    try:
+        resolved_request = _postgres_or_503(
+            "Postgres is unavailable for backtest lookup.",
+            lambda: resolve_backtest_request(
+                dsn,
+                strategy_ref=payload.strategyRef,
+                strategy_config=payload.strategyConfig,
+                start_ts=payload.startTs,
+                end_ts=payload.endTs,
+                bar_size=payload.barSize,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    completed_run = _postgres_or_503(
+        "Postgres is unavailable for backtest lookup.",
+        lambda: repo.find_latest_completed_request_run(request_fingerprint=resolved_request.request_fingerprint),
+    )
+    latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+    log_context = (
+        resolved_request.config_fingerprint,
+        resolved_request.request_fingerprint,
+        resolved_request.definition.strategy_name,
+        resolved_request.definition.strategy_version,
+        actor,
+        latency_ms,
+    )
+    if completed_run:
+        summary = _postgres_or_503(
+            "Postgres is unavailable for backtest lookup.",
+            lambda: repo.get_summary(str(completed_run["run_id"])),
+        )
+        logger.info(
+            "backtest_lookup_event outcome=completed_hit run_id=%s config_fingerprint=%s request_fingerprint=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
+            completed_run.get("run_id"),
+            *log_context,
+        )
+        return BacktestLookupResponse.model_validate(
+            {
+                "found": True,
+                "state": "completed",
+                "run": _run_status_payload(completed_run),
+                "result": summary,
+                "links": _result_links_payload(str(completed_run["run_id"])),
+            }
+        )
+
+    inflight_run = _postgres_or_503(
+        "Postgres is unavailable for backtest lookup.",
+        lambda: repo.find_latest_inflight_request_run(request_fingerprint=resolved_request.request_fingerprint),
+    )
+    if inflight_run:
+        logger.info(
+            "backtest_lookup_event outcome=inflight_hit run_id=%s config_fingerprint=%s request_fingerprint=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
+            inflight_run.get("run_id"),
+            *log_context,
+        )
+        return BacktestLookupResponse.model_validate(
+            {
+                "found": False,
+                "state": inflight_run.get("status"),
+                "run": _run_status_payload(inflight_run),
+                "result": None,
+                "links": None,
+            }
+        )
+
+    failed_run = _postgres_or_503(
+        "Postgres is unavailable for backtest lookup.",
+        lambda: repo.find_latest_failed_request_run(request_fingerprint=resolved_request.request_fingerprint),
+    )
+    if failed_run:
+        logger.info(
+            "backtest_lookup_event outcome=failed_hit run_id=%s config_fingerprint=%s request_fingerprint=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
+            failed_run.get("run_id"),
+            *log_context,
+        )
+        return BacktestLookupResponse.model_validate(
+            {
+                "found": False,
+                "state": "failed",
+                "run": _run_status_payload(failed_run),
+                "result": None,
+                "links": None,
+            }
+        )
+
+    logger.info(
+        "backtest_lookup_event outcome=miss config_fingerprint=%s request_fingerprint=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
+        *log_context,
+    )
+    return BacktestLookupResponse.model_validate(
+        {
+            "found": False,
+            "state": "not_run",
+            "run": None,
+            "result": None,
+            "links": None,
+        }
+    )
+
+
+@router.post("/runs", response_model=BacktestRunResponse)
+async def run_backtest(
+    payload: BacktestRunRequest,
+    request: Request,
+) -> BacktestRunResponse:
+    validate_auth(request)
+    dsn = _require_postgres_dsn(request)
+    repo = BacktestRepository(dsn)
+    actor = _actor_from_request(request)
+    started_at = time.perf_counter()
+
+    logger.info("backtest_run_event outcome=request_received actor=%s", actor)
+    try:
+        resolved_request = _postgres_or_503(
+            "Postgres is unavailable for backtest submission.",
+            lambda: resolve_backtest_request(
+                dsn,
+                strategy_ref=payload.strategyRef,
+                strategy_config=payload.strategyConfig,
+                start_ts=payload.startTs,
+                end_ts=payload.endTs,
+                bar_size=payload.barSize,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    inflight_run = _postgres_or_503(
+        "Postgres is unavailable for backtest submission.",
+        lambda: repo.find_latest_inflight_request_run(request_fingerprint=resolved_request.request_fingerprint),
+    )
+    latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+    if inflight_run:
+        logger.info(
+            "backtest_run_event outcome=reused_inflight run_id=%s config_fingerprint=%s request_fingerprint=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
+            inflight_run.get("run_id"),
+            resolved_request.config_fingerprint,
+            resolved_request.request_fingerprint,
+            resolved_request.definition.strategy_name,
+            resolved_request.definition.strategy_version,
+            actor,
+            latency_ms,
+        )
+        return BacktestRunResponse.model_validate(
+            {
+                "run": _run_status_payload(inflight_run),
+                "created": False,
+                "reusedInflight": True,
+                "streamUrl": _stream_url(str(inflight_run["run_id"])),
+            }
+        )
+
+    run = _postgres_or_503(
+        "Postgres is unavailable for backtest submission.",
+        lambda: _create_run_from_resolved_request(
+            repo,
+            resolved_request=resolved_request,
+            run_name=getattr(payload, "runName", None),
+            submitted_by=actor,
+        ),
+    )
+    run = _dispatch_backtest_run(repo, run=run)
+    logger.info(
+        "backtest_run_event outcome=created run_id=%s config_fingerprint=%s request_fingerprint=%s strategy_name=%s strategy_version=%s actor=%s latency_ms=%s",
+        run.get("run_id"),
+        resolved_request.config_fingerprint,
+        resolved_request.request_fingerprint,
+        resolved_request.definition.strategy_name,
+        resolved_request.definition.strategy_version,
+        actor,
+        round((time.perf_counter() - started_at) * 1000, 2),
+    )
+    return BacktestRunResponse.model_validate(
+        {
+            "run": _run_status_payload(run),
+            "created": True,
+            "reusedInflight": False,
+            "streamUrl": _stream_url(str(run["run_id"])),
+        }
+    )
+
+
+@router.get(
+    "/{run_id}/events",
+    responses={
+        200: {
+            "content": {
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                    }
+                }
+            },
+            "description": "Server-sent backtest run events.",
+        }
+    },
+)
+async def stream_backtest_events(run_id: str, request: Request) -> StreamingResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    initial_run = _require_run(repo, run_id)
+    actor = _actor_from_request(request)
+
+    async def event_generator() -> Any:
+        close_reason = "stream_complete"
+        logger.info(
+            "backtest_stream_event outcome=opened run_id=%s request_fingerprint=%s actor=%s",
+            run_id,
+            initial_run.get("request_fingerprint"),
+            actor,
+        )
+        last_status_payload = _run_status_payload(initial_run)
+        accepted_payload = BacktestStreamEvent.model_validate(
+            {"event": "accepted", "run": last_status_payload}
+        ).model_dump(mode="json")
+        yield _encode_sse_event("accepted", accepted_payload)
+
+        current_run = initial_run
+        if current_run.get("status") == "failed":
+            payload = _terminal_stream_payload(repo, event="failed", run=current_run)
+            yield _encode_sse_event("failed", payload)
+            close_reason = "terminal_failed"
+        elif current_run.get("status") == "completed" and current_run.get("results_ready_at"):
+            payload = _terminal_stream_payload(repo, event="completed", run=current_run)
+            yield _encode_sse_event("completed", payload)
+            close_reason = "terminal_completed"
+
+        if close_reason != "stream_complete":
+            logger.info(
+                "backtest_stream_event outcome=closed run_id=%s request_fingerprint=%s actor=%s reason=%s",
+                run_id,
+                current_run.get("request_fingerprint"),
+                actor,
+                close_reason,
+            )
+            return
+
+        while True:
+            if await request.is_disconnected():
+                close_reason = "client_disconnect"
+                break
+            await asyncio.sleep(1.0)
+            current_run = _postgres_or_503(
+                "Postgres is unavailable for backtest features.",
+                lambda: repo.get_run(run_id),
+            ) or current_run
+            current_status_payload = _run_status_payload(current_run)
+            if current_status_payload != last_status_payload:
+                event_name = "status"
+                if current_run.get("status") == "failed":
+                    event_name = "failed"
+                elif current_run.get("status") == "completed" and current_run.get("results_ready_at"):
+                    event_name = "completed"
+
+                if event_name in {"completed", "failed"}:
+                    payload = _terminal_stream_payload(repo, event=event_name, run=current_run)
+                    logger.info(
+                        "backtest_stream_event outcome=terminal event=%s run_id=%s request_fingerprint=%s actor=%s",
+                        event_name,
+                        run_id,
+                        current_run.get("request_fingerprint"),
+                        actor,
+                    )
+                    yield _encode_sse_event(event_name, payload)
+                    close_reason = f"terminal_{event_name}"
+                    break
+
+                payload = BacktestStreamEvent.model_validate(
+                    {"event": "status", "run": current_status_payload}
+                ).model_dump(mode="json")
+                yield _encode_sse_event("status", payload)
+                last_status_payload = current_status_payload
+                continue
+
+            heartbeat_payload = BacktestStreamEvent.model_validate(
+                {"event": "heartbeat", "run": current_status_payload}
+            ).model_dump(mode="json")
+            yield _encode_sse_event("heartbeat", heartbeat_payload)
+
+        logger.info(
+            "backtest_stream_event outcome=closed run_id=%s request_fingerprint=%s actor=%s reason=%s",
+            run_id,
+            current_run.get("request_fingerprint"),
+            actor,
+            close_reason,
+        )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/{run_id}/status", response_model=RunStatusResponse)

@@ -40,6 +40,8 @@ _RUN_COLUMNS = [
     "results_schema_version",
     "canonical_target_id",
     "canonical_fingerprint",
+    "config_fingerprint",
+    "request_fingerprint",
     "submitted_by",
 ]
 _RUN_SELECT_SQL = """
@@ -73,6 +75,8 @@ _RUN_SELECT_SQL = """
         results_schema_version,
         canonical_target_id,
         canonical_fingerprint,
+        config_fingerprint,
+        request_fingerprint,
         submitted_by
 """
 
@@ -262,6 +266,8 @@ class BacktestRepository:
         regime_model_version: int | None = None,
         canonical_target_id: str | None = None,
         canonical_fingerprint: str | None = None,
+        config_fingerprint: str | None = None,
+        request_fingerprint: str | None = None,
         submitted_by: str | None = None,
     ) -> dict[str, Any]:
         dsn = self._require_dsn()
@@ -291,10 +297,12 @@ class BacktestRepository:
                         bar_size,
                         canonical_target_id,
                         canonical_fingerprint,
+                        config_fingerprint,
+                        request_fingerprint,
                         submitted_by
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     """,
                     (
@@ -318,6 +326,8 @@ class BacktestRepository:
                         bar_size,
                         canonical_target_id,
                         canonical_fingerprint,
+                        config_fingerprint,
+                        request_fingerprint,
                         submitted_by,
                     ),
                 )
@@ -473,6 +483,49 @@ class BacktestRepository:
                     LIMIT 1
                     """,
                     (target_id, fingerprint),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+        return _hydrate_run_payload(row)
+
+    def find_latest_completed_request_run(self, *, request_fingerprint: str) -> Optional[dict[str, Any]]:
+        return self._find_latest_request_run(
+            request_fingerprint=request_fingerprint,
+            where_sql="status = 'completed' AND results_ready_at IS NOT NULL",
+        )
+
+    def find_latest_inflight_request_run(self, *, request_fingerprint: str) -> Optional[dict[str, Any]]:
+        return self._find_latest_request_run(
+            request_fingerprint=request_fingerprint,
+            where_sql="status IN ('queued', 'running')",
+        )
+
+    def find_latest_failed_request_run(self, *, request_fingerprint: str) -> Optional[dict[str, Any]]:
+        return self._find_latest_request_run(
+            request_fingerprint=request_fingerprint,
+            where_sql="status = 'failed'",
+        )
+
+    def _find_latest_request_run(
+        self,
+        *,
+        request_fingerprint: str,
+        where_sql: str,
+    ) -> Optional[dict[str, Any]]:
+        dsn = self._require_dsn()
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    {_RUN_SELECT_SQL}
+                    FROM core.runs
+                    WHERE request_fingerprint = %s
+                      AND {where_sql}
+                    ORDER BY submitted_at DESC
+                    LIMIT 1
+                    """,
+                    (request_fingerprint,),
                 )
                 row = cur.fetchone()
                 if not row:

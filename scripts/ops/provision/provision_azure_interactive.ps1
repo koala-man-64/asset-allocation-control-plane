@@ -460,7 +460,7 @@ if ($envLabel -ieq ".env.web") {
   if (Get-YesNo "Sync .env.web values to GitHub vars/secrets now?" $false) {
     Invoke-ChildScript `
       -StepName "GitHub vars/secrets sync" `
-      -ScriptPath (Join-Path $repoRoot "scripts\repo\sync-all-to-github.ps1") | Out-Null
+      -ScriptPath (Join-Path $repoRoot "scripts\sync-all-to-github.ps1") | Out-Null
   }
   else {
     Add-StepResult -Step "GitHub vars/secrets sync" -Status "Skipped"

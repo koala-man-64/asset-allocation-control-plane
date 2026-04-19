@@ -1,0 +1,4 @@
+interface:
+  display_name: "Market Data Integrity & Corporate Actions Agent"
+  short_description: "Audit market data quality and corporate actions"
+  default_prompt: "Use $market-data-integrity-corporate-actions-agent to assess feed quality, symbol mapping, freshness, corporate actions, and downstream impact before the data is trusted."

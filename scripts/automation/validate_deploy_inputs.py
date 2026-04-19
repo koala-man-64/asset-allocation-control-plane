@@ -63,6 +63,18 @@ def has_env_key(name: str) -> bool:
     return name in os.environ
 
 
+def parse_bool(name: str, *, default: bool = False) -> bool:
+    raw = optional_value(name)
+    if not raw:
+        return default
+    lowered = raw.lower()
+    if lowered in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if lowered in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    fail(f"{name} must be a boolean value.")
+
+
 def _strip_yaml_scalar(raw: str) -> str:
     value = str(raw or "").strip()
     if not value:
@@ -322,6 +334,46 @@ def validate_auth_configuration() -> None:
         fail("ASSET_ALLOCATION_API_SCOPE is required for bronze job managed-identity callers.")
 
 
+def validate_ai_relay_configuration() -> None:
+    if not parse_bool("AI_RELAY_ENABLED", default=False):
+        return
+
+    require_value("AI_RELAY_API_KEY")
+    if not optional_value("AI_RELAY_REQUIRED_ROLES"):
+        fail("AI_RELAY_REQUIRED_ROLES is required when AI_RELAY_ENABLED=true.")
+
+    model = optional_value("AI_RELAY_MODEL") or "gpt-5.4-mini"
+    reasoning_effort = (optional_value("AI_RELAY_REASONING_EFFORT") or "low").lower()
+    supported_efforts = {"none", "minimal", "low", "medium", "high", "xhigh"}
+    if reasoning_effort not in supported_efforts:
+        fail(
+            "AI_RELAY_REASONING_EFFORT must be one of: "
+            + ", ".join(sorted(supported_efforts))
+        )
+
+    parse_float("AI_RELAY_TIMEOUT_SECONDS", default=120.0, min_value=1.0, max_value=900.0)
+    parse_int("AI_RELAY_MAX_PROMPT_CHARS", default=40_000, min_value=1, max_value=200_000)
+    parse_int("AI_RELAY_MAX_FILES", default=4, min_value=0, max_value=16)
+    max_file_bytes = parse_int("AI_RELAY_MAX_FILE_BYTES", default=5 * 1024 * 1024, min_value=1, max_value=50 * 1024 * 1024)
+    max_total_bytes = parse_int(
+        "AI_RELAY_MAX_TOTAL_FILE_BYTES",
+        default=20 * 1024 * 1024,
+        min_value=1,
+        max_value=50 * 1024 * 1024,
+    )
+    parse_int("AI_RELAY_MAX_OUTPUT_TOKENS", default=4_000, min_value=1, max_value=32_000)
+
+    if max_total_bytes < max_file_bytes:
+        fail("AI_RELAY_MAX_TOTAL_FILE_BYTES must be greater than or equal to AI_RELAY_MAX_FILE_BYTES.")
+
+    if model == "gpt-5-pro" and reasoning_effort != "high":
+        fail("AI_RELAY_MODEL=gpt-5-pro only supports AI_RELAY_REASONING_EFFORT=high.")
+    if model.startswith("gpt-5.1") and reasoning_effort not in {"none", "low", "medium", "high"}:
+        fail(
+            "gpt-5.1 models only support reasoning efforts none, low, medium, and high."
+        )
+
+
 def main() -> int:
     for name in REQUIRED_ENV_NAMES:
         require_value(name)
@@ -332,6 +384,7 @@ def main() -> int:
     validate_log_level()
     validate_log_analytics()
     validate_auth_configuration()
+    validate_ai_relay_configuration()
     return 0
 
 

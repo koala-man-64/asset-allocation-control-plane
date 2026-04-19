@@ -141,9 +141,19 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert '--repository "${RELEASE_IMAGE_REPOSITORY}"' in text
     assert 'image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"' in text
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
-    assert (
-        'curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null' in text
-    )
+    assert "API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api_public.yaml' }}" in text
+    assert "ACA_NETWORK_SMOKE_JOB_NAME: ${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}" in text
+    assert 'manifest_path = Path(os.environ["API_DEPLOY_MANIFEST"])' in text
+    assert 'expect_status 401 "https://${fqdn}/config.js"' in text
+    assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
+    assert 'expect_status 401 "https://${fqdn}/api/docs"' in text
+    assert 'expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/docs"' in text
+    assert 'expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/openapi.json"' in text
+    assert '-H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \\' in text
+    assert 'if [ "${API_DEPLOY_MANIFEST}" = "deploy/app_api.yaml" ]; then' in text
+    assert "az containerapp job start \\" in text
+    assert "az containerapp job execution show \\" in text
+    assert 'verification_mode="internal-smoke-job"' in text
     assert "/api/v1/openapi.json" not in text
 
 
@@ -151,3 +161,13 @@ def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> Non
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
     assert "AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}" in text
     assert 'template = template.replace("${" + key + "}", value)' in text
+
+
+def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "DEPLOY_SMOKE_BEARER_TOKEN: ${{ secrets.DEPLOY_SMOKE_BEARER_TOKEN }}" in text
+    assert "AI_RELAY_ENABLED: ${{ vars.AI_RELAY_ENABLED || 'false' }}" in text
+    assert "AI_RELAY_API_KEY: ${{ secrets.AI_RELAY_API_KEY }}" in text
+    assert "/api/ai/chat/stream" in text
+    assert "AI_RELAY_SMOKE_BEARER_TOKEN" in text
+    assert "AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN" in text

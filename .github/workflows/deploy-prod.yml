@@ -33,6 +33,8 @@ jobs:
       CONTAINER_APPS_ENVIRONMENT_NAME: ${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}
       SERVICE_ACCOUNT_NAME: ${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}
       API_APP_NAME: ${{ vars.API_APP_NAME || 'asset-allocation-api' }}
+      API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api_public.yaml' }}
+      ACA_NETWORK_SMOKE_JOB_NAME: ${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}
       AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
       AZURE_CONTAINER_BRONZE: ${{ vars.AZURE_CONTAINER_BRONZE }}
       AZURE_CONTAINER_SILVER: ${{ vars.AZURE_CONTAINER_SILVER }}
@@ -55,6 +57,16 @@ jobs:
       API_OIDC_JWKS_URL: ${{ vars.API_OIDC_JWKS_URL }}
       API_OIDC_REQUIRED_SCOPES: ${{ vars.API_OIDC_REQUIRED_SCOPES }}
       API_OIDC_REQUIRED_ROLES: ${{ vars.API_OIDC_REQUIRED_ROLES }}
+      AI_RELAY_ENABLED: ${{ vars.AI_RELAY_ENABLED || 'false' }}
+      AI_RELAY_MODEL: ${{ vars.AI_RELAY_MODEL || 'gpt-5.4-mini' }}
+      AI_RELAY_REASONING_EFFORT: ${{ vars.AI_RELAY_REASONING_EFFORT || 'low' }}
+      AI_RELAY_TIMEOUT_SECONDS: ${{ vars.AI_RELAY_TIMEOUT_SECONDS || '120' }}
+      AI_RELAY_MAX_PROMPT_CHARS: ${{ vars.AI_RELAY_MAX_PROMPT_CHARS || '40000' }}
+      AI_RELAY_MAX_FILES: ${{ vars.AI_RELAY_MAX_FILES || '4' }}
+      AI_RELAY_MAX_FILE_BYTES: ${{ vars.AI_RELAY_MAX_FILE_BYTES || '5242880' }}
+      AI_RELAY_MAX_TOTAL_FILE_BYTES: ${{ vars.AI_RELAY_MAX_TOTAL_FILE_BYTES || '20971520' }}
+      AI_RELAY_MAX_OUTPUT_TOKENS: ${{ vars.AI_RELAY_MAX_OUTPUT_TOKENS || '4000' }}
+      AI_RELAY_REQUIRED_ROLES: ${{ vars.AI_RELAY_REQUIRED_ROLES || 'AssetAllocation.AiRelay.Use' }}
       API_CSP: ${{ vars.API_CSP }}
       API_CORS_ALLOW_ORIGINS: ${{ vars.API_CORS_ALLOW_ORIGINS }}
       SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON: ${{ vars.SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON }}
@@ -86,6 +98,10 @@ jobs:
       REALTIME_LOG_STREAM_BATCH_SIZE: ${{ vars.REALTIME_LOG_STREAM_BATCH_SIZE }}
       AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      DEPLOY_SMOKE_BEARER_TOKEN: ${{ secrets.DEPLOY_SMOKE_BEARER_TOKEN }}
+      AI_RELAY_API_KEY: ${{ secrets.AI_RELAY_API_KEY }}
+      AI_RELAY_SMOKE_BEARER_TOKEN: ${{ secrets.AI_RELAY_SMOKE_BEARER_TOKEN }}
+      AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN: ${{ secrets.AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN }}
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       POSTGRES_DSN: ${{ secrets.POSTGRES_DSN }}
     steps:
@@ -179,10 +195,13 @@ jobs:
           from pathlib import Path
           import os
 
-          template = Path("deploy/app_api_public.yaml").read_text(encoding="utf-8")
+          manifest_path = Path(os.environ["API_DEPLOY_MANIFEST"])
+          if not manifest_path.exists():
+              raise SystemExit(f"API deploy manifest not found: {manifest_path}")
+          template = manifest_path.read_text(encoding="utf-8")
           for key, value in os.environ.items():
               template = template.replace("${" + key + "}", value)
-          Path("rendered-app_api_public.yaml").write_text(template, encoding="utf-8")
+          Path("rendered-control-plane.yaml").write_text(template, encoding="utf-8")
           PY
 
       - name: Apply control-plane app manifest
@@ -190,9 +209,9 @@ jobs:
         run: |
           set -euo pipefail
           if az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" > /dev/null 2>&1; then
-            az containerapp update --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-app_api_public.yaml
+            az containerapp update --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-control-plane.yaml
           else
-            az containerapp create --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-app_api_public.yaml
+            az containerapp create --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-control-plane.yaml
           fi
 
       - name: Verify deployed control-plane endpoints
@@ -200,14 +219,125 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          fqdn="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.configuration.ingress.fqdn' -o tsv)"
+          expect_status() {
+            local expected="$1"
+            shift
+            local actual
+            actual="$(curl -sS -o /dev/null -w '%{http_code}' --retry 12 --retry-delay 10 --retry-connrefused "$@")"
+            test "${actual}" = "${expected}"
+          }
+
+          fqdn="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)"
           actual_image="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.template.containers[0].image' -o tsv)"
           test "${actual_image}" = "${{ steps.inputs.outputs.image_digest }}"
-          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/healthz" > /dev/null
-          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/readyz" > /dev/null
-          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/config.js" > /dev/null
-          curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/openapi.json" > /dev/null
+          verification_mode="public-ingress"
+          verification_target="https://${fqdn}"
+
+          if [ "${API_DEPLOY_MANIFEST}" = "deploy/app_api.yaml" ]; then
+            verification_mode="internal-smoke-job"
+            : "${ACA_NETWORK_SMOKE_JOB_NAME:?ACA_NETWORK_SMOKE_JOB_NAME is required for internal-only verification.}"
+            execution_name="$(az containerapp job start \
+              --name "${ACA_NETWORK_SMOKE_JOB_NAME}" \
+              --resource-group "${RESOURCE_GROUP}" \
+              --env-vars "API_BASE_URL=http://${API_APP_NAME}" \
+              --query name \
+              -o tsv \
+              --only-show-errors)"
+            test -n "${execution_name}"
+
+            status=""
+            for attempt in $(seq 1 36); do
+              status="$(az containerapp job execution show \
+                --name "${ACA_NETWORK_SMOKE_JOB_NAME}" \
+                --resource-group "${RESOURCE_GROUP}" \
+                --job-execution-name "${execution_name}" \
+                --query 'properties.status' \
+                -o tsv \
+                --only-show-errors 2>/dev/null || true)"
+              case "${status}" in
+                Succeeded)
+                  break
+                  ;;
+                Failed|Canceled)
+                  echo "Smoke job execution ${execution_name} ended with status ${status}." >&2
+                  az containerapp job execution show \
+                    --name "${ACA_NETWORK_SMOKE_JOB_NAME}" \
+                    --resource-group "${RESOURCE_GROUP}" \
+                    --job-execution-name "${execution_name}" \
+                    -o json >&2 || true
+                  exit 1
+                  ;;
+              esac
+              sleep 10
+            done
+            test "${status}" = "Succeeded"
+            verification_target="${execution_name}"
+          else
+            curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/healthz" > /dev/null
+            curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/readyz" > /dev/null
+            : "${DEPLOY_SMOKE_BEARER_TOKEN:?DEPLOY_SMOKE_BEARER_TOKEN secret is required for protected endpoint smoke tests.}"
+            expect_status 401 "https://${fqdn}/config.js"
+            expect_status 401 "https://${fqdn}/api/openapi.json"
+            expect_status 401 "https://${fqdn}/api/docs"
+            expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/docs"
+            expect_status 307 -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" "https://${fqdn}/openapi.json"
+            curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
+              -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \
+              "https://${fqdn}/config.js" > /dev/null
+            curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
+              -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \
+              "https://${fqdn}/api/openapi.json" > /dev/null
+            curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
+              -H "Authorization: Bearer ${DEPLOY_SMOKE_BEARER_TOKEN}" \
+              "https://${fqdn}/api/docs" > /dev/null
+            unauth_status="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              --data '{"prompt":"deployment smoke"}' \
+              "https://${fqdn}/api/ai/chat/stream")"
+            test "${unauth_status}" = "401"
+
+            if [ "${AI_RELAY_ENABLED}" = "true" ]; then
+              if [ -n "${AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN}" ]; then
+                forbidden_status="$(curl -sS -o /dev/null -w '%{http_code}' \
+                  -X POST \
+                  -H 'Content-Type: application/json' \
+                  -H "Authorization: Bearer ${AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN}" \
+                  --data '{"prompt":"deployment smoke"}' \
+                  "https://${fqdn}/api/ai/chat/stream")"
+                test "${forbidden_status}" = "403"
+              else
+                echo "AI relay forbidden-role smoke skipped because AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN is not configured."
+              fi
+
+              if [ -n "${AI_RELAY_SMOKE_BEARER_TOKEN}" ]; then
+                ai_stream="$(mktemp)"
+                curl --fail --retry 6 --retry-delay 5 --retry-connrefused \
+                  -X POST \
+                  -H 'Content-Type: application/json' \
+                  -H "Authorization: Bearer ${AI_RELAY_SMOKE_BEARER_TOKEN}" \
+                  --data '{"prompt":"Return the single word ok."}' \
+                  "https://${fqdn}/api/ai/chat/stream" > "${ai_stream}"
+                grep -q 'event: completed' "${ai_stream}"
+              else
+                echo "AI relay authorized smoke skipped because AI_RELAY_SMOKE_BEARER_TOKEN is not configured."
+              fi
+            elif [ -n "${AI_RELAY_SMOKE_BEARER_TOKEN}" ]; then
+              disabled_status="$(curl -sS -o /dev/null -w '%{http_code}' \
+                -X POST \
+                -H 'Content-Type: application/json' \
+                -H "Authorization: Bearer ${AI_RELAY_SMOKE_BEARER_TOKEN}" \
+                --data '{"prompt":"deployment smoke"}' \
+                "https://${fqdn}/api/ai/chat/stream")"
+              test "${disabled_status}" = "503"
+            else
+              echo "AI relay disabled-state smoke skipped because AI_RELAY_SMOKE_BEARER_TOKEN is not configured."
+            fi
+          fi
+
           echo "fqdn=${fqdn}" >> "$GITHUB_OUTPUT"
+          echo "verification_mode=${verification_mode}" >> "$GITHUB_OUTPUT"
+          echo "verification_target=${verification_target}" >> "$GITHUB_OUTPUT"
 
       - name: Write deployment summary
         shell: bash
@@ -217,11 +347,16 @@ jobs:
             echo ""
             echo "- Trigger: \`${{ steps.inputs.outputs.trigger_source }}\`"
             echo "- Target app: \`${API_APP_NAME}\`"
+            echo "- Manifest: \`${API_DEPLOY_MANIFEST}\`"
             echo "- Image: \`${{ steps.inputs.outputs.image_digest }}\`"
             if [ -n "${{ steps.inputs.outputs.contracts_version }}" ]; then
               echo "- Contracts version: \`${{ steps.inputs.outputs.contracts_version }}\`"
             fi
-            echo "- FQDN: https://${{ steps.verify.outputs.fqdn }}"
+            if [ -n "${{ steps.verify.outputs.fqdn }}" ]; then
+              echo "- FQDN: https://${{ steps.verify.outputs.fqdn }}"
+            fi
+            echo "- Verification: \`${{ steps.verify.outputs.verification_mode }}\`"
+            echo "- Verification target: \`${{ steps.verify.outputs.verification_target }}\`"
             echo "- Previous image: \`${{ steps.azure.outputs.previous_image || 'none' }}\`"
             echo "- Rollback: dispatch \`deploy_runtime\` with a known-good image digest"
             echo "- Reason: \`${{ steps.inputs.outputs.reason }}\`"

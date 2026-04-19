@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cloud Networking Architect"
+  short_description: "Design and debug Azure/GCP networks"
+  default_prompt: "Use $cloud-networking-architect to design, troubleshoot, or review an Azure, GCP, hybrid, or Kubernetes networking architecture."

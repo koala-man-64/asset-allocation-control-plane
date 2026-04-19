@@ -69,6 +69,12 @@ function Normalize-EnvValue {
     return $Value.Replace("`r", "").Replace("`n", "\n")
 }
 
+function Test-TruthyValue {
+    param([AllowNull()][string]$Value)
+    if ($null -eq $Value) { return $false }
+    return @("1", "true", "t", "yes", "y", "on") -contains $Value.Trim().ToLowerInvariant()
+}
+
 function Resolve-ExistingFilePath {
     param([Parameter(Mandatory = $true)][string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { throw "File path must not be empty." }
@@ -158,6 +164,7 @@ $script:AcrRegistries = $null
 $script:ContainerApps = $null
 $script:ContainerAppDetails = @{}
 $script:ApiContainerAppName = $null
+$script:UiContainerAppName = $null
 $script:ContainerAppRuntimeEnv = $null
 $script:ContainerAppsEnv = $null
 $script:ContainerAppEnvironment = $null
@@ -185,6 +192,7 @@ foreach ($requiredKey in @(
     "UI_OIDC_REDIRECT_URI",
     "DISPATCH_APP_ID",
     "ALPHA_VANTAGE_API_KEY",
+    "DEPLOY_SMOKE_BEARER_TOKEN",
     "AZURE_STORAGE_CONNECTION_STRING",
     "DISPATCH_APP_PRIVATE_KEY",
     "MASSIVE_API_KEY",
@@ -194,8 +202,27 @@ foreach ($requiredKey in @(
     [void]$script:RequiredEnvKeys.Add($requiredKey)
 }
 
+function Get-ResolvedAiRelayEnabled {
+    $candidates = @()
+    if ($overrideMap.ContainsKey("AI_RELAY_ENABLED")) { $candidates += $overrideMap["AI_RELAY_ENABLED"] }
+    if ($existingMap.ContainsKey("AI_RELAY_ENABLED")) { $candidates += $existingMap["AI_RELAY_ENABLED"] }
+    $githubValue = Get-GitHubVariableValue -Name "AI_RELAY_ENABLED"
+    if (-not [string]::IsNullOrWhiteSpace($githubValue)) { $candidates += $githubValue }
+    if ($templateMap.ContainsKey("AI_RELAY_ENABLED")) { $candidates += $templateMap["AI_RELAY_ENABLED"] }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        return (Test-TruthyValue -Value $candidate)
+    }
+    return $false
+}
+
 function Get-RequirementLevel {
     param([Parameter(Mandatory = $true)][string]$Name)
+    if ($Name -in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
+        if (Get-ResolvedAiRelayEnabled) { return "required" }
+        return "optional"
+    }
     if ($script:RequiredEnvKeys.Contains($Name)) { return "required" }
     return "optional"
 }
@@ -450,6 +477,21 @@ function Get-ApiContainerAppName {
     return $script:ApiContainerAppName
 }
 
+function Get-UiContainerAppName {
+    if ($null -eq $script:UiContainerAppName) {
+        $configuredName = Get-ConfiguredValue -Keys @("UI_APP_NAME", "CONTAINER_APP_UI_NAME") -Fallback "asset-allocation-ui"
+        $selected = $null
+        if (-not [string]::IsNullOrWhiteSpace($configuredName)) {
+            $selected = Select-PreferredItem -Items (Get-ContainerApps) -Preferred $configuredName
+        }
+        if ($null -eq $selected) {
+            $selected = Select-PreferredItem -Items (Get-ContainerApps) -Preferred "asset-allocation-ui" -Contains @("asset", "ui") -AllowSingleItemFallback
+        }
+        $script:UiContainerAppName = if ($selected) { [string]$selected.name } else { $configuredName }
+    }
+    return $script:UiContainerAppName
+}
+
 function Get-ContainerApp {
     param([Parameter(Mandatory = $true)][string]$AppName)
     if ([string]::IsNullOrWhiteSpace($AppName)) { return $null }
@@ -608,7 +650,8 @@ function Get-ContainerAppRuntimeEnvMap {
                 }
             }
             if (-not $map.ContainsKey("UI_OIDC_REDIRECT_URI")) {
-                $redirectUri = Get-ContainerAppRedirectUri -App $app
+                $uiApp = Get-ContainerApp -AppName (Get-UiContainerAppName)
+                $redirectUri = Get-ContainerAppRedirectUri -App $uiApp
                 if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { $map["UI_OIDC_REDIRECT_URI"] = $redirectUri }
             }
         }
@@ -772,7 +815,7 @@ function Resolve-DiscoveredValue {
             }
         }
         "UI_OIDC_REDIRECT_URI" {
-            $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
+            $app = Get-ContainerApp -AppName (Get-UiContainerAppName)
             $redirectUri = Get-ContainerAppRedirectUri -App $app
             if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { return (New-Resolution -Value $redirectUri -Source "azure") }
         }
@@ -906,7 +949,7 @@ foreach ($row in $contractRows) {
 $lines = foreach ($result in $results) { "{0}={1}" -f $result.Name, $result.Value }
 Write-Host "Target env file: $EnvFilePath" -ForegroundColor Cyan
 foreach ($result in $results) {
-    $displayValue = if ($result.IsSecret -and -not [string]::IsNullOrWhiteSpace($result.Value)) { "<redacted>" } else { $result.Value }
+    $displayValue = if ($result.IsSecret) { "<redacted>" } else { $result.Value }
     $suggestedDisplay = Format-SuggestedDisplayValue -Value $result.SuggestedValue -Requirement $result.Requirement -IsSecret $result.IsSecret
     Write-Host ("{0}={1} [requirement={2}; suggested={3}; source={4}; prompt_required={5}]" -f $result.Name, $displayValue, $result.Requirement, $suggestedDisplay, $result.Source, $result.PromptRequired.ToString().ToLowerInvariant())
 }
@@ -927,7 +970,7 @@ if ($DryRun) {
     Write-Host ""
     Write-Host "# Preview (.env.web)" -ForegroundColor Cyan
     foreach ($result in $results) {
-        $displayValue = if ($result.IsSecret -and -not [string]::IsNullOrWhiteSpace($result.Value)) { "<redacted>" } else { $result.Value }
+        $displayValue = if ($result.IsSecret) { "<redacted>" } else { $result.Value }
         Write-Host ("{0}={1}" -f $result.Name, $displayValue)
     }
     return

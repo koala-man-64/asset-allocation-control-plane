@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
@@ -13,6 +13,7 @@ _LOCAL_RUNTIME_MARKER_ENV_VARS = (
     "CONTAINER_APP_REPLICA_NAME",
     "KUBERNETES_SERVICE_HOST",
 )
+_AI_RELAY_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 
 
 def _split_csv(value: Optional[str]) -> List[str]:
@@ -23,6 +24,56 @@ def _get_optional_str(name: str) -> Optional[str]:
     raw = os.environ.get(name)
     value = raw.strip() if raw else ""
     return value or None
+
+
+def _get_optional_bool(name: str, *, default: bool = False) -> bool:
+    raw = _get_optional_str(name)
+    if raw is None:
+        return bool(default)
+    value = raw.lower()
+    if value in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if value in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean value.")
+
+
+def _get_optional_int(
+    name: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    raw = _get_optional_str(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer.") from exc
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}.")
+    return value
+
+
+def _get_optional_float(
+    name: str,
+    *,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    raw = _get_optional_str(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number.") from exc
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}.")
+    return value
 
 
 def _is_local_runtime() -> bool:
@@ -51,6 +102,79 @@ def _derive_ui_post_logout_redirect_uri(redirect_uri: str | None) -> str | None:
 
 
 @dataclass(frozen=True)
+class AiRelaySettings:
+    enabled: bool = False
+    api_key: Optional[str] = None
+    model: str = "gpt-5.4-mini"
+    reasoning_effort: str = "low"
+    timeout_seconds: float = 120.0
+    max_prompt_chars: int = 40_000
+    max_files: int = 4
+    max_file_bytes: int = 5 * 1024 * 1024
+    max_total_file_bytes: int = 20 * 1024 * 1024
+    max_output_tokens: int = 4_000
+    required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AiRelay.Use"])
+
+    @staticmethod
+    def from_env() -> "AiRelaySettings":
+        reasoning_effort = (_get_optional_str("AI_RELAY_REASONING_EFFORT") or "low").lower()
+        if reasoning_effort not in _AI_RELAY_REASONING_EFFORTS:
+            raise ValueError(
+                "AI_RELAY_REASONING_EFFORT must be one of: "
+                + ", ".join(sorted(_AI_RELAY_REASONING_EFFORTS))
+                + "."
+            )
+
+        required_roles = _split_csv(_get_optional_str("AI_RELAY_REQUIRED_ROLES")) or ["AssetAllocation.AiRelay.Use"]
+        settings = AiRelaySettings(
+            enabled=_get_optional_bool("AI_RELAY_ENABLED", default=False),
+            api_key=_get_optional_str("AI_RELAY_API_KEY"),
+            model=_get_optional_str("AI_RELAY_MODEL") or "gpt-5.4-mini",
+            reasoning_effort=reasoning_effort,
+            timeout_seconds=_get_optional_float(
+                "AI_RELAY_TIMEOUT_SECONDS",
+                default=120.0,
+                minimum=1.0,
+                maximum=900.0,
+            ),
+            max_prompt_chars=_get_optional_int(
+                "AI_RELAY_MAX_PROMPT_CHARS",
+                default=40_000,
+                minimum=1,
+                maximum=200_000,
+            ),
+            max_files=_get_optional_int(
+                "AI_RELAY_MAX_FILES",
+                default=4,
+                minimum=0,
+                maximum=16,
+            ),
+            max_file_bytes=_get_optional_int(
+                "AI_RELAY_MAX_FILE_BYTES",
+                default=5 * 1024 * 1024,
+                minimum=1,
+                maximum=50 * 1024 * 1024,
+            ),
+            max_total_file_bytes=_get_optional_int(
+                "AI_RELAY_MAX_TOTAL_FILE_BYTES",
+                default=20 * 1024 * 1024,
+                minimum=1,
+                maximum=50 * 1024 * 1024,
+            ),
+            max_output_tokens=_get_optional_int(
+                "AI_RELAY_MAX_OUTPUT_TOKENS",
+                default=4_000,
+                minimum=1,
+                maximum=32_000,
+            ),
+            required_roles=required_roles,
+        )
+        if settings.max_total_file_bytes < settings.max_file_bytes:
+            raise ValueError("AI_RELAY_MAX_TOTAL_FILE_BYTES must be greater than or equal to AI_RELAY_MAX_FILE_BYTES.")
+        return settings
+
+
+@dataclass(frozen=True)
 class ServiceSettings:
     oidc_auth_enabled: bool
     anonymous_local_auth_enabled: bool
@@ -62,6 +186,7 @@ class ServiceSettings:
     postgres_dsn: Optional[str]
     browser_oidc_enabled: bool
     ui_oidc_config: dict[str, Any]
+    ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
 
     @property
     def auth_required(self) -> bool:
@@ -118,6 +243,7 @@ class ServiceSettings:
                 raise ValueError("Deployed runtime requires API OIDC configuration.")
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
+        ai_relay = AiRelaySettings.from_env()
         ui_oidc_config = {
             "authority": ui_authority,
             "clientId": ui_client_id,
@@ -138,4 +264,5 @@ class ServiceSettings:
             postgres_dsn=postgres_dsn,
             browser_oidc_enabled=browser_oidc_enabled,
             ui_oidc_config=ui_oidc_config,
+            ai_relay=ai_relay,
         )

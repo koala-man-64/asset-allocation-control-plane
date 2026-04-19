@@ -42,3 +42,36 @@ def test_deploy_root_contains_only_api_yaml_manifests() -> None:
     repo_root = _repo_root()
     manifest_names = {path.name for path in (repo_root / "deploy").glob("*.yaml")}
     assert manifest_names == {"app_api.yaml", "app_api_public.yaml"}
+
+
+def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
+    repo_root = _repo_root()
+    public_doc = _load_yaml(repo_root / "deploy" / "app_api_public.yaml")
+    private_doc = _load_yaml(repo_root / "deploy" / "app_api.yaml")
+
+    def _secret_names(doc: dict[str, object]) -> set[str]:
+        secrets = doc["properties"]["configuration"]["secrets"]
+        return {entry["name"] for entry in secrets}
+
+    def _env_names(doc: dict[str, object]) -> set[str]:
+        env = doc["properties"]["template"]["containers"][0]["env"]
+        return {entry["name"] for entry in env}
+
+    expected_envs = {
+        "AI_RELAY_ENABLED",
+        "AI_RELAY_MODEL",
+        "AI_RELAY_REASONING_EFFORT",
+        "AI_RELAY_TIMEOUT_SECONDS",
+        "AI_RELAY_MAX_PROMPT_CHARS",
+        "AI_RELAY_MAX_FILES",
+        "AI_RELAY_MAX_FILE_BYTES",
+        "AI_RELAY_MAX_TOTAL_FILE_BYTES",
+        "AI_RELAY_MAX_OUTPUT_TOKENS",
+        "AI_RELAY_REQUIRED_ROLES",
+        "AI_RELAY_API_KEY",
+    }
+
+    assert "ai-relay-api-key" in _secret_names(public_doc)
+    assert "ai-relay-api-key" in _secret_names(private_doc)
+    assert expected_envs <= _env_names(public_doc)
+    assert expected_envs <= _env_names(private_doc)

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trader Behavior & Process Reviewer"
+  short_description: "Review trading discipline and process quality"
+  default_prompt: "Use $trader-behavior-process-reviewer to review trader or PM behavior, process discipline, and plan adherence from trading records."

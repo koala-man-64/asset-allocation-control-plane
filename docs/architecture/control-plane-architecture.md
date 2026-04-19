@@ -43,7 +43,7 @@ Evidence:
 | `alpha_vantage/`, `massive_provider/` | API-side provider clients and helper modules used by gateway endpoints | `alpha_vantage/*.py`, `massive_provider/*.py`, `api/service/*gateway*.py` | `/api/providers/alpha-vantage/*`, `/api/providers/massive/*` | Historical lineage overlaps with jobs-side ingestion ownership | `tests/alpha_vantage/*`, `tests/api/test_alpha_vantage_endpoints.py`, `tests/api/test_massive_endpoints.py` |
 | `api/contracts/*` | Generated API and UI runtime contract artifacts | `scripts/automation/export_contract_artifacts.py` | `control-plane.openapi.json`, `ui-runtime-config.schema.json` | None | `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `tests/api/test_config_js_contract.py` |
 | `.github/workflows/*.yml` | Validation, release, deploy, infra reconcile, and security automation | `ci.yml`, `release.yml`, `deploy-prod.yml`, `infra-shared-prod.yml`, `security.yml` | GitHub Actions workflow entrypoints | No sibling-repo checkout path remains in the workflow contract | `tests/test_multirepo_dependency_contract.py`, `tests/test_workflow_runtime_ownership.py` |
-| `deploy/` and repo ops scripts | API deploy manifests, shared infra bootstrap, env sync, local contract/export helpers | `deploy/app_api*.yaml`, `scripts/dev/setup-env.ps1`, `scripts/repo/sync-all-to-github.ps1`, `scripts/ops/*` | `deploy-prod.yml`, `infra-shared-prod.yml` | Legacy job manifests are still present; see observed mismatches below | `DEPLOYMENT_SETUP.md`, `tests/test_workflow_runtime_ownership.py`, `.github/workflows/deploy-prod.yml`, `.github/workflows/infra-shared-prod.yml` |
+| `deploy/` and repo ops scripts | API deploy manifests, shared infra bootstrap, env sync, local contract/export helpers | `deploy/app_api*.yaml`, `scripts/setup-env.ps1`, `scripts/sync-all-to-github.ps1`, `scripts/ops/*` | `deploy-prod.yml`, `infra-shared-prod.yml` | Legacy job manifests are still present; see observed mismatches below | `DEPLOYMENT_SETUP.md`, `tests/test_workflow_runtime_ownership.py`, `.github/workflows/deploy-prod.yml`, `.github/workflows/infra-shared-prod.yml` |
 
 Evidence:
 - `README.md`
@@ -181,7 +181,7 @@ Evidence:
 - Confirmed: `deploy-prod.yml` auto-resolves the latest released `asset-allocation-api` image digest on manual runs, still accepts explicit digests through `deploy_runtime` repository dispatch, renders `deploy/app_api_public.yaml`, applies the manifest, and verifies `/healthz`, `/readyz`, `/config.js`, and an OpenAPI endpoint after rollout.
 - Confirmed: `infra-shared-prod.yml` is the shared Azure substrate reconcile path and runs the provisioning PowerShell entrypoint from this repo.
 - Confirmed: `release.yml` resolves pinned shared package versions from `pyproject.toml`, exports contract artifacts, builds and pushes the API image, uploads release artifacts, and dispatches the jobs repo.
-- Confirmed: the runbook requires bootstrap and sync through `scripts/dev/setup-env.ps1` and `scripts/repo/sync-all-to-github.ps1`.
+- Confirmed: the runbook requires bootstrap and sync through `scripts/setup-env.ps1` and `scripts/sync-all-to-github.ps1`.
 - Confirmed: the runbook treats this repo as the source of truth for `/config.js` and the OpenAPI contract artifacts.
 
 Evidence:
@@ -191,8 +191,8 @@ Evidence:
 - `.github/workflows/infra-shared-prod.yml`
 - `deploy/app_api.yaml`
 - `deploy/app_api_public.yaml`
-- `scripts/dev/setup-env.ps1`
-- `scripts/repo/sync-all-to-github.ps1`
+- `scripts/setup-env.ps1`
+- `scripts/sync-all-to-github.ps1`
 
 ## Observability and failure semantics
 
@@ -337,8 +337,8 @@ Evidence:
 ### Scripts and artifacts
 
 - `scripts/automation/export_contract_artifacts.py`
-- `scripts/dev/setup-env.ps1`
-- `scripts/repo/sync-all-to-github.ps1`
+- `scripts/setup-env.ps1`
+- `scripts/sync-all-to-github.ps1`
 - `api/contracts/control-plane.openapi.json`
 - `api/contracts/ui-runtime-config.schema.json`
 

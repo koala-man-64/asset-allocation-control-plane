@@ -96,7 +96,12 @@ jobs:
         run: |
           set -euo pipefail
           cd asset-allocation-control-plane
-          python -m pytest tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py -q
+          python -m pytest \
+            tests/api/test_ai_chat_stream.py \
+            tests/api/test_ai_gateway_service.py \
+            tests/api/test_config_js_contract.py \
+            tests/api/test_internal_endpoints.py \
+            -q
 
       - name: Run startup smoke
         shell: bash

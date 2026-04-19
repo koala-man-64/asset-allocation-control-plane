@@ -24,6 +24,17 @@ def test_build_command_includes_contract_artifact_check_gate() -> None:
     assert command[1:] == ["scripts/automation/export_contract_artifacts.py", "--check"]
 
 
+def test_build_command_includes_ai_fast_api_tests() -> None:
+    run_quality_gate = _load_run_quality_gate_module()
+
+    command, cwd = run_quality_gate.build_command("test-fast-api")
+
+    assert cwd == run_quality_gate.REPO_ROOT
+    joined = " ".join(command)
+    assert "tests/api/test_ai_chat_stream.py" in joined
+    assert "tests/api/test_ai_gateway_service.py" in joined
+
+
 def test_main_returns_contract_artifact_gate_exit_code(monkeypatch) -> None:
     run_quality_gate = _load_run_quality_gate_module()
     sentinel_command = ["python", "scripts/automation/export_contract_artifacts.py", "--check"]

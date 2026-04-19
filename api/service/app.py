@@ -14,6 +14,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from api.endpoints import (
+    ai,
     auth,
     alpha_vantage,
     backtests,
@@ -30,9 +31,11 @@ from api.endpoints import (
 )
 from api.service.auth import AuthManager
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
+from api.service.dependencies import validate_auth
 from api.service.log_streaming import LogStreamManager
 from api.service.openapi_schema import stabilize_openapi_schema
 from api.service.massive_gateway import MassiveGateway
+from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.settings import ServiceSettings
 from api.service.realtime import manager as realtime_manager
@@ -164,16 +167,25 @@ def create_app() -> FastAPI:
     # ... (existing inner functions) ...
     log_stream_manager = LogStreamManager(realtime_manager)
 
+    def _seed_runtime_state(app: FastAPI, settings: ServiceSettings) -> None:
+        app.state.settings = settings
+        if not hasattr(app.state, "auth"):
+            app.state.auth = AuthManager(settings)
+        if not hasattr(app.state, "alpha_vantage_gateway"):
+            app.state.alpha_vantage_gateway = AlphaVantageGateway()
+        if not hasattr(app.state, "massive_gateway"):
+            app.state.massive_gateway = MassiveGateway()
+        if not hasattr(app.state, "ai_relay_gateway"):
+            app.state.ai_relay_gateway = OpenAIResponsesGateway(settings.ai_relay)
+        if not hasattr(app.state, "log_stream_manager"):
+            app.state.log_stream_manager = log_stream_manager
+        if not hasattr(app.state, "websocket_ticket_store"):
+            app.state.websocket_ticket_store = WebSocketTicketStore(ttl_seconds=60)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        settings = ServiceSettings.from_env()
-
-        app.state.settings = settings
-        app.state.auth = AuthManager(settings)
-        app.state.alpha_vantage_gateway = AlphaVantageGateway()
-        app.state.massive_gateway = MassiveGateway()
-        app.state.log_stream_manager = log_stream_manager
-        app.state.websocket_ticket_store = WebSocketTicketStore(ttl_seconds=60)
+        settings = getattr(app.state, "settings", ServiceSettings.from_env())
+        _seed_runtime_state(app, settings)
         logger.info(
             "Resolved service capabilities: auth=%s auth_required=%s browser_oidc=%s postgres=%s",
             settings.auth_summary,
@@ -315,6 +327,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    _seed_runtime_state(app, ServiceSettings.from_env())
     logger.info("Service application starting")
 
     content_security_policy = (os.environ.get("API_CSP") or "").strip()
@@ -370,15 +383,22 @@ def create_app() -> FastAPI:
 
     app.openapi = _get_openapi_schema  # type: ignore[method-assign]
 
+    def _enforce_public_surface_auth(request: Request) -> None:
+        settings: ServiceSettings = request.app.state.settings
+        if settings.auth_required:
+            validate_auth(request)
+
     def _register_docs_routes(api_prefix: str) -> None:
         docs_path = f"{api_prefix}/docs"
         openapi_path = f"{api_prefix}/openapi.json"
         oauth2_redirect_path = f"{docs_path}/oauth2-redirect"
 
-        async def openapi_json() -> JSONResponse:
+        async def openapi_json(request: Request) -> JSONResponse:
+            _enforce_public_surface_auth(request)
             return JSONResponse(_get_openapi_schema())
 
-        async def swagger_ui() -> Response:
+        async def swagger_ui(request: Request) -> Response:
+            _enforce_public_surface_auth(request)
             return get_swagger_ui_html(
                 openapi_url=openapi_path,
                 title=f"{app.title} - Swagger UI",
@@ -416,20 +436,23 @@ def create_app() -> FastAPI:
     primary_api_prefix = f"{api_root_prefix}/api" if api_root_prefix else "/api"
 
     @app.get("/docs", include_in_schema=False)
-    def docs_redirect() -> RedirectResponse:
+    def docs_redirect(request: Request) -> RedirectResponse:
+        _enforce_public_surface_auth(request)
         return RedirectResponse(
             url=f"{primary_api_prefix}/docs",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
 
     @app.get("/openapi.json", include_in_schema=False)
-    def openapi_redirect() -> RedirectResponse:
+    def openapi_redirect(request: Request) -> RedirectResponse:
+        _enforce_public_surface_auth(request)
         return RedirectResponse(
             url=f"{primary_api_prefix}/openapi.json",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
 
     for api_prefix in api_prefixes:
+        app.include_router(ai.router, prefix=f"{api_prefix}/ai", tags=["AI"])
         app.include_router(data.router, prefix=f"{api_prefix}/data", tags=["Data"])
         app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Auth"])
         app.include_router(system.router, prefix=f"{api_prefix}/system", tags=["System"])
@@ -462,6 +485,7 @@ def create_app() -> FastAPI:
 
     @app.get("/config.js")
     async def get_ui_config(request: Request):
+        _enforce_public_surface_auth(request)
         settings: ServiceSettings = app.state.settings
         cfg = UiRuntimeConfig.model_validate(
             {

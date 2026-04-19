@@ -49,10 +49,25 @@ param(
   [ValidateRange(4, 730)]
   [int]$LogAnalyticsRetentionInDays = 30,
   [string]$ContainerAppsEnvironmentName = "asset-allocation-env",
+  [string]$VnetContainerAppsEnvironmentName = "asset-allocation-env-vnet",
+  [string]$VnetName = "asset-allocation-vnet-prod",
+  [string]$VnetAddressSpace = "10.64.0.0/24",
+  [string]$AcaInfrastructureSubnetName = "aca-infra-snet",
+  [string]$AcaInfrastructureSubnetPrefix = "10.64.0.0/26",
+  [string]$PrivateEndpointSubnetName = "private-endpoints-snet",
+  [string]$PrivateEndpointSubnetPrefix = "10.64.0.64/27",
+  [string]$ReservedSubnetPrefix = "10.64.0.96/27",
+  [string]$NatGatewayName = "asset-allocation-nat-prod",
+  [string]$NatPublicIpName = "asset-allocation-egress-ip-prod",
+  [string]$NetworkSmokeJobName = "asset-allocation-network-smoke",
   [switch]$CorrectApiStorageAuthMode,
   [ValidateSet("ManagedIdentity", "ConnectionString")]
   [string]$ApiStorageAuthMode = "ManagedIdentity",
   [string]$ApiContainerAppName = "",
+  [string]$VnetApiAppName = "asset-allocation-api-vnet",
+  [string]$VnetUiAppName = "asset-allocation-ui-vnet",
+  [string]$UiPublicHostname = "",
+  [switch]$DisablePublicDataPlaneAccess,
   [string]$AzureClientId = "",
   [string]$AksClusterName = "",
   [string]$KubernetesNamespace = "k8se-apps",
@@ -261,6 +276,458 @@ function Get-EnvBool {
   throw "Invalid boolean value for $Key in ${envLabel}: '$raw'. Expected true/false."
 }
 
+function Get-AzTsvOrEmpty {
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+  try {
+    $output = & az @Arguments 2>$null
+    if ($LASTEXITCODE -ne 0) {
+      return ""
+    }
+    return (($output | Out-String).Trim())
+  }
+  catch {
+    return ""
+  }
+}
+
+function Ensure-PrivateDnsZoneLink {
+  param(
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName,
+    [Parameter(Mandatory = $true)][string]$ZoneName,
+    [Parameter(Mandatory = $true)][string]$VnetId,
+    [Parameter(Mandatory = $true)][string]$LinkName
+  )
+
+  az network private-dns zone create `
+    --resource-group $ResourceGroupName `
+    --name $ZoneName `
+    --only-show-errors 1>$null
+
+  $existingLink = Get-AzTsvOrEmpty -Arguments @(
+    "network", "private-dns", "link", "vnet", "show",
+    "--resource-group", $ResourceGroupName,
+    "--zone-name", $ZoneName,
+    "--name", $LinkName,
+    "--query", "name",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+
+  if ([string]::IsNullOrWhiteSpace($existingLink)) {
+    az network private-dns link vnet create `
+      --resource-group $ResourceGroupName `
+      --zone-name $ZoneName `
+      --name $LinkName `
+      --virtual-network $VnetId `
+      --registration-enabled false `
+      --only-show-errors 1>$null
+  }
+}
+
+function Ensure-PrivateEndpointConnection {
+  param(
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName,
+    [Parameter(Mandatory = $true)][string]$LocationName,
+    [Parameter(Mandatory = $true)][string]$EndpointName,
+    [Parameter(Mandatory = $true)][string]$ConnectionName,
+    [Parameter(Mandatory = $true)][string]$PrivateConnectionResourceId,
+    [Parameter(Mandatory = $true)][string]$GroupId,
+    [Parameter(Mandatory = $true)][string]$VnetNameValue,
+    [Parameter(Mandatory = $true)][string]$SubnetNameValue,
+    [Parameter(Mandatory = $true)][string]$PrivateDnsZoneName,
+    [string]$DnsZoneGroupName = "default"
+  )
+
+  $existingEndpoint = Get-AzTsvOrEmpty -Arguments @(
+    "network", "private-endpoint", "show",
+    "--resource-group", $ResourceGroupName,
+    "--name", $EndpointName,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+
+  if ([string]::IsNullOrWhiteSpace($existingEndpoint)) {
+    az network private-endpoint create `
+      --resource-group $ResourceGroupName `
+      --location $LocationName `
+      --name $EndpointName `
+      --connection-name $ConnectionName `
+      --private-connection-resource-id $PrivateConnectionResourceId `
+      --group-id $GroupId `
+      --vnet-name $VnetNameValue `
+      --subnet $SubnetNameValue `
+      --only-show-errors 1>$null
+  }
+
+  $existingZoneGroup = Get-AzTsvOrEmpty -Arguments @(
+    "network", "private-endpoint", "dns-zone-group", "show",
+    "--resource-group", $ResourceGroupName,
+    "--endpoint-name", $EndpointName,
+    "--name", $DnsZoneGroupName,
+    "--query", "name",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+
+  if ([string]::IsNullOrWhiteSpace($existingZoneGroup)) {
+    az network private-endpoint dns-zone-group create `
+      --resource-group $ResourceGroupName `
+      --endpoint-name $EndpointName `
+      --name $DnsZoneGroupName `
+      --private-dns-zone $PrivateDnsZoneName `
+      --zone-name $PrivateDnsZoneName `
+      --only-show-errors 1>$null
+  }
+}
+
+function Ensure-NetworkSmokeJob {
+  param(
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName,
+    [Parameter(Mandatory = $true)][string]$EnvironmentName,
+    [Parameter(Mandatory = $true)][string]$JobName,
+    [Parameter(Mandatory = $true)][string]$ApiInternalAppName,
+    [Parameter(Mandatory = $true)][string]$StorageAccount,
+    [string]$PostgresServer = ""
+  )
+
+  $jobScript = @'
+set -eu
+wget -qO- "${API_BASE_URL}/healthz" > /dev/null
+nslookup "${STORAGE_ACCOUNT_NAME}.blob.core.windows.net" > /dev/null
+nslookup "${STORAGE_ACCOUNT_NAME}.dfs.core.windows.net" > /dev/null
+nc -z "${STORAGE_ACCOUNT_NAME}.blob.core.windows.net" 443
+nc -z "${STORAGE_ACCOUNT_NAME}.dfs.core.windows.net" 443
+if [ -n "${POSTGRES_SERVER_NAME}" ]; then
+  nslookup "${POSTGRES_SERVER_NAME}.postgres.database.azure.com" > /dev/null
+  nc -z "${POSTGRES_SERVER_NAME}.postgres.database.azure.com" 5432
+fi
+'@
+
+  $jobEnvVars = @(
+    "API_BASE_URL=http://$ApiInternalAppName",
+    "STORAGE_ACCOUNT_NAME=$StorageAccount",
+    "POSTGRES_SERVER_NAME=$PostgresServer"
+  )
+
+  $existingJob = Get-AzTsvOrEmpty -Arguments @(
+    "containerapp", "job", "show",
+    "--resource-group", $ResourceGroupName,
+    "--name", $JobName,
+    "--query", "name",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+
+  if ([string]::IsNullOrWhiteSpace($existingJob)) {
+    $createArgs = @(
+      "containerapp", "job", "create",
+      "--resource-group", $ResourceGroupName,
+      "--name", $JobName,
+      "--environment", $EnvironmentName,
+      "--trigger-type", "Manual",
+      "--replica-timeout", "600",
+      "--replica-retry-limit", "0",
+      "--replica-completion-count", "1",
+      "--parallelism", "1",
+      "--image", "busybox:1.36",
+      "--container-name", "network-smoke",
+      "--command", "/bin/sh",
+      "--args", "-c", $jobScript,
+      "--cpu", "0.25",
+      "--memory", "0.5Gi",
+      "--workload-profile-name", "Consumption",
+      "--env-vars"
+    ) + $jobEnvVars + @("--only-show-errors")
+    & az @createArgs 1>$null
+  }
+  else {
+    $updateArgs = @(
+      "containerapp", "job", "update",
+      "--resource-group", $ResourceGroupName,
+      "--name", $JobName,
+      "--image", "busybox:1.36",
+      "--command", "/bin/sh",
+      "--args", "-c", $jobScript,
+      "--cpu", "0.25",
+      "--memory", "0.5Gi",
+      "--replace-env-vars"
+    ) + $jobEnvVars + @("--only-show-errors")
+    & az @updateArgs 1>$null
+  }
+}
+
+function Ensure-ParallelPrivateRuntime {
+  param(
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName,
+    [Parameter(Mandatory = $true)][string]$LocationName,
+    [Parameter(Mandatory = $true)][string]$VnetNameValue,
+    [Parameter(Mandatory = $true)][string]$VnetAddressSpaceValue,
+    [Parameter(Mandatory = $true)][string]$AcaSubnetName,
+    [Parameter(Mandatory = $true)][string]$AcaSubnetPrefix,
+    [Parameter(Mandatory = $true)][string]$PeSubnetName,
+    [Parameter(Mandatory = $true)][string]$PeSubnetPrefix,
+    [string]$ReservedSubnetPrefixValue = "",
+    [Parameter(Mandatory = $true)][string]$NatGatewayNameValue,
+    [Parameter(Mandatory = $true)][string]$NatPublicIpNameValue,
+    [Parameter(Mandatory = $true)][string]$EnvironmentName,
+    [Parameter(Mandatory = $true)][string]$NetworkSmokeJobNameValue,
+    [Parameter(Mandatory = $true)][string]$ApiInternalAppName,
+    [Parameter(Mandatory = $true)][string]$WorkspaceCustomerId,
+    [Parameter(Mandatory = $true)][string]$WorkspaceSharedKey,
+    [Parameter(Mandatory = $true)][string]$StorageAccount,
+    [string]$PostgresServer = "",
+    [switch]$DisablePublicDataPlane
+  )
+
+  $existingVnet = Get-AzTsvOrEmpty -Arguments @(
+    "network", "vnet", "show",
+    "--resource-group", $ResourceGroupName,
+    "--name", $VnetNameValue,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  if ([string]::IsNullOrWhiteSpace($existingVnet)) {
+    az network vnet create `
+      --resource-group $ResourceGroupName `
+      --location $LocationName `
+      --name $VnetNameValue `
+      --address-prefixes $VnetAddressSpaceValue `
+      --only-show-errors 1>$null
+  }
+
+  az network public-ip create `
+    --resource-group $ResourceGroupName `
+    --location $LocationName `
+    --name $NatPublicIpNameValue `
+    --sku Standard `
+    --allocation-method Static `
+    --only-show-errors 1>$null
+
+  az network nat gateway create `
+    --resource-group $ResourceGroupName `
+    --location $LocationName `
+    --name $NatGatewayNameValue `
+    --public-ip-addresses $NatPublicIpNameValue `
+    --only-show-errors 1>$null
+
+  $acaSubnetId = Get-AzTsvOrEmpty -Arguments @(
+    "network", "vnet", "subnet", "show",
+    "--resource-group", $ResourceGroupName,
+    "--vnet-name", $VnetNameValue,
+    "--name", $AcaSubnetName,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  if ([string]::IsNullOrWhiteSpace($acaSubnetId)) {
+    az network vnet subnet create `
+      --resource-group $ResourceGroupName `
+      --vnet-name $VnetNameValue `
+      --name $AcaSubnetName `
+      --address-prefixes $AcaSubnetPrefix `
+      --delegations Microsoft.App/environments `
+      --only-show-errors 1>$null
+  }
+  az network vnet subnet update `
+    --resource-group $ResourceGroupName `
+    --vnet-name $VnetNameValue `
+    --name $AcaSubnetName `
+    --address-prefixes $AcaSubnetPrefix `
+    --delegations Microsoft.App/environments `
+    --nat-gateway $NatGatewayNameValue `
+    --only-show-errors 1>$null
+
+  $peSubnetId = Get-AzTsvOrEmpty -Arguments @(
+    "network", "vnet", "subnet", "show",
+    "--resource-group", $ResourceGroupName,
+    "--vnet-name", $VnetNameValue,
+    "--name", $PeSubnetName,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  if ([string]::IsNullOrWhiteSpace($peSubnetId)) {
+    az network vnet subnet create `
+      --resource-group $ResourceGroupName `
+      --vnet-name $VnetNameValue `
+      --name $PeSubnetName `
+      --address-prefixes $PeSubnetPrefix `
+      --only-show-errors 1>$null
+  }
+  az network vnet subnet update `
+    --resource-group $ResourceGroupName `
+    --vnet-name $VnetNameValue `
+    --name $PeSubnetName `
+    --address-prefixes $PeSubnetPrefix `
+    --private-endpoint-network-policies Disabled `
+    --only-show-errors 1>$null
+
+  $vnetId = Get-AzTsvOrEmpty -Arguments @(
+    "network", "vnet", "show",
+    "--resource-group", $ResourceGroupName,
+    "--name", $VnetNameValue,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  $acaSubnetId = Get-AzTsvOrEmpty -Arguments @(
+    "network", "vnet", "subnet", "show",
+    "--resource-group", $ResourceGroupName,
+    "--vnet-name", $VnetNameValue,
+    "--name", $AcaSubnetName,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+
+  $existingEnvironment = Get-AzTsvOrEmpty -Arguments @(
+    "containerapp", "env", "show",
+    "--resource-group", $ResourceGroupName,
+    "--name", $EnvironmentName,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  if ([string]::IsNullOrWhiteSpace($existingEnvironment)) {
+    az containerapp env create `
+      --name $EnvironmentName `
+      --resource-group $ResourceGroupName `
+      --location $LocationName `
+      --logs-workspace-id $WorkspaceCustomerId `
+      --logs-workspace-key $WorkspaceSharedKey `
+      --infrastructure-subnet-resource-id $acaSubnetId `
+      --only-show-errors 1>$null
+  }
+
+  Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.blob.core.windows.net" -VnetId $vnetId -LinkName "$VnetNameValue-blob"
+  Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.dfs.core.windows.net" -VnetId $vnetId -LinkName "$VnetNameValue-dfs"
+  Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.postgres.database.azure.com" -VnetId $vnetId -LinkName "$VnetNameValue-postgres"
+
+  $storageAccountId = Get-AzTsvOrEmpty -Arguments @(
+    "storage", "account", "show",
+    "--resource-group", $ResourceGroupName,
+    "--name", $StorageAccount,
+    "--query", "id",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  if (-not [string]::IsNullOrWhiteSpace($storageAccountId)) {
+    Ensure-PrivateEndpointConnection `
+      -ResourceGroupName $ResourceGroupName `
+      -LocationName $LocationName `
+      -EndpointName "$StorageAccount-blob-pe" `
+      -ConnectionName "$StorageAccount-blob-link" `
+      -PrivateConnectionResourceId $storageAccountId `
+      -GroupId "blob" `
+      -VnetNameValue $VnetNameValue `
+      -SubnetNameValue $PeSubnetName `
+      -PrivateDnsZoneName "privatelink.blob.core.windows.net"
+
+    Ensure-PrivateEndpointConnection `
+      -ResourceGroupName $ResourceGroupName `
+      -LocationName $LocationName `
+      -EndpointName "$StorageAccount-dfs-pe" `
+      -ConnectionName "$StorageAccount-dfs-link" `
+      -PrivateConnectionResourceId $storageAccountId `
+      -GroupId "dfs" `
+      -VnetNameValue $VnetNameValue `
+      -SubnetNameValue $PeSubnetName `
+      -PrivateDnsZoneName "privatelink.dfs.core.windows.net"
+
+    if ($DisablePublicDataPlane) {
+      az storage account update `
+        --resource-group $ResourceGroupName `
+        --name $StorageAccount `
+        --default-action Deny `
+        --public-network-access Disabled `
+        --only-show-errors 1>$null
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($PostgresServer)) {
+    $postgresServerId = Get-AzTsvOrEmpty -Arguments @(
+      "postgres", "flexible-server", "show",
+      "--resource-group", $ResourceGroupName,
+      "--name", $PostgresServer,
+      "--query", "id",
+      "-o", "tsv",
+      "--only-show-errors"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($postgresServerId)) {
+      $postgresPrivateLinkGroupsRaw = Get-AzTsvOrEmpty -Arguments @(
+        "network", "private-link-resource", "list",
+        "--id", $postgresServerId,
+        "--query", "[].properties.groupId",
+        "-o", "tsv",
+        "--only-show-errors"
+      )
+      $postgresPrivateLinkGroups = @()
+      if (-not [string]::IsNullOrWhiteSpace($postgresPrivateLinkGroupsRaw)) {
+        $postgresPrivateLinkGroups = @(
+          $postgresPrivateLinkGroupsRaw -split "`r?`n" |
+          Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+      }
+      if ($postgresPrivateLinkGroups -notcontains "postgresqlServer") {
+        throw "Postgres flexible server '$PostgresServer' does not expose the required private link group 'postgresqlServer'. Replace or reconfigure the server in this phase instead of weakening the target topology."
+      }
+
+      Ensure-PrivateEndpointConnection `
+        -ResourceGroupName $ResourceGroupName `
+        -LocationName $LocationName `
+        -EndpointName "$PostgresServer-pe" `
+        -ConnectionName "$PostgresServer-link" `
+        -PrivateConnectionResourceId $postgresServerId `
+        -GroupId "postgresqlServer" `
+        -VnetNameValue $VnetNameValue `
+        -SubnetNameValue $PeSubnetName `
+        -PrivateDnsZoneName "privatelink.postgres.database.azure.com"
+
+      if ($DisablePublicDataPlane) {
+        az postgres flexible-server update `
+          --resource-group $ResourceGroupName `
+          --name $PostgresServer `
+          --public-access Disabled `
+          --only-show-errors `
+          --yes 1>$null
+      }
+    }
+  }
+
+  Ensure-NetworkSmokeJob `
+    -ResourceGroupName $ResourceGroupName `
+    -EnvironmentName $EnvironmentName `
+    -JobName $NetworkSmokeJobNameValue `
+    -ApiInternalAppName $ApiInternalAppName `
+    -StorageAccount $StorageAccount `
+    -PostgresServer $PostgresServer
+
+  return [pscustomobject]@{
+    VnetName                       = $VnetNameValue
+    VnetId                         = $vnetId
+    VnetAddressSpace               = $VnetAddressSpaceValue
+    EnvironmentName                = $EnvironmentName
+    InfrastructureSubnetName       = $AcaSubnetName
+    InfrastructureSubnetId         = $acaSubnetId
+    InfrastructureSubnetPrefix     = $AcaSubnetPrefix
+    PrivateEndpointSubnetName      = $PeSubnetName
+    PrivateEndpointSubnetPrefix    = $PeSubnetPrefix
+    ReservedSubnetPrefix           = $ReservedSubnetPrefixValue
+    NatGatewayName                 = $NatGatewayNameValue
+    NatPublicIpName                = $NatPublicIpNameValue
+    NatPublicIpAddress             = (Get-AzTsvOrEmpty -Arguments @("network", "public-ip", "show", "--resource-group", $ResourceGroupName, "--name", $NatPublicIpNameValue, "--query", "ipAddress", "-o", "tsv", "--only-show-errors"))
+    NetworkSmokeJobName            = $NetworkSmokeJobNameValue
+    ApiInternalAppName             = $ApiInternalAppName
+    StoragePrivateDnsZone          = "privatelink.blob.core.windows.net"
+    StorageDfsPrivateDnsZone       = "privatelink.dfs.core.windows.net"
+    PostgresPrivateDnsZone         = "privatelink.postgres.database.azure.com"
+    DisablePublicDataPlaneAccess   = [bool]$DisablePublicDataPlane
+  }
+}
+
 # Load containers from .env.web if not specified
 if ($StorageContainers.Count -eq 0 -and $envLines.Count -gt 0) {
   Write-Host "Reading container names from $envLabel..."
@@ -353,6 +820,14 @@ if ((-not $PSBoundParameters.ContainsKey("ContainerAppsEnvironmentName")) -or [s
   }
 }
 
+if ((-not $PSBoundParameters.ContainsKey("VnetContainerAppsEnvironmentName")) -or [string]::IsNullOrWhiteSpace($VnetContainerAppsEnvironmentName)) {
+  $vnetEnvFromEnv = Get-EnvValueFirst -Keys @("CONTAINER_APPS_ENVIRONMENT_VNET_NAME")
+  if ($vnetEnvFromEnv) {
+    Write-Host "Using CONTAINER_APPS_ENVIRONMENT_VNET_NAME from ${envLabel}: $vnetEnvFromEnv"
+    $VnetContainerAppsEnvironmentName = $vnetEnvFromEnv
+  }
+}
+
 if ((-not $PSBoundParameters.ContainsKey("ApiContainerAppName")) -or [string]::IsNullOrWhiteSpace($ApiContainerAppName)) {
   $apiContainerAppFromEnv = Get-EnvValueFirst -Keys @("API_CONTAINER_APP_NAME", "CONTAINER_APP_API_NAME")
   if (-not [string]::IsNullOrWhiteSpace($apiContainerAppFromEnv)) {
@@ -383,6 +858,110 @@ if ((-not $PSBoundParameters.ContainsKey("ApiContainerAppName")) -or [string]::I
 
 if ([string]::IsNullOrWhiteSpace($ApiContainerAppName)) {
   $ApiContainerAppName = "asset-allocation-api"
+}
+
+if (-not $PSBoundParameters.ContainsKey("VnetName")) {
+  $vnetNameFromEnv = Get-EnvValueFirst -Keys @("ACA_VNET_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($vnetNameFromEnv)) {
+    $VnetName = $vnetNameFromEnv.Trim()
+    Write-Host "Using ACA_VNET_NAME from ${envLabel}: $VnetName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("VnetAddressSpace")) {
+  $vnetAddressSpaceFromEnv = Get-EnvValueFirst -Keys @("ACA_VNET_ADDRESS_SPACE")
+  if (-not [string]::IsNullOrWhiteSpace($vnetAddressSpaceFromEnv)) {
+    $VnetAddressSpace = $vnetAddressSpaceFromEnv.Trim()
+    Write-Host "Using ACA_VNET_ADDRESS_SPACE from ${envLabel}: $VnetAddressSpace"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("AcaInfrastructureSubnetName")) {
+  $acaInfraSubnetNameFromEnv = Get-EnvValueFirst -Keys @("ACA_INFRA_SUBNET_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($acaInfraSubnetNameFromEnv)) {
+    $AcaInfrastructureSubnetName = $acaInfraSubnetNameFromEnv.Trim()
+    Write-Host "Using ACA_INFRA_SUBNET_NAME from ${envLabel}: $AcaInfrastructureSubnetName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("AcaInfrastructureSubnetPrefix")) {
+  $acaInfraSubnetPrefixFromEnv = Get-EnvValueFirst -Keys @("ACA_INFRA_SUBNET_PREFIX")
+  if (-not [string]::IsNullOrWhiteSpace($acaInfraSubnetPrefixFromEnv)) {
+    $AcaInfrastructureSubnetPrefix = $acaInfraSubnetPrefixFromEnv.Trim()
+    Write-Host "Using ACA_INFRA_SUBNET_PREFIX from ${envLabel}: $AcaInfrastructureSubnetPrefix"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("PrivateEndpointSubnetName")) {
+  $privateEndpointSubnetNameFromEnv = Get-EnvValueFirst -Keys @("PRIVATE_ENDPOINT_SUBNET_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($privateEndpointSubnetNameFromEnv)) {
+    $PrivateEndpointSubnetName = $privateEndpointSubnetNameFromEnv.Trim()
+    Write-Host "Using PRIVATE_ENDPOINT_SUBNET_NAME from ${envLabel}: $PrivateEndpointSubnetName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("PrivateEndpointSubnetPrefix")) {
+  $privateEndpointSubnetPrefixFromEnv = Get-EnvValueFirst -Keys @("PRIVATE_ENDPOINT_SUBNET_PREFIX")
+  if (-not [string]::IsNullOrWhiteSpace($privateEndpointSubnetPrefixFromEnv)) {
+    $PrivateEndpointSubnetPrefix = $privateEndpointSubnetPrefixFromEnv.Trim()
+    Write-Host "Using PRIVATE_ENDPOINT_SUBNET_PREFIX from ${envLabel}: $PrivateEndpointSubnetPrefix"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("ReservedSubnetPrefix")) {
+  $reservedSubnetPrefixFromEnv = Get-EnvValueFirst -Keys @("ACA_RESERVED_SUBNET_PREFIX")
+  if (-not [string]::IsNullOrWhiteSpace($reservedSubnetPrefixFromEnv)) {
+    $ReservedSubnetPrefix = $reservedSubnetPrefixFromEnv.Trim()
+    Write-Host "Using ACA_RESERVED_SUBNET_PREFIX from ${envLabel}: $ReservedSubnetPrefix"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("NatGatewayName")) {
+  $natGatewayNameFromEnv = Get-EnvValueFirst -Keys @("NAT_GATEWAY_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($natGatewayNameFromEnv)) {
+    $NatGatewayName = $natGatewayNameFromEnv.Trim()
+    Write-Host "Using NAT_GATEWAY_NAME from ${envLabel}: $NatGatewayName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("NatPublicIpName")) {
+  $natPublicIpNameFromEnv = Get-EnvValueFirst -Keys @("NAT_PUBLIC_IP_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($natPublicIpNameFromEnv)) {
+    $NatPublicIpName = $natPublicIpNameFromEnv.Trim()
+    Write-Host "Using NAT_PUBLIC_IP_NAME from ${envLabel}: $NatPublicIpName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("NetworkSmokeJobName")) {
+  $networkSmokeJobNameFromEnv = Get-EnvValueFirst -Keys @("ACA_NETWORK_SMOKE_JOB_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($networkSmokeJobNameFromEnv)) {
+    $NetworkSmokeJobName = $networkSmokeJobNameFromEnv.Trim()
+    Write-Host "Using ACA_NETWORK_SMOKE_JOB_NAME from ${envLabel}: $NetworkSmokeJobName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("VnetApiAppName")) {
+  $vnetApiAppNameFromEnv = Get-EnvValueFirst -Keys @("API_APP_VNET_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($vnetApiAppNameFromEnv)) {
+    $VnetApiAppName = $vnetApiAppNameFromEnv.Trim()
+    Write-Host "Using API_APP_VNET_NAME from ${envLabel}: $VnetApiAppName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("VnetUiAppName")) {
+  $vnetUiAppNameFromEnv = Get-EnvValueFirst -Keys @("UI_APP_VNET_NAME")
+  if (-not [string]::IsNullOrWhiteSpace($vnetUiAppNameFromEnv)) {
+    $VnetUiAppName = $vnetUiAppNameFromEnv.Trim()
+    Write-Host "Using UI_APP_VNET_NAME from ${envLabel}: $VnetUiAppName"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("UiPublicHostname")) {
+  $uiPublicHostnameFromEnv = Get-EnvValueFirst -Keys @("UI_PUBLIC_HOSTNAME")
+  if (-not [string]::IsNullOrWhiteSpace($uiPublicHostnameFromEnv)) {
+    $UiPublicHostname = $uiPublicHostnameFromEnv.Trim()
+    Write-Host "Using UI_PUBLIC_HOSTNAME from ${envLabel}: $UiPublicHostname"
+  }
 }
 
 if ((-not $PSBoundParameters.ContainsKey("ServiceAccountName")) -or [string]::IsNullOrWhiteSpace($ServiceAccountName)) {
@@ -458,6 +1037,89 @@ function Sync-EnvWebToGitHub {
   if (-not $?) {
     throw "GitHub vars/secrets sync failed."
   }
+}
+
+function Configure-AiRelayBootstrap {
+  param(
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName,
+    [Parameter(Mandatory = $true)][string]$ContainerAppName
+  )
+
+  $enabled = Get-EnvBool -Key "AI_RELAY_ENABLED"
+  if ($enabled -ne $true) {
+    Write-Host "Skipping AI relay bootstrap because AI_RELAY_ENABLED is not true in ${envLabel}." -ForegroundColor DarkGray
+    return $false
+  }
+
+  $apiKey = Get-EnvValue -Key "AI_RELAY_API_KEY"
+  if ([string]::IsNullOrWhiteSpace($apiKey)) {
+    throw "AI_RELAY_ENABLED=true, but AI_RELAY_API_KEY is blank in ${envLabel}."
+  }
+
+  $requiredRoles = Get-EnvValue -Key "AI_RELAY_REQUIRED_ROLES"
+  if ([string]::IsNullOrWhiteSpace($requiredRoles)) {
+    throw "AI_RELAY_ENABLED=true, but AI_RELAY_REQUIRED_ROLES is blank in ${envLabel}."
+  }
+
+  $existingAppName = ""
+  try {
+    $existingAppName = az containerapp show `
+      --name $ContainerAppName `
+      --resource-group $ResourceGroupName `
+      --query "name" -o tsv --only-show-errors 2>$null
+  }
+  catch {
+    $existingAppName = ""
+  }
+
+  if ([string]::IsNullOrWhiteSpace($existingAppName)) {
+    Write-Warning "Skipping AI relay bootstrap because container app '$ContainerAppName' was not found in '$ResourceGroupName'."
+    return $false
+  }
+
+  $secretName = "ai-relay-api-key"
+  Write-Host "Setting AI relay secret on container app '$ContainerAppName'..." -ForegroundColor Cyan
+  $secretArgs = @(
+    "containerapp", "secret", "set",
+    "--name", $ContainerAppName,
+    "--resource-group", $ResourceGroupName,
+    "--secrets", "$secretName=$apiKey",
+    "--only-show-errors"
+  )
+  & az @secretArgs 1>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to set AI relay secret on container app '$ContainerAppName'."
+  }
+
+  $setEnvVars = @(
+    "AI_RELAY_ENABLED=true",
+    "AI_RELAY_MODEL=$(Get-EnvValue -Key 'AI_RELAY_MODEL')",
+    "AI_RELAY_REASONING_EFFORT=$(Get-EnvValue -Key 'AI_RELAY_REASONING_EFFORT')",
+    "AI_RELAY_TIMEOUT_SECONDS=$(Get-EnvValue -Key 'AI_RELAY_TIMEOUT_SECONDS')",
+    "AI_RELAY_MAX_PROMPT_CHARS=$(Get-EnvValue -Key 'AI_RELAY_MAX_PROMPT_CHARS')",
+    "AI_RELAY_MAX_FILES=$(Get-EnvValue -Key 'AI_RELAY_MAX_FILES')",
+    "AI_RELAY_MAX_FILE_BYTES=$(Get-EnvValue -Key 'AI_RELAY_MAX_FILE_BYTES')",
+    "AI_RELAY_MAX_TOTAL_FILE_BYTES=$(Get-EnvValue -Key 'AI_RELAY_MAX_TOTAL_FILE_BYTES')",
+    "AI_RELAY_MAX_OUTPUT_TOKENS=$(Get-EnvValue -Key 'AI_RELAY_MAX_OUTPUT_TOKENS')",
+    "AI_RELAY_REQUIRED_ROLES=$requiredRoles",
+    "AI_RELAY_API_KEY=secretref:$secretName"
+  )
+
+  Write-Host "Applying AI relay environment settings to container app '$ContainerAppName'..." -ForegroundColor Cyan
+  $updateArgs = @(
+    "containerapp", "update",
+    "--name", $ContainerAppName,
+    "--resource-group", $ResourceGroupName,
+    "--set-env-vars"
+  )
+  $updateArgs += $setEnvVars
+  $updateArgs += "--only-show-errors"
+  & az @updateArgs 1>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to update AI relay settings on container app '$ContainerAppName'."
+  }
+
+  return $true
 }
 
 Assert-CommandExists -Name "az"
@@ -904,6 +1566,42 @@ if ($doContainerAppsEnv) {
     --logs-workspace-id $lawCustomerId `
     --logs-workspace-key $lawSharedKey `
     --only-show-errors 1>$null
+}
+
+$parallelPrivateRuntime = $null
+$doParallelPrivateRuntime = Get-YesNo "Ensure parallel VNet Container Apps environment exists: ${VnetContainerAppsEnvironmentName}?" $true
+if ($doParallelPrivateRuntime) {
+  if (-not $lawCustomerId -or -not $lawSharedKey) {
+    throw "Log Analytics workspace details missing; cannot create the parallel VNet Container Apps environment. Enable Log Analytics or provide workspace info."
+  }
+
+  Write-Host "Ensuring parallel VNet Container Apps environment exists: $VnetContainerAppsEnvironmentName"
+  $parallelPrivateRuntime = Ensure-ParallelPrivateRuntime `
+    -ResourceGroupName $ResourceGroup `
+    -LocationName $Location `
+    -VnetNameValue $VnetName `
+    -VnetAddressSpaceValue $VnetAddressSpace `
+    -AcaSubnetName $AcaInfrastructureSubnetName `
+    -AcaSubnetPrefix $AcaInfrastructureSubnetPrefix `
+    -PeSubnetName $PrivateEndpointSubnetName `
+    -PeSubnetPrefix $PrivateEndpointSubnetPrefix `
+    -ReservedSubnetPrefixValue $ReservedSubnetPrefix `
+    -NatGatewayNameValue $NatGatewayName `
+    -NatPublicIpNameValue $NatPublicIpName `
+    -EnvironmentName $VnetContainerAppsEnvironmentName `
+    -NetworkSmokeJobNameValue $NetworkSmokeJobName `
+    -ApiInternalAppName $VnetApiAppName `
+    -WorkspaceCustomerId $lawCustomerId `
+    -WorkspaceSharedKey $lawSharedKey `
+    -StorageAccount $StorageAccountName `
+    -PostgresServer $PostgresServerName `
+    -DisablePublicDataPlane:$DisablePublicDataPlaneAccess
+
+  Write-Host ("Parallel private runtime ready: environment={0} vnet={1} natPublicIp={2} smokeJob={3}" -f `
+      $parallelPrivateRuntime.EnvironmentName, `
+      $parallelPrivateRuntime.VnetName, `
+      $(if (-not [string]::IsNullOrWhiteSpace($parallelPrivateRuntime.NatPublicIpAddress)) { $parallelPrivateRuntime.NatPublicIpAddress } else { "<pending>" }), `
+      $parallelPrivateRuntime.NetworkSmokeJobName) -ForegroundColor Cyan
 }
 
 if ($AksClusterName) {
@@ -1366,6 +2064,13 @@ if ($CorrectApiStorageAuthMode) {
   Write-Host "  az containerapp logs show --resource-group $ResourceGroup --name $ApiContainerAppName --tail 300 | rg 'Delta storage auth resolved|AuthenticationFailed|MAC signature'"
 }
 
+$aiRelayBootstrapApplied = Configure-AiRelayBootstrap `
+  -ResourceGroupName $ResourceGroup `
+  -ContainerAppName $ApiContainerAppName
+if ($aiRelayBootstrapApplied) {
+  Sync-EnvWebToGitHub -EnvPath $envPath
+}
+
 $outputs = [ordered]@{
   subscriptionId                          = $SubscriptionId
   location                                = $Location
@@ -1391,9 +2096,26 @@ $outputs = [ordered]@{
   apiStorageAuthCorrectionRequested       = [bool]$CorrectApiStorageAuthMode
   apiStorageAuthMode                      = $ApiStorageAuthMode
   apiContainerAppName                     = $ApiContainerAppName
+  aiRelayBootstrapApplied                 = [bool]$aiRelayBootstrapApplied
   logAnalyticsWorkspaceName               = $LogAnalyticsWorkspaceName
   logAnalyticsCustomerId                  = $lawCustomerId
   containerAppsEnvironmentName            = $ContainerAppsEnvironmentName
+  containerAppsEnvironmentVnetName        = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.EnvironmentName } else { $VnetContainerAppsEnvironmentName }
+  vnetName                                = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.VnetName } else { $VnetName }
+  vnetAddressSpace                        = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.VnetAddressSpace } else { $VnetAddressSpace }
+  acaInfrastructureSubnetName             = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.InfrastructureSubnetName } else { $AcaInfrastructureSubnetName }
+  acaInfrastructureSubnetPrefix           = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.InfrastructureSubnetPrefix } else { $AcaInfrastructureSubnetPrefix }
+  privateEndpointSubnetName               = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.PrivateEndpointSubnetName } else { $PrivateEndpointSubnetName }
+  privateEndpointSubnetPrefix             = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.PrivateEndpointSubnetPrefix } else { $PrivateEndpointSubnetPrefix }
+  reservedSubnetPrefix                    = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.ReservedSubnetPrefix } else { $ReservedSubnetPrefix }
+  natGatewayName                          = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NatGatewayName } else { $NatGatewayName }
+  natPublicIpName                         = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NatPublicIpName } else { $NatPublicIpName }
+  natPublicIpAddress                      = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NatPublicIpAddress } else { "" }
+  networkSmokeJobName                     = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NetworkSmokeJobName } else { $NetworkSmokeJobName }
+  apiVnetContainerAppName                 = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.ApiInternalAppName } else { $VnetApiAppName }
+  uiVnetContainerAppName                  = $VnetUiAppName
+  uiPublicHostname                        = $UiPublicHostname
+  disablePublicDataPlaneAccess            = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.DisablePublicDataPlaneAccess } else { [bool]$DisablePublicDataPlaneAccess }
   kubernetesServiceAccountName            = $ServiceAccountName
   kubernetesNamespace                     = $KubernetesNamespace
 }

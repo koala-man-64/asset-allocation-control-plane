@@ -1,0 +1,4 @@
+interface:
+  display_name: "Regime & Scenario Analyst"
+  short_description: "Classify market regimes and scenario risk"
+  default_prompt: "Use $regime-scenario-analyst to classify the current market regime, frame the main scenario branches, and explain portfolio implications."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trading Compliance & Surveillance Agent"
+  short_description: "Review trading surveillance and control risks"
+  default_prompt: "Use $trading-compliance-surveillance-agent to review orders, executions, approvals, overrides, or exception logs for policy breaches, audit trail weaknesses, and escalation decisions."

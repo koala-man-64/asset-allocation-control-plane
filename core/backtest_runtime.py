@@ -22,7 +22,7 @@ from core.strategy_engine import StrategyConfig, UniverseDefinition
 from core.strategy_engine.exit_rules import ExitRuleEvaluator
 from core.strategy_engine.position_state import PositionState, PriceBar
 from core.strategy_engine import universe as universe_service
-from core.strategy_repository import StrategyRepository
+from core.strategy_repository import StrategyRepository, normalize_strategy_config_document
 from core.universe_repository import UniverseRepository
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ _PRICE_COLUMNS = {"open", "high", "low", "close", "volume"}
 
 @dataclass(frozen=True)
 class ResolvedBacktestDefinition:
-    strategy_name: str
+    strategy_name: str | None
     strategy_version: int | None
     strategy_config: StrategyConfig
     strategy_config_raw: dict[str, Any]
@@ -311,8 +311,6 @@ def resolve_backtest_definition(
     regime_model_version: int | None = None,
 ) -> ResolvedBacktestDefinition:
     strategy_repo = StrategyRepository(dsn)
-    ranking_repo = RankingRepository(dsn)
-    universe_repo = UniverseRepository(dsn)
 
     strategy_revision = strategy_repo.get_strategy_revision(strategy_name, strategy_version)
     if strategy_revision:
@@ -323,39 +321,69 @@ def resolve_backtest_definition(
             raise ValueError(f"Strategy '{strategy_name}' not found.")
         strategy_config_raw = dict(strategy_record.get("config") or {})
 
-    strategy_config = StrategyConfig.model_validate(strategy_config_raw)
-    ranking_schema_name = str(
-        (strategy_revision or {}).get("ranking_schema_name") or strategy_config.rankingSchemaName or ""
-    ).strip()
-    if not ranking_schema_name:
-        raise ValueError(f"Strategy '{strategy_name}' does not reference a ranking schema.")
-
-    ranking_schema_version = (
-        int(strategy_revision["ranking_schema_version"])
-        if strategy_revision and strategy_revision.get("ranking_schema_version") is not None
-        else None
+    return resolve_backtest_definition_from_config(
+        dsn,
+        strategy_name=strategy_name,
+        strategy_version=(int(strategy_revision["version"]) if strategy_revision else None),
+        strategy_config_raw=strategy_config_raw,
+        ranking_schema_name=(strategy_revision or {}).get("ranking_schema_name"),
+        ranking_schema_version=(
+            int(strategy_revision["ranking_schema_version"])
+            if strategy_revision and strategy_revision.get("ranking_schema_version") is not None
+            else None
+        ),
+        universe_name=(strategy_revision or {}).get("universe_name"),
+        universe_version=(
+            int(strategy_revision["universe_version"])
+            if strategy_revision and strategy_revision.get("universe_version") is not None
+            else None
+        ),
+        regime_model_name=regime_model_name,
+        regime_model_version=regime_model_version,
     )
-    ranking_record = ranking_repo.get_ranking_schema_revision(ranking_schema_name, ranking_schema_version)
+
+
+def resolve_backtest_definition_from_config(
+    dsn: str,
+    *,
+    strategy_config_raw: dict[str, Any],
+    strategy_name: str | None = None,
+    strategy_version: int | None = None,
+    ranking_schema_name: str | None = None,
+    ranking_schema_version: int | None = None,
+    universe_name: str | None = None,
+    universe_version: int | None = None,
+    regime_model_name: str | None = None,
+    regime_model_version: int | None = None,
+) -> ResolvedBacktestDefinition:
+    ranking_repo = RankingRepository(dsn)
+    universe_repo = UniverseRepository(dsn)
+
+    normalized_strategy_config = normalize_strategy_config_document(strategy_config_raw)
+    strategy_config = StrategyConfig.model_validate(normalized_strategy_config)
+    resolved_ranking_schema_name = str(ranking_schema_name or strategy_config.rankingSchemaName or "").strip()
+    strategy_subject = f"Strategy '{strategy_name}'" if strategy_name else "Strategy config"
+    if not resolved_ranking_schema_name:
+        raise ValueError(f"{strategy_subject} does not reference a ranking schema.")
+
+    ranking_record = ranking_repo.get_ranking_schema_revision(resolved_ranking_schema_name, ranking_schema_version)
     if not ranking_record:
-        raise ValueError(f"Ranking schema '{ranking_schema_name}' not found.")
+        raise ValueError(f"Ranking schema '{resolved_ranking_schema_name}' not found.")
     ranking_schema = RankingSchemaConfig.model_validate(ranking_record.get("config") or {})
 
-    ranking_universe_name = str(
-        (strategy_revision or {}).get("universe_name")
+    resolved_universe_name = str(
+        universe_name
         or ranking_record.get("config", {}).get("universeConfigName")
         or ranking_schema.universeConfigName
         or ""
     ).strip() or None
-    if not ranking_universe_name:
-        raise ValueError(f"Ranking schema '{ranking_schema_name}' does not reference a universe config.")
-    ranking_universe_version = (
-        int(strategy_revision["universe_version"])
-        if strategy_revision and strategy_revision.get("universe_version") is not None
-        else None
-    )
-    universe_record = universe_repo.get_universe_config_revision(ranking_universe_name, ranking_universe_version)
+    if not resolved_universe_name:
+        raise ValueError(f"Ranking schema '{resolved_ranking_schema_name}' does not reference a universe config.")
+
+    universe_record = universe_repo.get_universe_config_revision(resolved_universe_name, universe_version)
     if not universe_record:
-        raise ValueError(f"Universe config '{ranking_universe_name}' not found.")
+        raise ValueError(f"Universe config '{resolved_universe_name}' not found.")
+
     ranking_universe = UniverseDefinition.model_validate(universe_record.get("config") or {})
     strategy_universe = _resolve_strategy_universe(
         dsn,
@@ -370,14 +398,14 @@ def resolve_backtest_definition(
     )
     return ResolvedBacktestDefinition(
         strategy_name=strategy_name,
-        strategy_version=(int(strategy_revision["version"]) if strategy_revision else None),
+        strategy_version=strategy_version,
         strategy_config=strategy_config,
-        strategy_config_raw=strategy_config_raw,
+        strategy_config_raw=normalized_strategy_config,
         strategy_universe=strategy_universe,
-        ranking_schema_name=ranking_schema_name,
+        ranking_schema_name=resolved_ranking_schema_name,
         ranking_schema_version=int(ranking_record["version"]),
         ranking_schema=ranking_schema,
-        ranking_universe_name=ranking_universe_name,
+        ranking_universe_name=resolved_universe_name,
         ranking_universe_version=int(universe_record["version"]),
         ranking_universe=ranking_universe,
         regime_model_name=resolved_regime_name,
@@ -894,6 +922,54 @@ def _compute_rolling_metrics(timeseries: pd.DataFrame, *, window_bars: int = 63)
     ].copy()
 
 
+def _normalized_text(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _normalized_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_backtest_definition_for_run(
+    dsn: str,
+    *,
+    run: dict[str, Any],
+) -> ResolvedBacktestDefinition:
+    effective_config = run.get("effective_config") if isinstance(run.get("effective_config"), dict) else {}
+    input_mode = str(effective_config.get("inputMode") or "").strip().lower()
+    if input_mode == "inline":
+        strategy_payload = effective_config.get("strategy")
+        if not isinstance(strategy_payload, dict) or not strategy_payload:
+            raise ValueError(f"Run '{run.get('run_id')}' is missing inline strategy configuration.")
+        pins = effective_config.get("pins") if isinstance(effective_config.get("pins"), dict) else {}
+        return resolve_backtest_definition_from_config(
+            dsn,
+            strategy_config_raw=strategy_payload,
+            ranking_schema_name=_normalized_text(pins.get("rankingSchemaName")),
+            ranking_schema_version=_normalized_int(pins.get("rankingSchemaVersion")),
+            universe_name=_normalized_text(pins.get("universeName")),
+            universe_version=_normalized_int(pins.get("universeVersion")),
+            regime_model_name=_normalized_text(pins.get("regimeModelName")),
+            regime_model_version=_normalized_int(pins.get("regimeModelVersion")),
+        )
+    strategy_name = _normalized_text(run.get("strategy_name"))
+    if not strategy_name:
+        raise ValueError(f"Run '{run.get('run_id')}' does not have a saved strategy reference.")
+    return resolve_backtest_definition(
+        dsn,
+        strategy_name=strategy_name,
+        strategy_version=_normalized_int(run.get("strategy_version")),
+        regime_model_name=_normalized_text(run.get("regime_model_name")),
+        regime_model_version=_normalized_int(run.get("regime_model_version")),
+    )
+
+
 def execute_backtest_run(
     dsn: str,
     *,
@@ -912,13 +988,7 @@ def execute_backtest_run(
 
     start_ts = _ensure_utc(run["start_ts"])
     end_ts = _ensure_utc(run["end_ts"])
-    definition = resolve_backtest_definition(
-        dsn,
-        strategy_name=str(run["strategy_name"] or ""),
-        strategy_version=run.get("strategy_version"),
-        regime_model_name=run.get("regime_model_name"),
-        regime_model_version=run.get("regime_model_version"),
-    )
+    definition = resolve_backtest_definition_for_run(dsn, run=run)
     schedule = validate_backtest_submission(
         dsn,
         definition=definition,

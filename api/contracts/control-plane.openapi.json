@@ -123,6 +123,134 @@
         "title": "BacktestFailRequest",
         "type": "object"
       },
+      "BacktestLookupRequest": {
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "strategyRef"
+            ]
+          },
+          {
+            "required": [
+              "strategyConfig"
+            ]
+          }
+        ],
+        "properties": {
+          "barSize": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Barsize",
+            "type": "string"
+          },
+          "endTs": {
+            "format": "date-time",
+            "title": "Endts",
+            "type": "string"
+          },
+          "runName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runname"
+          },
+          "startTs": {
+            "format": "date-time",
+            "title": "Startts",
+            "type": "string"
+          },
+          "strategyConfig": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyConfig-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "startTs",
+          "endTs",
+          "barSize"
+        ],
+        "title": "BacktestLookupRequest",
+        "type": "object"
+      },
+      "BacktestLookupResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestResultLinks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunStatusResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "not_run",
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "found",
+          "state"
+        ],
+        "title": "BacktestLookupResponse",
+        "type": "object"
+      },
       "BacktestReconcileResponse": {
         "additionalProperties": false,
         "properties": {
@@ -225,6 +353,146 @@
         "title": "BacktestResponseMetadata",
         "type": "object"
       },
+      "BacktestResultLinks": {
+        "additionalProperties": false,
+        "properties": {
+          "closedPositionsUrl": {
+            "minLength": 1,
+            "title": "Closedpositionsurl",
+            "type": "string"
+          },
+          "metricsRollingUrl": {
+            "minLength": 1,
+            "title": "Metricsrollingurl",
+            "type": "string"
+          },
+          "metricsTimeseriesUrl": {
+            "minLength": 1,
+            "title": "Metricstimeseriesurl",
+            "type": "string"
+          },
+          "summaryUrl": {
+            "minLength": 1,
+            "title": "Summaryurl",
+            "type": "string"
+          },
+          "tradesUrl": {
+            "minLength": 1,
+            "title": "Tradesurl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summaryUrl",
+          "metricsTimeseriesUrl",
+          "metricsRollingUrl",
+          "tradesUrl",
+          "closedPositionsUrl"
+        ],
+        "title": "BacktestResultLinks",
+        "type": "object"
+      },
+      "BacktestRunRequest": {
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "strategyRef"
+            ]
+          },
+          {
+            "required": [
+              "strategyConfig"
+            ]
+          }
+        ],
+        "properties": {
+          "barSize": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Barsize",
+            "type": "string"
+          },
+          "endTs": {
+            "format": "date-time",
+            "title": "Endts",
+            "type": "string"
+          },
+          "runName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runname"
+          },
+          "startTs": {
+            "format": "date-time",
+            "title": "Startts",
+            "type": "string"
+          },
+          "strategyConfig": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyConfig-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "startTs",
+          "endTs",
+          "barSize"
+        ],
+        "title": "BacktestRunRequest",
+        "type": "object"
+      },
+      "BacktestRunResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "reusedInflight": {
+            "title": "Reusedinflight",
+            "type": "boolean"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunStatusResponse"
+          },
+          "streamUrl": {
+            "minLength": 1,
+            "title": "Streamurl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run",
+          "created",
+          "reusedInflight",
+          "streamUrl"
+        ],
+        "title": "BacktestRunResponse",
+        "type": "object"
+      },
       "BacktestStartRequest": {
         "additionalProperties": false,
         "properties": {
@@ -242,6 +510,387 @@
           }
         },
         "title": "BacktestStartRequest",
+        "type": "object"
+      },
+      "BacktestSummary": {
+        "additionalProperties": true,
+        "properties": {
+          "annualized_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Return"
+          },
+          "annualized_volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Volatility"
+          },
+          "avg_gross_exposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Gross Exposure"
+          },
+          "avg_loss_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss Pnl"
+          },
+          "avg_loss_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss Return"
+          },
+          "avg_net_exposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Net Exposure"
+          },
+          "avg_win_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Win Pnl"
+          },
+          "avg_win_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Win Return"
+          },
+          "calmar_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calmar Ratio"
+          },
+          "closed_positions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Positions"
+          },
+          "cost_drag_bps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Drag Bps"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "expectancy_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectancy Pnl"
+          },
+          "expectancy_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectancy Return"
+          },
+          "final_equity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Equity"
+          },
+          "gross_annualized_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Annualized Return"
+          },
+          "gross_total_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Total Return"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hit Rate"
+          },
+          "initial_cash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Cash"
+          },
+          "losing_positions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Losing Positions"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          },
+          "payoff_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payoff Ratio"
+          },
+          "profit_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Factor"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "run_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Name"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "sortino_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sortino Ratio"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "total_commission": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Commission"
+          },
+          "total_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Return"
+          },
+          "total_slippage_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Slippage Cost"
+          },
+          "total_transaction_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Transaction Cost"
+          },
+          "trades": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trades"
+          },
+          "winning_positions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winning Positions"
+          }
+        },
+        "title": "BacktestSummary",
         "type": "object"
       },
       "ClosedPositionListResponse": {
@@ -3513,6 +4162,34 @@
         "title": "StrategyDetailResponse",
         "type": "object"
       },
+      "StrategyReferenceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "strategyName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Strategyname",
+            "type": "string"
+          },
+          "strategyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategyversion"
+          }
+        },
+        "required": [
+          "strategyName"
+        ],
+        "title": "StrategyReferenceInput",
+        "type": "object"
+      },
       "StrategySummaryResponse": {
         "properties": {
           "description": {
@@ -4770,11 +5447,11 @@
         "title": "UniverseConfigUpsertRequest",
         "type": "object"
       },
-      "UniverseDefinition-Output": {
+      "UniverseDefinition-Input": {
         "additionalProperties": false,
         "properties": {
           "root": {
-            "$ref": "#/components/schemas/UniverseGroup"
+            "$ref": "#/components/schemas/UniverseGroup-Input"
           },
           "source": {
             "const": "postgres_gold",
@@ -4786,17 +5463,76 @@
         "required": [
           "root"
         ],
-        "title": "UniverseDefinition-Output",
+        "title": "UniverseDefinition",
         "type": "object"
       },
-      "UniverseGroup": {
+      "UniverseDefinition-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/UniverseGroup-Output"
+          },
+          "source": {
+            "const": "postgres_gold",
+            "default": "postgres_gold",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "title": "UniverseDefinition",
+        "type": "object"
+      },
+      "UniverseGroup-Input": {
         "additionalProperties": false,
         "properties": {
           "clauses": {
             "items": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/UniverseGroup"
+                  "$ref": "#/components/schemas/UniverseGroup-Input"
+                },
+                {
+                  "$ref": "#/components/schemas/UniverseCondition"
+                }
+              ]
+            },
+            "minItems": 1,
+            "title": "Clauses",
+            "type": "array"
+          },
+          "kind": {
+            "const": "group",
+            "default": "group",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operator": {
+            "default": "and",
+            "enum": [
+              "and",
+              "or"
+            ],
+            "title": "Operator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clauses"
+        ],
+        "title": "UniverseGroup",
+        "type": "object"
+      },
+      "UniverseGroup-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "clauses": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UniverseGroup-Output"
                 },
                 {
                   "$ref": "#/components/schemas/UniverseCondition"
@@ -5047,6 +5783,470 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/ai/chat/stream": {
+      "post": {
+        "operationId": "stream_chat_api_ai_chat_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "prompt": {
+                    "maxLength": 40000,
+                    "minLength": 1,
+                    "title": "Prompt",
+                    "type": "string"
+                  },
+                  "role": {
+                    "anyOf": [
+                      {
+                        "maxLength": 200,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Role"
+                  },
+                  "systemInstructions": {
+                    "anyOf": [
+                      {
+                        "maxLength": 10000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Systeminstructions"
+                  }
+                },
+                "required": [
+                  "prompt"
+                ],
+                "title": "AiChatRequest",
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "files": {
+                    "items": {
+                      "format": "binary",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "request": {
+                    "description": "JSON-encoded AiChatRequest payload.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "request"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$defs": {
+                    "AiChatCompletedData": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "finishReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Finishreason"
+                        },
+                        "model": {
+                          "minLength": 1,
+                          "title": "Model",
+                          "type": "string"
+                        },
+                        "outputText": {
+                          "default": "",
+                          "title": "Outputtext",
+                          "type": "string"
+                        },
+                        "providerResponseId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Providerresponseid"
+                        },
+                        "reasoningSummary": {
+                          "default": "",
+                          "title": "Reasoningsummary",
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "minLength": 1,
+                          "title": "Requestid",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "requestId",
+                        "model"
+                      ],
+                      "title": "AiChatCompletedData",
+                      "type": "object"
+                    },
+                    "AiChatCompletedEvent": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "data": {
+                          "$ref": "#/$defs/AiChatCompletedData"
+                        },
+                        "event": {
+                          "const": "completed",
+                          "title": "Event",
+                          "type": "string"
+                        },
+                        "sequenceNumber": {
+                          "minimum": 1.0,
+                          "title": "Sequencenumber",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sequenceNumber",
+                        "event",
+                        "data"
+                      ],
+                      "title": "AiChatCompletedEvent",
+                      "type": "object"
+                    },
+                    "AiChatError": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "maxLength": 120,
+                          "minLength": 1,
+                          "title": "Code",
+                          "type": "string"
+                        },
+                        "message": {
+                          "maxLength": 2000,
+                          "minLength": 1,
+                          "title": "Message",
+                          "type": "string"
+                        },
+                        "retryable": {
+                          "title": "Retryable",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ],
+                      "title": "AiChatError",
+                      "type": "object"
+                    },
+                    "AiChatErrorData": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "error": {
+                          "$ref": "#/$defs/AiChatError"
+                        }
+                      },
+                      "required": [
+                        "error"
+                      ],
+                      "title": "AiChatErrorData",
+                      "type": "object"
+                    },
+                    "AiChatErrorEvent": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "data": {
+                          "$ref": "#/$defs/AiChatErrorData"
+                        },
+                        "event": {
+                          "const": "error",
+                          "title": "Event",
+                          "type": "string"
+                        },
+                        "sequenceNumber": {
+                          "minimum": 1.0,
+                          "title": "Sequencenumber",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sequenceNumber",
+                        "event",
+                        "data"
+                      ],
+                      "title": "AiChatErrorEvent",
+                      "type": "object"
+                    },
+                    "AiChatOutputTextDeltaData": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "delta": {
+                          "minLength": 1,
+                          "title": "Delta",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "delta"
+                      ],
+                      "title": "AiChatOutputTextDeltaData",
+                      "type": "object"
+                    },
+                    "AiChatOutputTextDeltaEvent": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "data": {
+                          "$ref": "#/$defs/AiChatOutputTextDeltaData"
+                        },
+                        "event": {
+                          "const": "output_text_delta",
+                          "title": "Event",
+                          "type": "string"
+                        },
+                        "sequenceNumber": {
+                          "minimum": 1.0,
+                          "title": "Sequencenumber",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sequenceNumber",
+                        "event",
+                        "data"
+                      ],
+                      "title": "AiChatOutputTextDeltaEvent",
+                      "type": "object"
+                    },
+                    "AiChatReasoningSummaryDeltaData": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "delta": {
+                          "minLength": 1,
+                          "title": "Delta",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "delta"
+                      ],
+                      "title": "AiChatReasoningSummaryDeltaData",
+                      "type": "object"
+                    },
+                    "AiChatReasoningSummaryDeltaEvent": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "data": {
+                          "$ref": "#/$defs/AiChatReasoningSummaryDeltaData"
+                        },
+                        "event": {
+                          "const": "reasoning_summary_delta",
+                          "title": "Event",
+                          "type": "string"
+                        },
+                        "sequenceNumber": {
+                          "minimum": 1.0,
+                          "title": "Sequencenumber",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sequenceNumber",
+                        "event",
+                        "data"
+                      ],
+                      "title": "AiChatReasoningSummaryDeltaEvent",
+                      "type": "object"
+                    },
+                    "AiChatStartedData": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "model": {
+                          "minLength": 1,
+                          "title": "Model",
+                          "type": "string"
+                        },
+                        "providerResponseId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Providerresponseid"
+                        },
+                        "requestId": {
+                          "minLength": 1,
+                          "title": "Requestid",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "requestId",
+                        "model"
+                      ],
+                      "title": "AiChatStartedData",
+                      "type": "object"
+                    },
+                    "AiChatStartedEvent": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "data": {
+                          "$ref": "#/$defs/AiChatStartedData"
+                        },
+                        "event": {
+                          "const": "started",
+                          "title": "Event",
+                          "type": "string"
+                        },
+                        "sequenceNumber": {
+                          "minimum": 1.0,
+                          "title": "Sequencenumber",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sequenceNumber",
+                        "event",
+                        "data"
+                      ],
+                      "title": "AiChatStartedEvent",
+                      "type": "object"
+                    },
+                    "AiChatStatusData": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "maxLength": 120,
+                          "minLength": 1,
+                          "title": "Code",
+                          "type": "string"
+                        },
+                        "message": {
+                          "maxLength": 500,
+                          "minLength": 1,
+                          "title": "Message",
+                          "type": "string"
+                        },
+                        "providerResponseId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Providerresponseid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "title": "AiChatStatusData",
+                      "type": "object"
+                    },
+                    "AiChatStatusEvent": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "data": {
+                          "$ref": "#/$defs/AiChatStatusData"
+                        },
+                        "event": {
+                          "const": "status",
+                          "title": "Event",
+                          "type": "string"
+                        },
+                        "sequenceNumber": {
+                          "minimum": 1.0,
+                          "title": "Sequencenumber",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sequenceNumber",
+                        "event",
+                        "data"
+                      ],
+                      "title": "AiChatStatusEvent",
+                      "type": "object"
+                    }
+                  },
+                  "discriminator": {
+                    "mapping": {
+                      "completed": "#/$defs/AiChatCompletedEvent",
+                      "error": "#/$defs/AiChatErrorEvent",
+                      "output_text_delta": "#/$defs/AiChatOutputTextDeltaEvent",
+                      "reasoning_summary_delta": "#/$defs/AiChatReasoningSummaryDeltaEvent",
+                      "started": "#/$defs/AiChatStartedEvent",
+                      "status": "#/$defs/AiChatStatusEvent"
+                    },
+                    "propertyName": "event"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AiChatStartedEvent"
+                    },
+                    {
+                      "$ref": "#/$defs/AiChatStatusEvent"
+                    },
+                    {
+                      "$ref": "#/$defs/AiChatReasoningSummaryDeltaEvent"
+                    },
+                    {
+                      "$ref": "#/$defs/AiChatOutputTextDeltaEvent"
+                    },
+                    {
+                      "$ref": "#/$defs/AiChatCompletedEvent"
+                    },
+                    {
+                      "$ref": "#/$defs/AiChatErrorEvent"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Server-sent events carrying typed AI relay stream events."
+          }
+        },
+        "summary": "Stream an AI chat relay response",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
     "/api/auth/session": {
       "get": {
         "operationId": "get_auth_session_api_auth_session_get",
@@ -5317,6 +6517,133 @@
           }
         },
         "summary": "Submit Backtest",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/results/lookup": {
+      "post": {
+        "operationId": "lookup_backtest_results_api_backtests_results_lookup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestLookupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestLookupResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lookup Backtest Results",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/runs": {
+      "post": {
+        "operationId": "run_backtest_api_backtests_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Backtest",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/{run_id}/events": {
+      "get": {
+        "operationId": "stream_backtest_events_api_backtests__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Server-sent backtest run events."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Backtest Events",
         "tags": [
           "Backtests"
         ]

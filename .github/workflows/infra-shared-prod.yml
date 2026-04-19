@@ -19,6 +19,11 @@ on:
         required: true
         default: true
         type: boolean
+      disable_public_data_plane_access:
+        description: Disable public network access on Storage and Postgres after private connectivity is in place
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -54,7 +59,21 @@ jobs:
           ACR_NAME=${{ vars.ACR_NAME }}
           LOG_ANALYTICS_WORKSPACE_NAME=${{ vars.LOG_ANALYTICS_WORKSPACE_NAME }}
           CONTAINER_APPS_ENVIRONMENT_NAME=${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME }}
+          CONTAINER_APPS_ENVIRONMENT_VNET_NAME=${{ vars.CONTAINER_APPS_ENVIRONMENT_VNET_NAME || 'asset-allocation-env-vnet' }}
           SERVICE_ACCOUNT_NAME=${{ vars.SERVICE_ACCOUNT_NAME }}
+          ACA_VNET_NAME=${{ vars.ACA_VNET_NAME || 'asset-allocation-vnet-prod' }}
+          ACA_VNET_ADDRESS_SPACE=${{ vars.ACA_VNET_ADDRESS_SPACE || '10.64.0.0/24' }}
+          ACA_INFRA_SUBNET_NAME=${{ vars.ACA_INFRA_SUBNET_NAME || 'aca-infra-snet' }}
+          ACA_INFRA_SUBNET_PREFIX=${{ vars.ACA_INFRA_SUBNET_PREFIX || '10.64.0.0/26' }}
+          PRIVATE_ENDPOINT_SUBNET_NAME=${{ vars.PRIVATE_ENDPOINT_SUBNET_NAME || 'private-endpoints-snet' }}
+          PRIVATE_ENDPOINT_SUBNET_PREFIX=${{ vars.PRIVATE_ENDPOINT_SUBNET_PREFIX || '10.64.0.64/27' }}
+          ACA_RESERVED_SUBNET_PREFIX=${{ vars.ACA_RESERVED_SUBNET_PREFIX || '10.64.0.96/27' }}
+          NAT_GATEWAY_NAME=${{ vars.NAT_GATEWAY_NAME || 'asset-allocation-nat-prod' }}
+          NAT_PUBLIC_IP_NAME=${{ vars.NAT_PUBLIC_IP_NAME || 'asset-allocation-egress-ip-prod' }}
+          ACA_NETWORK_SMOKE_JOB_NAME=${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}
+          API_APP_VNET_NAME=${{ vars.API_APP_VNET_NAME || 'asset-allocation-api-vnet' }}
+          UI_APP_VNET_NAME=${{ vars.UI_APP_VNET_NAME || 'asset-allocation-ui-vnet' }}
+          UI_PUBLIC_HOSTNAME=${{ vars.UI_PUBLIC_HOSTNAME }}
           AZURE_CONTAINER_COMMON=${{ vars.AZURE_CONTAINER_COMMON }}
           AZURE_CONTAINER_BRONZE=${{ vars.AZURE_CONTAINER_BRONZE }}
           AZURE_CONTAINER_SILVER=${{ vars.AZURE_CONTAINER_SILVER }}
@@ -80,7 +99,21 @@ jobs:
             '-AcrPullIdentityName', '${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}',
             '-LogAnalyticsWorkspaceName', '${{ vars.LOG_ANALYTICS_WORKSPACE_NAME || 'asset-allocation-law' }}',
             '-ContainerAppsEnvironmentName', '${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}',
+            '-VnetContainerAppsEnvironmentName', '${{ vars.CONTAINER_APPS_ENVIRONMENT_VNET_NAME || 'asset-allocation-env-vnet' }}',
             '-ServiceAccountName', '${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}',
+            '-VnetName', '${{ vars.ACA_VNET_NAME || 'asset-allocation-vnet-prod' }}',
+            '-VnetAddressSpace', '${{ vars.ACA_VNET_ADDRESS_SPACE || '10.64.0.0/24' }}',
+            '-AcaInfrastructureSubnetName', '${{ vars.ACA_INFRA_SUBNET_NAME || 'aca-infra-snet' }}',
+            '-AcaInfrastructureSubnetPrefix', '${{ vars.ACA_INFRA_SUBNET_PREFIX || '10.64.0.0/26' }}',
+            '-PrivateEndpointSubnetName', '${{ vars.PRIVATE_ENDPOINT_SUBNET_NAME || 'private-endpoints-snet' }}',
+            '-PrivateEndpointSubnetPrefix', '${{ vars.PRIVATE_ENDPOINT_SUBNET_PREFIX || '10.64.0.64/27' }}',
+            '-ReservedSubnetPrefix', '${{ vars.ACA_RESERVED_SUBNET_PREFIX || '10.64.0.96/27' }}',
+            '-NatGatewayName', '${{ vars.NAT_GATEWAY_NAME || 'asset-allocation-nat-prod' }}',
+            '-NatPublicIpName', '${{ vars.NAT_PUBLIC_IP_NAME || 'asset-allocation-egress-ip-prod' }}',
+            '-NetworkSmokeJobName', '${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}',
+            '-VnetApiAppName', '${{ vars.API_APP_VNET_NAME || 'asset-allocation-api-vnet' }}',
+            '-VnetUiAppName', '${{ vars.UI_APP_VNET_NAME || 'asset-allocation-ui-vnet' }}',
+            '-UiPublicHostname', '${{ vars.UI_PUBLIC_HOSTNAME }}',
             '-EnvFile', 'infra.generated.env',
             '-NonInteractive',
             '-PromptForResources:$false'
@@ -91,6 +124,7 @@ jobs:
             $args += '-ConfigureAcrPullIdentityOnAcaResources'
           }
           if ('${{ inputs.grant_job_start_permissions }}' -eq 'true') { $args += '-GrantJobStartToAcaResources' }
+          if ('${{ inputs.disable_public_data_plane_access }}' -eq 'true') { $args += '-DisablePublicDataPlaneAccess' }
           & .\scripts\ops\provision\provision_azure.ps1 @args
 
       - name: Write infrastructure summary
@@ -102,8 +136,16 @@ jobs:
           - Resource group: `${{ vars.RESOURCE_GROUP }}`
           - ACR: `${{ vars.ACR_NAME }}`
           - ACA environment: `${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME }}`
+          - ACA VNet environment: `${{ vars.CONTAINER_APPS_ENVIRONMENT_VNET_NAME || 'asset-allocation-env-vnet' }}`
+          - VNet: `${{ vars.ACA_VNET_NAME || 'asset-allocation-vnet-prod' }}`
+          - API app (internal target): `${{ vars.API_APP_VNET_NAME || 'asset-allocation-api-vnet' }}`
+          - UI app (parallel target): `${{ vars.UI_APP_VNET_NAME || 'asset-allocation-ui-vnet' }}`
+          - NAT egress IP resource: `${{ vars.NAT_PUBLIC_IP_NAME || 'asset-allocation-egress-ip-prod' }}`
+          - Network smoke job: `${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}`
+          - UI public hostname: `${{ vars.UI_PUBLIC_HOSTNAME || 'not configured' }}`
           - Service account: `${{ vars.SERVICE_ACCOUNT_NAME }}`
           - Postgres reconciled: `${{ inputs.provision_postgres }}`
           - ACR pull identity reconciled: `${{ inputs.configure_acr_pull_identity }}`
           - Job-start RBAC reconciled: `${{ inputs.grant_job_start_permissions }}`
+          - Public data plane disabled: `${{ inputs.disable_public_data_plane_access }}`
           "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY

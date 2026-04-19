@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thesis Drift / What Changed? Agent"
+  short_description: "Detect whether a trade thesis has changed"
+  default_prompt: "Use $thesis-drift-what-changed-agent to compare an original trade thesis with current evidence and decide whether it is intact, weakened, broken, or inverted."

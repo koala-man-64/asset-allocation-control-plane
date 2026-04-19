@@ -42,6 +42,16 @@ python scripts/dev/install_git_hooks.py
 
 OpenAPI-facing route model changes are contract changes. If you change request or response models, including imported shared Pydantic models used directly in FastAPI route signatures, regenerate `api/contracts/*` and commit those files in the same change.
 
+## AI Relay
+
+This is a contracts-repo-first change area. The control-plane now exposes `POST /api/ai/chat/stream`, an authenticated Server-Sent Events relay backed by the OpenAI Responses API for single-turn prompt execution with optional file attachments.
+
+- Auth requires the route-specific role `AssetAllocation.AiRelay.Use`.
+- Requests support `application/json` when no files are sent and `multipart/form-data` with a JSON `request` part plus repeated `files` parts when attachments are included.
+- Responses stream typed SSE events: `started`, `status`, `reasoning_summary_delta`, `output_text_delta`, `completed`, and `error`.
+- Runtime configuration is disabled by default. Enable it with `AI_RELAY_ENABLED=true` plus a real `AI_RELAY_API_KEY`.
+- The repo currently ships a compatibility shim for the AI request and stream event models. Publish the shared `asset-allocation-contracts` AI types and then bump the package here to remove the fallback.
+
 ## Operations
 
 Canonical workflows live under `.github/workflows/`.
@@ -51,8 +61,8 @@ Canonical workflows live under `.github/workflows/`.
 - `release.yml` builds the API image, exports contract artifacts, writes `release-manifest.json`, and dispatches `control_plane_released` to jobs.
 - `deploy-prod.yml` is the only runtime deploy path for `asset-allocation-api`; manual runs auto-resolve the latest released ACR image, while `deploy_runtime` repository dispatch remains the explicit-digest path for automation and rollback.
 - `infra-shared-prod.yml` is the only workflow allowed to mutate shared Azure runtime substrate.
-- `scripts/dev/setup-env.ps1` builds repo-local `.env.web` using contract defaults and existing values.
-- `scripts/repo/sync-all-to-github.ps1` syncs the `.env.web` surface into repo vars and secrets.
+- `scripts/setup-env.ps1` builds repo-local `.env.web` using contract defaults and existing values.
+- `scripts/sync-all-to-github.ps1` syncs the `.env.web` surface into repo vars and secrets.
 - `DEPLOYMENT_SETUP.md` is the canonical deploy, operate, and rollback runbook.
 
 ## Backtesting Operations

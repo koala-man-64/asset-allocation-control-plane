@@ -1,0 +1,4 @@
+interface:
+  display_name: "Portfolio Risk & Exposure Controller"
+  short_description: "Control portfolio risk and exposure decisions"
+  default_prompt: "Use $portfolio-risk-exposure-controller to review a proposed trade, strategy, or existing equity book from a portfolio risk-control perspective."
