@@ -8,6 +8,12 @@ from asset_allocation_contracts.symbol_enrichment import (
     SymbolEnrichmentResolveResponse,
     SymbolProfileValues,
 )
+from api.service.intraday_contracts_compat import (
+    IntradayMonitorRunSummary,
+    IntradaySymbolStatus,
+    IntradayRefreshBatchSummary,
+    IntradayWatchlistDetail,
+)
 
 from api.endpoints import internal as internal_routes
 from api.service.app import create_app
@@ -373,3 +379,220 @@ async def test_internal_symbol_enrichment_resolve_checks_confidence_threshold(
 
     assert response.status_code == 200
     assert response.json()["profile"]["sector_norm"] == "Technology"
+
+
+async def test_internal_intraday_routes_delegate_to_repository(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setenv("INTRADAY_MONITOR_ENABLED", "true")
+    monkeypatch.setenv("INTRADAY_MONITOR_ALLOWED_JOBS", "intraday-monitor-job,intraday-refresh-job")
+
+    run = IntradayMonitorRunSummary(
+        runId="run-1",
+        watchlistId="watch-1",
+        watchlistName="Tech Momentum",
+        triggerKind="manual",
+        status="claimed",
+        forceRefresh=True,
+        symbolCount=2,
+        observedSymbolCount=1,
+        eligibleRefreshCount=1,
+        refreshBatchCount=1,
+    )
+    watchlist = IntradayWatchlistDetail(
+        watchlistId="watch-1",
+        name="Tech Momentum",
+        description="Core intraday list",
+        enabled=True,
+        symbolCount=2,
+        pollIntervalMinutes=5,
+        refreshCooldownMinutes=15,
+        autoRefreshEnabled=True,
+        marketSession="us_equities_regular",
+        symbols=["AAPL", "MSFT"],
+    )
+    batch = IntradayRefreshBatchSummary(
+        batchId="batch-1",
+        runId="run-1",
+        watchlistId="watch-1",
+        watchlistName="Tech Momentum",
+        domain="market",
+        bucketLetter="A",
+        status="claimed",
+        symbols=["AAPL"],
+        symbolCount=1,
+    )
+
+    monitor_claim_calls: list[str | None] = []
+    refresh_claim_calls: list[str | None] = []
+    realtime_events: list[tuple[str, str, dict[str, object] | None]] = []
+
+    monkeypatch.setattr(
+        internal_routes,
+        "claim_next_intraday_monitor_run",
+        lambda dsn, execution_name=None: monitor_claim_calls.append(execution_name) or (run, watchlist, "claim-1"),
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "list_intraday_symbol_status",
+        lambda dsn, *, watchlist_id=None, q=None, limit=100, offset=0: (
+            2,
+            [
+                IntradaySymbolStatus(
+                    watchlistId="watch-1",
+                    symbol="AAPL",
+                    monitorStatus="observed",
+                    lastObservedPrice=213.42,
+                )
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "complete_intraday_monitor_run",
+        lambda dsn, *, run_id, claim_token, symbol_statuses, events, refresh_symbols: run,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "fail_intraday_monitor_run",
+        lambda dsn, *, run_id, claim_token, error: run,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "claim_next_intraday_refresh_batch",
+        lambda dsn, execution_name=None: refresh_claim_calls.append(execution_name) or (batch, "refresh-claim-1"),
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "complete_intraday_refresh_batch",
+        lambda dsn, *, batch_id, claim_token: batch,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "fail_intraday_refresh_batch",
+        lambda dsn, *, batch_id, claim_token, error: batch,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "_emit_intraday_realtime",
+        lambda topic, event_type, payload=None: realtime_events.append((topic, event_type, payload)),
+    )
+
+    app = create_app()
+    monitor_headers = {"X-Caller-Job": "intraday-monitor-job"}
+    refresh_headers = {"X-Caller-Job": "intraday-refresh-job"}
+    async with get_test_client(app) as client:
+        claim_response = await client.post(
+            "/api/internal/intraday-monitor/claim",
+            json={"executionName": "monitor-exec-1"},
+            headers=monitor_headers,
+        )
+        complete_response = await client.post(
+            "/api/internal/intraday-monitor/runs/run-1/complete",
+            json={
+                "claimToken": "claim-1",
+                "symbolStatuses": [
+                    {
+                        "symbol": "AAPL",
+                        "monitorStatus": "refresh_queued",
+                        "lastObservedPrice": 213.42,
+                    }
+                ],
+                "events": [
+                    {
+                        "eventType": "snapshot_polled",
+                        "severity": "info",
+                        "message": "Fetched latest snapshot.",
+                        "details": {"source": "massive"},
+                    }
+                ],
+                "refreshSymbols": ["AAPL"],
+            },
+            headers=monitor_headers,
+        )
+        fail_response = await client.post(
+            "/api/internal/intraday-monitor/runs/run-1/fail",
+            json={"claimToken": "claim-1", "error": "boom"},
+            headers=monitor_headers,
+        )
+        refresh_claim_response = await client.post(
+            "/api/internal/intraday-refresh/claim",
+            json={"executionName": "refresh-exec-1"},
+            headers=refresh_headers,
+        )
+        refresh_complete_response = await client.post(
+            "/api/internal/intraday-refresh/batches/batch-1/complete",
+            json={"claimToken": "refresh-claim-1"},
+            headers=refresh_headers,
+        )
+        refresh_fail_response = await client.post(
+            "/api/internal/intraday-refresh/batches/batch-1/fail",
+            json={"claimToken": "refresh-claim-1", "error": "boom"},
+            headers=refresh_headers,
+        )
+
+    assert claim_response.status_code == 200
+    assert claim_response.json()["claimToken"] == "claim-1"
+    assert claim_response.json()["watchlist"]["symbols"] == ["AAPL", "MSFT"]
+    assert claim_response.json()["currentSymbolStatuses"][0]["symbol"] == "AAPL"
+    assert complete_response.status_code == 200
+    assert fail_response.status_code == 200
+    assert refresh_claim_response.status_code == 200
+    assert refresh_claim_response.json()["claimToken"] == "refresh-claim-1"
+    assert refresh_complete_response.status_code == 200
+    assert refresh_fail_response.status_code == 200
+    assert monitor_claim_calls == ["monitor-exec-1"]
+    assert refresh_claim_calls == ["refresh-exec-1"]
+    assert realtime_events == [
+        (
+            "intraday-monitor",
+            "run.claimed",
+            {"run": run.model_dump(mode="json")},
+        ),
+        (
+            "intraday-monitor",
+            "run.completed",
+            {"run": run.model_dump(mode="json")},
+        ),
+        (
+            "intraday-monitor",
+            "run.failed",
+            {"run": run.model_dump(mode="json")},
+        ),
+        (
+            "intraday-refresh",
+            "refresh.claimed",
+            {"batch": batch.model_dump(mode="json")},
+        ),
+        (
+            "intraday-refresh",
+            "refresh.completed",
+            {"batch": batch.model_dump(mode="json")},
+        ),
+        (
+            "intraday-refresh",
+            "refresh.failed",
+            {"batch": batch.model_dump(mode="json")},
+        ),
+    ]
+
+
+async def test_internal_intraday_ready_checks_job_access_and_postgres(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setenv("INTRADAY_MONITOR_ENABLED", "true")
+    monkeypatch.setenv("INTRADAY_MONITOR_ALLOWED_JOBS", "intraday-monitor-job")
+
+    probe_calls: list[str] = []
+    monkeypatch.setattr(internal_routes, "_probe_postgres", lambda dsn: probe_calls.append(dsn))
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/internal/intraday/ready",
+            headers={"X-Caller-Job": "intraday-monitor-job"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+    assert probe_calls == ["postgresql://test:test@localhost:5432/asset_allocation"]

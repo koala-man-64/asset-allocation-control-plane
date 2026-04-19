@@ -157,9 +157,11 @@ def collect_system_health_snapshot(
     compute_layer_status = _runtime_attr(runtime, "_compute_layer_status")
     layer_alerts = _runtime_attr(runtime, "_layer_alerts")
     overall_from_layers = _runtime_attr(runtime, "_overall_from_layers")
+    alert_id = _runtime_attr(runtime, "_alert_id")
     logger_runtime = _runtime_attr(runtime, "logger")
     azure_blob_store_config = _runtime_attr(runtime, "AzureBlobStoreConfig")
     azure_blob_store = _runtime_attr(runtime, "AzureBlobStore")
+    get_intraday_health_summary = _runtime_attr(runtime, "get_intraday_health_summary")
 
     now = now or utc_now()
     if is_test_mode():
@@ -482,10 +484,34 @@ def collect_system_health_snapshot(
             len(job_names),
         )
 
+    postgres_dsn = (os.environ.get("POSTGRES_DSN") or "").strip()
+    intraday_summary: Dict[str, Any] | None = None
+    if postgres_dsn:
+        try:
+            intraday_summary = get_intraday_health_summary(postgres_dsn)
+        except Exception as exc:
+            logger_runtime.warning("Intraday health summary unavailable: %s", exc)
+            alerts.append(
+                {
+                    "id": alert_id(
+                        severity="warning",
+                        title="Intraday monitoring unavailable",
+                        component="intraday-monitor",
+                    ),
+                    "severity": "warning",
+                    "title": "Intraday monitoring unavailable",
+                    "component": "intraday-monitor",
+                    "timestamp": iso(now),
+                    "message": f"Intraday health summary failed: {exc}",
+                }
+            )
+
     overall = overall_from_layers(statuses)
     payload: Dict[str, Any] = {"overall": overall, "dataLayers": layers, "recentJobs": job_runs, "alerts": alerts}
     if resources:
         payload["resources"] = resources
+    if intraday_summary is not None:
+        payload["intradayMonitor"] = intraday_summary
     logger_runtime.info(
         "System health summary: overall=%s layers=%s alerts=%s resources=%s jobs=%s",
         overall,

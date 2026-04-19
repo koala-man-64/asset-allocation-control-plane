@@ -99,6 +99,7 @@ from monitoring.system_health_modules.snapshot import (
     _make_job_portal_url,
     collect_system_health_snapshot,
 )
+from core.intraday_monitor_repository import get_intraday_health_summary
 
 logger = logging.getLogger("asset_allocation.monitoring.system_health")
 DEFAULT_ARM_API_VERSION = ArmConfig(subscription_id="", resource_group="").api_version
@@ -209,4 +210,5 @@ _LEGACY_EXPORTS = (
     _make_folder_portal_url,
     _make_job_portal_url,
     collect_system_health_snapshot,
+    get_intraday_health_summary,
 )

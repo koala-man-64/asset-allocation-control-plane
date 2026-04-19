@@ -73,23 +73,40 @@ def _claim_roles(claims: dict[str, Any]) -> set[str]:
     return {str(role).strip() for role in raw_roles if str(role).strip()}
 
 
-def require_ai_relay_access(request: Request) -> AuthContext:
-    auth_context = validate_auth(request)
+def _require_configured_roles(
+    *,
+    request: Request,
+    auth_context: AuthContext,
+    required_roles: list[str],
+    log_prefix: str,
+) -> None:
     if auth_context.mode == "anonymous":
-        return auth_context
-
-    settings = get_settings(request)
-    required_roles = set(settings.ai_relay.required_roles)
-    granted_roles = _claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {})
-    missing = sorted(role for role in required_roles if role not in granted_roles)
+        return
+    missing = sorted(
+        role
+        for role in {role.strip() for role in required_roles if role.strip()}
+        if role not in _claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {})
+    )
     if missing:
         logger.warning(
-            "AI relay authz failed: subject=%s missing_roles=%s path=%s",
+            "%s authz failed: subject=%s missing_roles=%s path=%s",
+            log_prefix,
             auth_context.subject or "-",
             missing,
             request.url.path,
         )
         raise HTTPException(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
+
+
+def require_ai_relay_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request)
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.ai_relay.required_roles,
+        log_prefix="AI relay",
+    )
     return auth_context
 
 
@@ -112,5 +129,48 @@ def require_symbol_enrichment_job_access(request: Request, *, require_enabled: b
             request.url.path,
         )
         raise HTTPException(status_code=403, detail="Caller job is not allowed to use symbol enrichment.")
+    return auth_context
+
+
+def require_intraday_operator_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).intraday_monitor
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Intraday monitoring is disabled.")
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.operator_required_roles,
+        log_prefix="Intraday operator",
+    )
+    return auth_context
+
+
+def require_intraday_monitor_job_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).intraday_monitor
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Intraday monitoring is disabled.")
+
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.jobs_required_roles,
+        log_prefix="Intraday job",
+    )
+
+    caller_job = str(request.headers.get("X-Caller-Job") or "").strip()
+    if not caller_job:
+        raise HTTPException(status_code=400, detail="X-Caller-Job header is required.")
+
+    allowed_jobs = {job.strip() for job in settings.allowed_jobs if job.strip()}
+    if caller_job not in allowed_jobs:
+        logger.warning(
+            "Intraday job authz failed: subject=%s caller_job=%s path=%s",
+            auth_context.subject or "-",
+            caller_job,
+            request.url.path,
+        )
+        raise HTTPException(status_code=403, detail="Caller job is not allowed to use intraday monitoring.")
     return auth_context
 
