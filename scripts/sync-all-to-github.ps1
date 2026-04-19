@@ -37,6 +37,42 @@ function Test-TruthyValue {
     return @("1", "true", "t", "yes", "y", "on") -contains $Value.Trim().ToLowerInvariant()
 }
 
+$script:RequiredEnvKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($requiredKey in @(
+    "AZURE_CLIENT_ID",
+    "AZURE_TENANT_ID",
+    "AZURE_SUBSCRIPTION_ID",
+    "RESOURCE_GROUP",
+    "ACR_NAME",
+    "AZURE_STORAGE_ACCOUNT_NAME",
+    "API_OIDC_ISSUER",
+    "API_OIDC_AUDIENCE",
+    "UI_OIDC_CLIENT_ID",
+    "UI_OIDC_AUTHORITY",
+    "UI_OIDC_SCOPES",
+    "UI_OIDC_REDIRECT_URI",
+    "DISPATCH_APP_ID",
+    "ALPHA_VANTAGE_API_KEY",
+    "DEPLOY_SMOKE_BEARER_TOKEN",
+    "AZURE_STORAGE_CONNECTION_STRING",
+    "DISPATCH_APP_PRIVATE_KEY",
+    "MASSIVE_API_KEY",
+    "POSTGRES_ADMIN_USER",
+    "POSTGRES_ADMIN_PASSWORD"
+)) {
+    [void]$script:RequiredEnvKeys.Add($requiredKey)
+}
+
+function Get-RequirementLevel {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    if ($Name -in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
+        if ($script:AiRelayEnabled) { return "required" }
+        return "optional"
+    }
+    if ($script:RequiredEnvKeys.Contains($Name)) { return "required" }
+    return "optional"
+}
+
 if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scripts/setup-env.ps1 first." }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) is required to sync vars and secrets." }
 
@@ -49,13 +85,16 @@ $aiRelayEnabled = $false
 if ($envMap.ContainsKey("AI_RELAY_ENABLED")) {
     $aiRelayEnabled = Test-TruthyValue -Value $envMap["AI_RELAY_ENABLED"]
 }
-if ($aiRelayEnabled) {
-    foreach ($requiredName in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
-        $value = if ($envMap.ContainsKey($requiredName)) { $envMap[$requiredName] } else { "" }
-        if ([string]::IsNullOrWhiteSpace($value)) {
-            throw "AI relay is enabled, but required value '$requiredName' is blank in .env.web."
-        }
-    }
+$script:AiRelayEnabled = $aiRelayEnabled
+
+$missingRequired = New-Object System.Collections.Generic.List[string]
+foreach ($key in ($contractMap.Keys | Sort-Object)) {
+    if ((Get-RequirementLevel -Name $key) -ne "required") { continue }
+    $value = if ($envMap.ContainsKey($key)) { $envMap[$key] } else { "" }
+    if ([string]::IsNullOrWhiteSpace($value)) { $missingRequired.Add($key) }
+}
+if ($missingRequired.Count -gt 0) {
+    throw ".env.web is missing required values: $($missingRequired -join ', '). Run scripts/setup-env.ps1 and provide the missing values before syncing."
 }
 
 $expectedVars = New-Object System.Collections.Generic.List[string]

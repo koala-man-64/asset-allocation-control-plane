@@ -853,9 +853,13 @@ function Prompt-PlainValue {
     Write-Host ("# Requirement: {0}" -f $Requirement) -ForegroundColor DarkGray
     Write-Host ("# Suggested default: {0}" -f (Format-SuggestedDisplayValue -Value $Suggestion -Requirement $Requirement)) -ForegroundColor DarkGray
     $promptLabel = if ([string]::IsNullOrWhiteSpace($Suggestion)) { $Name } else { "$Name [$Suggestion]" }
-    $input = Read-Host $promptLabel
-    if ([string]::IsNullOrWhiteSpace($input)) { return $Suggestion }
-    return $input
+    while ($true) {
+        $input = Read-Host $promptLabel
+        if (-not [string]::IsNullOrWhiteSpace($input)) { return $input }
+        if (-not [string]::IsNullOrWhiteSpace($Suggestion)) { return $Suggestion }
+        if ($Requirement -ne "required") { return "" }
+        Write-Host ("# {0} is required and cannot be blank." -f $Name) -ForegroundColor Yellow
+    }
 }
 
 function Prompt-SecretValue {
@@ -867,8 +871,12 @@ function Prompt-SecretValue {
     if ($Description) { Write-Host "# $Description" -ForegroundColor DarkGray }
     Write-Host ("# Requirement: {0}" -f $Requirement) -ForegroundColor DarkGray
     Write-Host ("# Suggested default: {0}" -f (Format-SuggestedDisplayValue -Value "" -Requirement $Requirement -IsSecret $true)) -ForegroundColor DarkGray
-    $secure = Read-Host "$Name [secret]" -AsSecureString
-    return (ConvertFrom-SecureStringPlain -Secure $secure)
+    while ($true) {
+        $secure = Read-Host "$Name [secret]" -AsSecureString
+        $value = ConvertFrom-SecureStringPlain -Secure $secure
+        if (-not [string]::IsNullOrWhiteSpace($value) -or $Requirement -ne "required") { return $value }
+        Write-Host ("# {0} is required and cannot be blank." -f $Name) -ForegroundColor Yellow
+    }
 }
 
 function Prompt-SecretFileValue {
@@ -880,9 +888,12 @@ function Prompt-SecretFileValue {
     if ($Description) { Write-Host "# $Description" -ForegroundColor DarkGray }
     Write-Host ("# Requirement: {0}" -f $Requirement) -ForegroundColor DarkGray
     Write-Host "# Suggested default: <path to PEM/private-key file>" -ForegroundColor DarkGray
-    $path = Read-Host "$Name file path"
-    if ([string]::IsNullOrWhiteSpace($path)) { return "" }
-    return (Read-SecretFileValue -Path $path)
+    while ($true) {
+        $path = Read-Host "$Name file path"
+        if (-not [string]::IsNullOrWhiteSpace($path)) { return (Read-SecretFileValue -Path $path) }
+        if ($Requirement -ne "required") { return "" }
+        Write-Host ("# {0} is required and cannot be blank." -f $Name) -ForegroundColor Yellow
+    }
 }
 
 $results = New-Object System.Collections.Generic.List[object]

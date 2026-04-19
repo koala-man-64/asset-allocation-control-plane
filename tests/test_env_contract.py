@@ -29,14 +29,42 @@ def contract_map() -> dict[str, dict[str, str]]:
     return {row["name"]: row for row in contract_rows()}
 
 
-def env_keys(path: Path) -> set[str]:
-    keys: set[str] = set()
+def env_map(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        keys.add(line.split("=", 1)[0].strip())
-    return keys
+        key, value = line.split("=", 1)
+        values[key.strip()] = value
+    return values
+
+
+def env_keys(path: Path) -> set[str]:
+    return set(env_map(path))
+
+
+def build_contract_env_values(overrides: dict[str, str] | None = None) -> dict[str, str]:
+    template_values = env_map(repo_root() / ".env.template")
+    values: dict[str, str] = {}
+    for row in contract_rows():
+        name = row["name"]
+        template_value = template_values.get(name, "")
+        if template_value:
+            values[name] = template_value
+        elif row["github_storage"] == "secret":
+            values[name] = f"{name.lower()}-secret"
+        else:
+            values[name] = f"{name.lower()}-value"
+    values["AI_RELAY_ENABLED"] = "false"
+    if overrides:
+        values.update(overrides)
+    return values
+
+
+def write_env_file(path: Path, values: dict[str, str]) -> None:
+    lines = [f"{row['name']}={values.get(row['name'], '')}" for row in contract_rows()]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def workflow_refs(pattern: re.Pattern[str]) -> set[str]:
@@ -245,6 +273,56 @@ def test_ai_relay_smoke_tokens_are_documented_as_secrets() -> None:
     assert contract["DEPLOY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
     assert contract["AI_RELAY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
     assert contract["AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN"]["github_storage"] == "secret"
+
+
+def test_setup_env_prompt_functions_reject_blank_required_values() -> None:
+    text = (repo_root() / "scripts" / "setup-env.ps1").read_text(encoding="utf-8")
+    assert '# {0} is required and cannot be blank.' in text
+    assert 'if ($Requirement -ne "required") { return "" }' in text
+    assert 'if (-not [string]::IsNullOrWhiteSpace($value) -or $Requirement -ne "required") { return $value }' in text
+
+
+def test_sync_script_fails_fast_when_required_values_are_blank(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values({"DEPLOY_SMOKE_BEARER_TOKEN": ""}),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    error_output = completed.stdout + completed.stderr
+    assert ".env.web is missing required values" in error_output
+    assert "DEPLOY_SMOKE_BEARER_TOKEN" in error_output
 
 
 def test_setup_env_dry_run_tolerates_mixed_shape_discovery_results(tmp_path: Path) -> None:
