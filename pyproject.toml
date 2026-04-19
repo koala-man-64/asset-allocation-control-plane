@@ -38,7 +38,7 @@ dependencies = [
     "pydantic-settings==2.13.1",
     "PyYAML==6.0.3",
     "pydantic==2.12.5",
-    "asset-allocation-contracts==2.1.0",
+    "asset-allocation-contracts==2.2.0",
     "asset-allocation-runtime-common==2.0.5",
 ]
 

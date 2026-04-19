@@ -342,3 +342,33 @@ def test_provision_azure_postgres_auto_falls_back_to_dockerized_psql_when_local_
     assert "$UseDockerPsql = $true" in text, (
         "provision_azure_postgres must enable UseDockerPsql after detecting docker fallback"
     )
+
+
+def test_portfolio_workspace_migration_creates_revisioned_domain_and_materialization_tables() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0039_portfolio_workspace.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_definitions" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_revisions" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_accounts" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_account_revisions" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_assignments" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_ledger_events" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_rebalance_proposals" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_snapshots" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_history" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_positions" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_alerts" in text
+    assert "CREATE TABLE IF NOT EXISTS core.portfolio_materialization_state" in text
+    assert "FOREIGN KEY (portfolio_name, portfolio_version)" in text
+    assert "FOREIGN KEY (account_id, account_version)" in text
+    assert "status IN ('dirty', 'claimed', 'failed', 'idle')" in text
+    assert "uq_core_portfolio_assignments_active_account" in text
