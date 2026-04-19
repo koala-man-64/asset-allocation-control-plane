@@ -149,6 +149,8 @@ def test_sync_script_reads_repo_local_contract() -> None:
     assert 'Join-Path $repoRoot ".env.web"' in text
     assert "AI_RELAY_ENABLED" in text
     assert "AI_RELAY_API_KEY" in text
+    assert "Assert-DeployAzureClientIdIsNotAcrPullIdentity" in text
+    assert "AZURE_CLIENT_ID points at the ACR pull managed identity" in text
 
 
 def test_sync_script_is_powershell_parseable() -> None:
@@ -326,6 +328,65 @@ def test_sync_script_fails_fast_when_required_values_are_blank(tmp_path: Path) -
     error_output = completed.stdout + completed.stderr
     assert ".env.web is missing required values" in error_output
     assert "ALPHA_VANTAGE_API_KEY" in error_output
+
+
+def test_sync_script_rejects_acr_pull_identity_for_azure_client_id(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values(
+            {
+                "AZURE_CLIENT_ID": "managed-identity-client-id",
+                "RESOURCE_GROUP": "AssetAllocationRG",
+                "ACR_PULL_IDENTITY_NAME": "asset-allocation-acr-pull-mi",
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("managed-identity-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    error_output = completed.stdout + completed.stderr
+    assert "AZURE_CLIENT_ID points at the ACR pull managed identity" in error_output
+    assert "asset-allocation-acr-pull-mi" in error_output
 
 
 def test_setup_env_dry_run_tolerates_mixed_shape_discovery_results(tmp_path: Path) -> None:

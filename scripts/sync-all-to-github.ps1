@@ -37,6 +37,48 @@ function Test-TruthyValue {
     return @("1", "true", "t", "yes", "y", "on") -contains $Value.Trim().ToLowerInvariant()
 }
 
+function Normalize-EnvValue {
+    param([AllowNull()][string]$Value)
+    if ($null -eq $Value) { return "" }
+    $candidate = $Value.Trim()
+    return ($candidate -replace '^[''"]+', '' -replace '[''"]+$', '').Trim()
+}
+
+function Resolve-ManagedIdentityClientId {
+    param(
+        [Parameter(Mandatory = $true)][string]$IdentityName,
+        [Parameter(Mandatory = $true)][string]$ResourceGroupName
+    )
+
+    if (-not (Get-Command az -ErrorAction SilentlyContinue)) { return "" }
+    $output = & az identity show `
+        --name $IdentityName `
+        --resource-group $ResourceGroupName `
+        --query clientId `
+        -o tsv `
+        --only-show-errors 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($output)) { return "" }
+    return $output.Trim()
+}
+
+function Assert-DeployAzureClientIdIsNotAcrPullIdentity {
+    param([Parameter(Mandatory = $true)][hashtable]$EnvMap)
+
+    $deployClientId = if ($EnvMap.ContainsKey("AZURE_CLIENT_ID")) { Normalize-EnvValue -Value $EnvMap["AZURE_CLIENT_ID"] } else { "" }
+    $acrPullIdentityName = if ($EnvMap.ContainsKey("ACR_PULL_IDENTITY_NAME")) { Normalize-EnvValue -Value $EnvMap["ACR_PULL_IDENTITY_NAME"] } else { "" }
+    $resourceGroupName = if ($EnvMap.ContainsKey("RESOURCE_GROUP")) { Normalize-EnvValue -Value $EnvMap["RESOURCE_GROUP"] } else { "" }
+
+    if ([string]::IsNullOrWhiteSpace($deployClientId) -or [string]::IsNullOrWhiteSpace($acrPullIdentityName) -or [string]::IsNullOrWhiteSpace($resourceGroupName)) {
+        return
+    }
+
+    $acrPullClientId = Resolve-ManagedIdentityClientId -IdentityName $acrPullIdentityName -ResourceGroupName $resourceGroupName
+    if ([string]::IsNullOrWhiteSpace($acrPullClientId)) { return }
+    if ($deployClientId -ne $acrPullClientId) { return }
+
+    throw ".env.web AZURE_CLIENT_ID points at the ACR pull managed identity '$acrPullIdentityName'. Set AZURE_CLIENT_ID to the GitHub Actions Azure app registration client id before syncing."
+}
+
 $script:RequiredEnvKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($requiredKey in @(
     "AZURE_CLIENT_ID",
@@ -95,6 +137,8 @@ foreach ($key in ($contractMap.Keys | Sort-Object)) {
 if ($missingRequired.Count -gt 0) {
     throw ".env.web is missing required values: $($missingRequired -join ', '). Run scripts/setup-env.ps1 and provide the missing values before syncing."
 }
+
+Assert-DeployAzureClientIdIsNotAcrPullIdentity -EnvMap $envMap
 
 $expectedVars = New-Object System.Collections.Generic.List[string]
 $expectedSecrets = New-Object System.Collections.Generic.List[string]

@@ -708,6 +708,26 @@ function Resolve-ManagedIdentityPrincipalId {
   return $principalId.Output.Trim()
 }
 
+function Resolve-ManagedIdentityClientId {
+  param(
+    [Parameter(Mandatory = $true)][string]$IdentityName,
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName
+  )
+
+  $clientId = Invoke-AzCliRaw -Arguments @(
+    "identity", "show",
+    "--name", $IdentityName,
+    "--resource-group", $ResourceGroupName,
+    "--query", "clientId",
+    "-o", "tsv",
+    "--only-show-errors"
+  )
+  if ($clientId.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($clientId.Output)) {
+    throw "Unable to resolve clientId for managed identity '$IdentityName' in resource group '$ResourceGroupName'."
+  }
+  return $clientId.Output.Trim()
+}
+
 function Resolve-PublicRedirectUri {
   param(
     [AllowEmptyString()][string]$ExplicitRedirectUri = "",
@@ -849,6 +869,10 @@ if ([string]::IsNullOrWhiteSpace($deployAzureClientId)) {
   throw "AZURE_CLIENT_ID is required in $envLabel or the current process so deploy-prod.yml can mint a protected endpoint smoke token."
 }
 $deployAzureClientId = $deployAzureClientId.Trim()
+$acrPullIdentityClientId = Resolve-ManagedIdentityClientId -IdentityName $AcrPullIdentityName -ResourceGroupName $ResourceGroup
+if ($deployAzureClientId -eq $acrPullIdentityClientId) {
+  throw "AZURE_CLIENT_ID points at the ACR pull managed identity '$AcrPullIdentityName'. Set AZURE_CLIENT_ID to the GitHub Actions Azure app registration client id before rerunning provision_entra_oidc.ps1."
+}
 
 $apiAudienceHint = Resolve-FirstCsvToken (Get-EnvValue -Key "API_OIDC_AUDIENCE" -Lines $envLines)
 $uiClientIdHint = Resolve-FirstCsvToken (Get-EnvValue -Key "UI_OIDC_CLIENT_ID" -Lines $envLines)

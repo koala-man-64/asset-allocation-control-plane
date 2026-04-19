@@ -126,6 +126,15 @@ def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_upd
     assert '-PrincipalObjectId $deployServicePrincipal.id `' in text, (
         "Entra provisioner must assign the API access app role to the GitHub Actions deploy principal"
     )
+    assert "Resolve-ManagedIdentityClientId" in text, (
+        "Entra provisioner must resolve the ACR pull managed identity client id so it can reject AZURE_CLIENT_ID drift"
+    )
+    assert "$deployAzureClientId -eq $acrPullIdentityClientId" in text, (
+        "Entra provisioner must fail when AZURE_CLIENT_ID points at the runtime ACR pull identity"
+    )
+    assert "Set AZURE_CLIENT_ID to the GitHub Actions Azure app registration client id" in text, (
+        "Entra provisioner should explain how to fix an ACR-pull-versus-deploy-client-id mismatch"
+    )
     assert 'logoutUrl = $PublicPostLogoutRedirectUri' in text, (
         "Entra provisioner must register the logout-complete landing route on the UI app registration"
     )

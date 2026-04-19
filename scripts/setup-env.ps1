@@ -542,6 +542,48 @@ function Get-ContainerAppIdentityClientId {
     return ""
 }
 
+function Get-UserAssignedIdentityClientId {
+    param([string]$IdentityName = "")
+    if ([string]::IsNullOrWhiteSpace($IdentityName)) { return "" }
+    foreach ($identity in @(Get-UserAssignedIdentities)) {
+        if ([string]$identity.name -ne $IdentityName) { continue }
+        if ($identity.clientId) { return [string]$identity.clientId }
+    }
+    return ""
+}
+
+function Resolve-AcrPullIdentityClientId {
+    param([string]$IdentityName = "")
+    if ([string]::IsNullOrWhiteSpace($IdentityName)) { return "" }
+    $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
+    $clientId = Get-ContainerAppIdentityClientId -App $app -IdentityName $IdentityName
+    if (-not [string]::IsNullOrWhiteSpace($clientId)) { return $clientId }
+    return (Get-UserAssignedIdentityClientId -IdentityName $IdentityName)
+}
+
+function Assert-DeployAzureClientIdIsNotAcrPullIdentity {
+    param([Parameter(Mandatory = $true)][object[]]$Results)
+
+    $deployClientId = ""
+    $acrPullIdentityName = ""
+    foreach ($result in $Results) {
+        if ($result.Name -eq "AZURE_CLIENT_ID") {
+            $deployClientId = Normalize-EnvValue -Value ([string]$result.Value)
+            continue
+        }
+        if ($result.Name -eq "ACR_PULL_IDENTITY_NAME") {
+            $acrPullIdentityName = Normalize-EnvValue -Value ([string]$result.Value)
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($deployClientId) -or [string]::IsNullOrWhiteSpace($acrPullIdentityName)) { return }
+    $acrPullClientId = Resolve-AcrPullIdentityClientId -IdentityName $acrPullIdentityName
+    if ([string]::IsNullOrWhiteSpace($acrPullClientId)) { return }
+    if ($deployClientId -ne $acrPullClientId) { return }
+
+    throw "AZURE_CLIENT_ID points at the ACR pull managed identity '$acrPullIdentityName'. Set AZURE_CLIENT_ID to the GitHub Actions Azure app registration client id, not the runtime pull identity."
+}
+
 function Get-ContainerAppRedirectUri {
     param([AllowNull()]$App)
     $fqdn = [string](Get-NestedObjectPropertyValue -Object $App -PropertyPath @("properties", "configuration", "ingress", "fqdn"))
@@ -1017,6 +1059,8 @@ foreach ($row in $contractRows) {
     }
     $results.Add([pscustomobject]@{ Name = $name; Value = (Normalize-EnvValue -Value $secretValue); SuggestedValue = $defaultValue; Requirement = $requirement; Source = $secretSource; IsSecret = $true; PromptRequired = $false })
 }
+
+Assert-DeployAzureClientIdIsNotAcrPullIdentity -Results $results.ToArray()
 
 $lines = foreach ($result in $results) { "{0}={1}" -f $result.Name, $result.Value }
 Write-Host "Target env file: $EnvFilePath" -ForegroundColor Cyan

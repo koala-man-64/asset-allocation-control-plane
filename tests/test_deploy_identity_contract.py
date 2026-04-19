@@ -11,6 +11,8 @@ def test_setup_env_does_not_backfill_azure_client_id_from_runtime_identities() -
     text = (repo_root() / "scripts" / "setup-env.ps1").read_text(encoding="utf-8")
     assert '$map["AZURE_CLIENT_ID"] = $clientId' not in text
     assert "Get-ContainerAppIdentityClientId -App $app -IdentityName $identityResolution.Value" not in text
+    assert "Assert-DeployAzureClientIdIsNotAcrPullIdentity" in text
+    assert "AZURE_CLIENT_ID points at the ACR pull managed identity" in text
 
 
 def test_provision_azure_does_not_target_the_old_monolith_repo_subject() -> None:
