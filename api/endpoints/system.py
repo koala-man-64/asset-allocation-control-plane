@@ -95,6 +95,12 @@ _LEGACY_EXPORTS = (
     list_runtime_config,
     normalize_env_override,
     upsert_runtime_config,
+    enqueue_symbol_cleanup_run,
+    get_symbol_enrichment_summary,
+    get_symbol_enrichment_symbol_detail,
+    list_symbol_cleanup_runs,
+    list_symbol_enrichment_symbols,
+    upsert_symbol_profile_overrides,
 )
 
 logger = logging.getLogger("asset-allocation.api.system")

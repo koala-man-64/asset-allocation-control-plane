@@ -456,7 +456,6 @@ class PortfolioRepository:
         resolved_account_id = account_id or self._generate_account_id(payload.name)
         existing = self.get_account(resolved_account_id)
         next_version = int(existing.latestRevision or 0) + 1 if existing else 1
-        created_at = _utc_now()
         status = "active"
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -1161,11 +1160,9 @@ class PortfolioRepository:
             blocked_reasons.append("No pinned portfolio revision is available for rebalance preview.")
         snapshot = self.get_snapshot(account_id)
         nav = float(snapshot.nav) if snapshot else 0.0
-        cash = float(snapshot.cash) if snapshot else 0.0
         if nav <= 0:
             ledger_cash = self._sum_ledger_cash(account_id)
             nav = ledger_cash
-            cash = ledger_cash
         if nav <= 0:
             blocked_reasons.append("The account has no positive NAV to rebalance.")
         actual_by_sleeve: dict[str, float] = {}
@@ -1810,7 +1807,7 @@ class PortfolioRepository:
         }
 
     def rebuild_materializations(self, *, account_id: str | None = None) -> dict[str, Any]:
-        dsn = self._require_dsn()
+        self._require_dsn()
         if account_id:
             self._enqueue_materialization(account_id, reason="rebuild")
             return {"status": "ok", "accountIds": [account_id], "count": 1}
