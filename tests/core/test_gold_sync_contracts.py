@@ -557,6 +557,10 @@ def test_market_sync_config_includes_market_structure_columns() -> None:
             {
                 "date": [pd.Timestamp("2026-02-28")],
                 "symbol": ["aapl"],
+                "dividend_amount": [0.25],
+                "split_coefficient": [2.0],
+                "is_dividend_day": [1],
+                "is_split_day": [1],
                 "donchian_high_20d": [110.5],
                 "sr_support_1_touches": [2],
                 "fib_swing_direction": [-1],
@@ -568,10 +572,18 @@ def test_market_sync_config_includes_market_structure_columns() -> None:
     )
 
     row = prepared.iloc[0]
+    assert "dividend_amount" in config.columns
+    assert "split_coefficient" in config.columns
     assert "donchian_high_20d" in config.columns
     assert "fib_level_618" in config.columns
+    assert "is_dividend_day" in config.integer_columns
+    assert "is_split_day" in config.integer_columns
     assert "sr_support_1_touches" in config.integer_columns
     assert "fib_swing_direction" in config.integer_columns
+    assert float(row["dividend_amount"]) == 0.25
+    assert float(row["split_coefficient"]) == 2.0
+    assert int(row["is_dividend_day"]) == 1
+    assert int(row["is_split_day"]) == 1
     assert int(row["sr_support_1_touches"]) == 2
     assert int(row["fib_swing_direction"]) == -1
     assert int(row["fib_in_value_zone"]) == 1
