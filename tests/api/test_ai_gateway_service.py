@@ -134,3 +134,47 @@ async def test_stream_response_maps_provider_events(monkeypatch: pytest.MonkeyPa
     assert payload_holder["store"] is False
     assert payload_holder["model"] == "gpt-5.4-mini"
     assert payload_holder["reasoning"] == {"effort": "low", "summary": "auto"}
+
+
+@pytest.mark.asyncio
+async def test_generate_text_response_uses_non_streaming_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload_holder: dict[str, object] = {}
+
+    class _FakeResponses:
+        async def create(self, **kwargs):
+            payload_holder.update(kwargs)
+            return SimpleNamespace(
+                id="resp_text_123",
+                output_text='{"symbol":"AAPL","profile":{},"confidence":0.93}',
+                status="completed",
+            )
+
+    class _FakeAsyncOpenAI:
+        def __init__(self, *, api_key: str, timeout: float):
+            assert api_key == "test-key"
+            assert timeout == 30.0
+            self.responses = _FakeResponses()
+
+        async def close(self):
+            return None
+
+    fake_openai = types.ModuleType("openai")
+    fake_openai.AsyncOpenAI = _FakeAsyncOpenAI
+    fake_openai.APIConnectionError = type("APIConnectionError", (Exception,), {})
+    fake_openai.APIStatusError = type("APIStatusError", (Exception,), {})
+    fake_openai.APITimeoutError = type("APITimeoutError", (Exception,), {})
+    fake_openai.RateLimitError = type("RateLimitError", (Exception,), {})
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+
+    gateway = OpenAIResponsesGateway(_gateway_settings())
+    output = await gateway.generate_text_response(
+        request_id="req-2",
+        auth_context=AuthContext(mode="anonymous", subject=None, claims={}),
+        chat_request=AiChatRequest(prompt="Return JSON."),
+        attachments=[],
+        model_override="gpt-5.4",
+    )
+
+    assert output == '{"symbol":"AAPL","profile":{},"confidence":0.93}'
+    assert payload_holder["stream"] is False
+    assert payload_holder["model"] == "gpt-5.4"

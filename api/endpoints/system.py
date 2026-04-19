@@ -21,6 +21,7 @@ from api.endpoints.system_modules import jobs as system_jobs_routes
 from api.endpoints.system_modules import purge as system_purge_routes
 from api.endpoints.system_modules import runtime_ops as system_runtime_ops_routes
 from api.endpoints.system_modules import purge_runtime as system_purge_runtime
+from api.endpoints.system_modules import symbol_enrichment as system_symbol_enrichment_routes
 from api.endpoints.system_modules import status_read
 from api.service.dependencies import (
     get_auth_manager,
@@ -51,6 +52,14 @@ from asset_allocation_runtime_common.foundation.runtime_config import (
     list_runtime_config,
     normalize_env_override,
     upsert_runtime_config,
+)
+from core.symbol_enrichment_repository import (
+    enqueue_symbol_cleanup_run,
+    get_symbol_enrichment_summary,
+    get_symbol_enrichment_symbol_detail,
+    list_symbol_cleanup_runs,
+    list_symbol_enrichment_symbols,
+    upsert_symbol_profile_overrides,
 )
 
 # Preserve the historical import surface while route assembly is moved into submodules.
@@ -717,6 +726,19 @@ _select_anchored_job_executions = system_jobs_routes._select_anchored_job_execut
 _coalesce_log_row_string = system_jobs_routes._coalesce_log_row_string
 _extract_console_log_entries = system_jobs_routes._extract_console_log_entries
 _extract_log_lines = system_jobs_routes._extract_log_lines
+
+
+_symbol_enrichment_router, _symbol_enrichment_exports = system_symbol_enrichment_routes.build_router(
+    runtime=_system_runtime(),
+)
+router.include_router(_symbol_enrichment_router)
+
+get_symbol_enrichment_summary_endpoint = _symbol_enrichment_exports["get_symbol_enrichment_summary_endpoint"]
+list_symbol_enrichment_runs_endpoint = _symbol_enrichment_exports["list_symbol_enrichment_runs_endpoint"]
+list_symbol_enrichment_symbols_endpoint = _symbol_enrichment_exports["list_symbol_enrichment_symbols_endpoint"]
+get_symbol_enrichment_symbol_detail_endpoint = _symbol_enrichment_exports["get_symbol_enrichment_symbol_detail_endpoint"]
+enqueue_symbol_enrichment_endpoint = _symbol_enrichment_exports["enqueue_symbol_enrichment_endpoint"]
+update_symbol_profile_overrides_endpoint = _symbol_enrichment_exports["update_symbol_profile_overrides_endpoint"]
 
 
 

@@ -46,3 +46,30 @@ def test_deployed_runtime_requires_api_oidc_configuration(monkeypatch: pytest.Mo
 
     with pytest.raises(ValueError, match="Deployed runtime requires API OIDC configuration."):
         ServiceSettings.from_env()
+
+
+def test_symbol_enrichment_requires_allowed_jobs_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ENABLED", "true")
+    monkeypatch.delenv("SYMBOL_ENRICHMENT_ALLOWED_JOBS", raising=False)
+
+    with pytest.raises(ValueError, match="SYMBOL_ENRICHMENT_ALLOWED_JOBS is required"):
+        ServiceSettings.from_env()
+
+
+def test_symbol_enrichment_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ENABLED", "true")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_MODEL", "gpt-5.4")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_CONFIDENCE_MIN", "0.82")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN", "750")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ALLOWED_JOBS", "symbol-cleanup-job,symbol-cleanup-backfill-job")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.symbol_enrichment.enabled is True
+    assert settings.symbol_enrichment.model == "gpt-5.4"
+    assert settings.symbol_enrichment.confidence_min == pytest.approx(0.82)
+    assert settings.symbol_enrichment.max_symbols_per_run == 750
+    assert settings.symbol_enrichment.allowed_jobs == [
+        "symbol-cleanup-job",
+        "symbol-cleanup-backfill-job",
+    ]

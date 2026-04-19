@@ -111,6 +111,16 @@ properties:
         value: "${AI_RELAY_REQUIRED_ROLES}"
       - name: AI_RELAY_API_KEY
         secretRef: ai-relay-api-key
+      - name: SYMBOL_ENRICHMENT_ENABLED
+        value: "${SYMBOL_ENRICHMENT_ENABLED}"
+      - name: SYMBOL_ENRICHMENT_MODEL
+        value: "${SYMBOL_ENRICHMENT_MODEL}"
+      - name: SYMBOL_ENRICHMENT_CONFIDENCE_MIN
+        value: "${SYMBOL_ENRICHMENT_CONFIDENCE_MIN}"
+      - name: SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN
+        value: "${SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN}"
+      - name: SYMBOL_ENRICHMENT_ALLOWED_JOBS
+        value: "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}"
       - name: API_CSP
         value: "${API_CSP}"
       - name: API_CORS_ALLOW_ORIGINS

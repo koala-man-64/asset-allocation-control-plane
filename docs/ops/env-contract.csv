@@ -50,6 +50,11 @@ AI_RELAY_MAX_FILE_BYTES,deploy_var,var,deploy_config,true,Maximum bytes accepted
 AI_RELAY_MAX_TOTAL_FILE_BYTES,deploy_var,var,deploy_config,true,Maximum combined upload bytes accepted by the AI relay endpoint.
 AI_RELAY_MAX_OUTPUT_TOKENS,deploy_var,var,deploy_config,true,Maximum completion token budget passed to the AI relay model.
 AI_RELAY_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required to use the AI relay endpoint.
+SYMBOL_ENRICHMENT_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the symbol cleanup and AI enrichment workflow.
+SYMBOL_ENRICHMENT_MODEL,deploy_var,var,deploy_config,true,Deploy-time fixed OpenAI model used by symbol enrichment resolve.
+SYMBOL_ENRICHMENT_CONFIDENCE_MIN,deploy_var,var,deploy_config,true,Minimum AI confidence accepted by internal symbol enrichment resolve.
+SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN,deploy_var,var,deploy_config,true,Upper bound for symbols enqueued in a single symbol enrichment run.
+SYMBOL_ENRICHMENT_ALLOWED_JOBS,deploy_var,var,deploy_config,true,Comma-separated caller-job allowlist permitted to claim and resolve symbol enrichment work.
 UI_API_BASE_URL,deploy_var,var,deploy_config,true,Public UI base url used by control-plane runtime config and auth.
 UI_PUBLIC_HOSTNAME,deploy_var,var,deploy_config,true,Stable public UI hostname used for Entra redirect registration and the external UI edge after custom-domain cutover.
 UI_OIDC_CLIENT_ID,deploy_var,var,deploy_config,true,UI Entra app client id.

@@ -4716,6 +4716,1490 @@
         "title": "SummaryResponse",
         "type": "object"
       },
+      "SymbolCleanupClaimRequest": {
+        "properties": {
+          "executionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          }
+        },
+        "title": "SymbolCleanupClaimRequest",
+        "type": "object"
+      },
+      "SymbolCleanupCompleteRequest": {
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SymbolEnrichmentResolveResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "SymbolCleanupCompleteRequest",
+        "type": "object"
+      },
+      "SymbolCleanupFailRequest": {
+        "properties": {
+          "error": {
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "SymbolCleanupFailRequest",
+        "type": "object"
+      },
+      "SymbolCleanupRunSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptedUpdateCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Acceptedupdatecount",
+            "type": "integer"
+          },
+          "claimedCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Claimedcount",
+            "type": "integer"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "completedCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Completedcount",
+            "type": "integer"
+          },
+          "failedCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "lockedSkipCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Lockedskipcount",
+            "type": "integer"
+          },
+          "mode": {
+            "default": "fill_missing",
+            "enum": [
+              "fill_missing",
+              "full_reconcile"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "overwriteCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Overwritecount",
+            "type": "integer"
+          },
+          "queuedCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Queuedcount",
+            "type": "integer"
+          },
+          "rejectedUpdateCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Rejectedupdatecount",
+            "type": "integer"
+          },
+          "runId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "status"
+        ],
+        "title": "SymbolCleanupRunSummary",
+        "type": "object"
+      },
+      "SymbolCleanupWorkItem": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Attemptcount",
+            "type": "integer"
+          },
+          "claimedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimedat"
+          },
+          "executionName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          },
+          "requestedFields": {
+            "items": {
+              "enum": [
+                "security_type_norm",
+                "exchange_mic",
+                "country_of_risk",
+                "sector_norm",
+                "industry_group_norm",
+                "industry_norm",
+                "is_adr",
+                "is_etf",
+                "is_cef",
+                "is_preferred",
+                "share_class",
+                "listing_status_norm",
+                "issuer_summary_short"
+              ],
+              "type": "string"
+            },
+            "title": "Requestedfields",
+            "type": "array"
+          },
+          "runId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "claimed",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "workId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "runId",
+          "symbol",
+          "status",
+          "requestedFields"
+        ],
+        "title": "SymbolCleanupWorkItem",
+        "type": "object"
+      },
+      "SymbolEnrichmentEnqueueRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fullScan": {
+            "default": false,
+            "title": "Fullscan",
+            "type": "boolean"
+          },
+          "maxSymbols": {
+            "anyOf": [
+              {
+                "maximum": 50000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxsymbols"
+          },
+          "overwriteMode": {
+            "default": "fill_missing",
+            "enum": [
+              "fill_missing",
+              "full_reconcile"
+            ],
+            "title": "Overwritemode",
+            "type": "string"
+          },
+          "symbols": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "title": "SymbolEnrichmentEnqueueRequest",
+        "type": "object"
+      },
+      "SymbolEnrichmentResolveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "currentProfile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SymbolProfileValues"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overwriteMode": {
+            "default": "fill_missing",
+            "enum": [
+              "fill_missing",
+              "full_reconcile"
+            ],
+            "title": "Overwritemode",
+            "type": "string"
+          },
+          "providerFacts": {
+            "$ref": "#/components/schemas/SymbolProviderFacts"
+          },
+          "requestedFields": {
+            "items": {
+              "enum": [
+                "security_type_norm",
+                "exchange_mic",
+                "country_of_risk",
+                "sector_norm",
+                "industry_group_norm",
+                "industry_norm",
+                "is_adr",
+                "is_etf",
+                "is_cef",
+                "is_preferred",
+                "share_class",
+                "listing_status_norm",
+                "issuer_summary_short"
+              ],
+              "type": "string"
+            },
+            "title": "Requestedfields",
+            "type": "array"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "requestedFields",
+          "providerFacts"
+        ],
+        "title": "SymbolEnrichmentResolveRequest",
+        "type": "object"
+      },
+      "SymbolEnrichmentResolveResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/SymbolProfileValues"
+          },
+          "sourceFingerprint": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcefingerprint"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbol",
+          "profile"
+        ],
+        "title": "SymbolEnrichmentResolveResponse",
+        "type": "object"
+      },
+      "SymbolEnrichmentSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activeRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backlogCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Backlogcount",
+            "type": "integer"
+          },
+          "lastRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lockCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Lockcount",
+            "type": "integer"
+          },
+          "validationFailureCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Validationfailurecount",
+            "type": "integer"
+          }
+        },
+        "title": "SymbolEnrichmentSummaryResponse",
+        "type": "object"
+      },
+      "SymbolEnrichmentSymbolDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currentProfile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SymbolProfileCurrent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SymbolProfileHistoryEntry"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "overrides": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SymbolProfileOverride"
+            },
+            "title": "Overrides",
+            "type": "array"
+          },
+          "providerFacts": {
+            "$ref": "#/components/schemas/SymbolProviderFacts"
+          }
+        },
+        "required": [
+          "providerFacts"
+        ],
+        "title": "SymbolEnrichmentSymbolDetailResponse",
+        "type": "object"
+      },
+      "SymbolEnrichmentSymbolListItem": {
+        "additionalProperties": false,
+        "properties": {
+          "dataCompletenessScore": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datacompletenessscore"
+          },
+          "lockedFieldCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Lockedfieldcount",
+            "type": "integer"
+          },
+          "missingFieldCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Missingfieldcount",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sourceKind": {
+            "enum": [
+              "provider",
+              "ai",
+              "derived",
+              "override"
+            ],
+            "title": "Sourcekind",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "rejected",
+              "pending",
+              "locked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "required": [
+          "symbol",
+          "status",
+          "sourceKind"
+        ],
+        "title": "SymbolEnrichmentSymbolListItem",
+        "type": "object"
+      },
+      "SymbolProfileCurrent": {
+        "additionalProperties": false,
+        "properties": {
+          "aiConfidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aiconfidence"
+          },
+          "aiModel": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aimodel"
+          },
+          "avgDollarVolume20d": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avgdollarvolume20D"
+          },
+          "country_of_risk": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Of Risk"
+          },
+          "dataCompletenessScore": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datacompletenessscore"
+          },
+          "exchange_mic": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange Mic"
+          },
+          "industry_group_norm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry Group Norm"
+          },
+          "industry_norm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry Norm"
+          },
+          "isTradeableCommonEquity": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Istradeablecommonequity"
+          },
+          "is_adr": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Adr"
+          },
+          "is_cef": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Cef"
+          },
+          "is_etf": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Etf"
+          },
+          "is_preferred": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Preferred"
+          },
+          "issuer_summary_short": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer Summary Short"
+          },
+          "liquidityBucket": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquiditybucket"
+          },
+          "listing_status_norm": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Status Norm"
+          },
+          "marketCapBucket": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketcapbucket"
+          },
+          "marketCapUsd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketcapusd"
+          },
+          "sector_norm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector Norm"
+          },
+          "security_type_norm": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Security Type Norm"
+          },
+          "share_class": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Class"
+          },
+          "sourceFingerprint": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcefingerprint"
+          },
+          "sourceKind": {
+            "enum": [
+              "provider",
+              "ai",
+              "derived",
+              "override"
+            ],
+            "title": "Sourcekind",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "validationStatus": {
+            "default": "accepted",
+            "enum": [
+              "accepted",
+              "rejected",
+              "pending",
+              "locked"
+            ],
+            "title": "Validationstatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "sourceKind"
+        ],
+        "title": "SymbolProfileCurrent",
+        "type": "object"
+      },
+      "SymbolProfileHistoryEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "aiConfidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aiconfidence"
+          },
+          "aiModel": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aimodel"
+          },
+          "changeReason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changereason"
+          },
+          "fieldName": {
+            "enum": [
+              "security_type_norm",
+              "exchange_mic",
+              "country_of_risk",
+              "sector_norm",
+              "industry_group_norm",
+              "industry_norm",
+              "is_adr",
+              "is_etf",
+              "is_cef",
+              "is_preferred",
+              "share_class",
+              "listing_status_norm",
+              "issuer_summary_short"
+            ],
+            "title": "Fieldname",
+            "type": "string"
+          },
+          "historyId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Historyid",
+            "type": "string"
+          },
+          "newValue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newvalue"
+          },
+          "previousValue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previousvalue"
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runid"
+          },
+          "sourceKind": {
+            "enum": [
+              "provider",
+              "ai",
+              "derived",
+              "override"
+            ],
+            "title": "Sourcekind",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "historyId",
+          "symbol",
+          "fieldName",
+          "sourceKind",
+          "updatedAt"
+        ],
+        "title": "SymbolProfileHistoryEntry",
+        "type": "object"
+      },
+      "SymbolProfileOverride": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldName": {
+            "enum": [
+              "security_type_norm",
+              "exchange_mic",
+              "country_of_risk",
+              "sector_norm",
+              "industry_group_norm",
+              "industry_norm",
+              "is_adr",
+              "is_etf",
+              "is_cef",
+              "is_preferred",
+              "share_class",
+              "listing_status_norm",
+              "issuer_summary_short"
+            ],
+            "title": "Fieldname",
+            "type": "string"
+          },
+          "isLocked": {
+            "default": false,
+            "title": "Islocked",
+            "type": "boolean"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "updatedBy": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedby"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "symbol",
+          "fieldName"
+        ],
+        "title": "SymbolProfileOverride",
+        "type": "object"
+      },
+      "SymbolProfileValues": {
+        "additionalProperties": false,
+        "properties": {
+          "country_of_risk": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Of Risk"
+          },
+          "exchange_mic": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange Mic"
+          },
+          "industry_group_norm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry Group Norm"
+          },
+          "industry_norm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry Norm"
+          },
+          "is_adr": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Adr"
+          },
+          "is_cef": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Cef"
+          },
+          "is_etf": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Etf"
+          },
+          "is_preferred": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Preferred"
+          },
+          "issuer_summary_short": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer Summary Short"
+          },
+          "listing_status_norm": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Status Norm"
+          },
+          "sector_norm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector Norm"
+          },
+          "security_type_norm": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Security Type Norm"
+          },
+          "share_class": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Class"
+          }
+        },
+        "title": "SymbolProfileValues",
+        "type": "object"
+      },
+      "SymbolProviderFacts": {
+        "additionalProperties": false,
+        "properties": {
+          "assetType": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assettype"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "delistingDate": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delistingdate"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "industry2": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry2"
+          },
+          "ipoDate": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipodate"
+          },
+          "isOptionable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isoptionable"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sector": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector"
+          },
+          "sourceAlphaVantage": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcealphavantage"
+          },
+          "sourceMassive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcemassive"
+          },
+          "sourceNasdaq": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenasdaq"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "SymbolProviderFacts",
+        "type": "object"
+      },
       "SymbolSyncStateResponse": {
         "properties": {
           "id": {
@@ -9059,6 +10543,245 @@
         ]
       }
     },
+    "/api/internal/symbol-cleanup/claim": {
+      "post": {
+        "operationId": "claim_symbol_cleanup_work_route_api_internal_symbol_cleanup_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SymbolCleanupClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SymbolCleanupWorkItem"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": "Response Claim Symbol Cleanup Work Route Api Internal Symbol Cleanup Claim Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Symbol Cleanup Work Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/symbol-cleanup/runs/{run_id}": {
+      "get": {
+        "operationId": "get_symbol_cleanup_run_route_api_internal_symbol_cleanup_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Symbol Cleanup Run Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/symbol-cleanup/{work_id}/complete": {
+      "post": {
+        "operationId": "complete_symbol_cleanup_work_route_api_internal_symbol_cleanup__work_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "title": "Work Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SymbolCleanupCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Symbol Cleanup Work Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/symbol-cleanup/{work_id}/fail": {
+      "post": {
+        "operationId": "fail_symbol_cleanup_work_route_api_internal_symbol_cleanup__work_id__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "title": "Work Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SymbolCleanupFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fail Symbol Cleanup Work Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/symbol-enrichment/resolve": {
+      "post": {
+        "operationId": "resolve_symbol_enrichment_route_api_internal_symbol_enrichment_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SymbolEnrichmentResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolEnrichmentResolveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Symbol Enrichment Route",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
     "/api/internal/universes/{name}": {
       "get": {
         "operationId": "get_universe_config_api_internal_universes__name__get",
@@ -13271,6 +14994,306 @@
           }
         },
         "summary": "System Status View",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/symbol-enrichment/enqueue": {
+      "post": {
+        "operationId": "enqueue_symbol_enrichment_endpoint_api_system_symbol_enrichment_enqueue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SymbolEnrichmentEnqueueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enqueue Symbol Enrichment Endpoint",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/symbol-enrichment/overrides/{symbol}": {
+      "put": {
+        "operationId": "update_symbol_profile_overrides_endpoint_api_system_symbol_enrichment_overrides__symbol__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/SymbolProfileOverride"
+                },
+                "title": "Payload",
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolProfileOverride"
+                  },
+                  "title": "Response Update Symbol Profile Overrides Endpoint Api System Symbol Enrichment Overrides  Symbol  Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Symbol Profile Overrides Endpoint",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/symbol-enrichment/runs": {
+      "get": {
+        "operationId": "list_symbol_enrichment_runs_endpoint_api_system_symbol_enrichment_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolCleanupRunSummary"
+                  },
+                  "title": "Response List Symbol Enrichment Runs Endpoint Api System Symbol Enrichment Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Symbol Enrichment Runs Endpoint",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/symbol-enrichment/summary": {
+      "get": {
+        "operationId": "get_symbol_enrichment_summary_endpoint_api_system_symbol_enrichment_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolEnrichmentSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Symbol Enrichment Summary Endpoint",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/symbol-enrichment/symbols": {
+      "get": {
+        "operationId": "list_symbol_enrichment_symbols_endpoint_api_system_symbol_enrichment_symbols_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolEnrichmentSymbolListItem"
+                  },
+                  "title": "Response List Symbol Enrichment Symbols Endpoint Api System Symbol Enrichment Symbols Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Symbol Enrichment Symbols Endpoint",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/symbol-enrichment/symbols/{symbol}": {
+      "get": {
+        "operationId": "get_symbol_enrichment_symbol_detail_endpoint_api_system_symbol_enrichment_symbols__symbol__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolEnrichmentSymbolDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Symbol Enrichment Symbol Detail Endpoint",
         "tags": [
           "System"
         ]
