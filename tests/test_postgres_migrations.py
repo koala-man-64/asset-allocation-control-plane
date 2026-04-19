@@ -323,6 +323,32 @@ def test_symbol_enrichment_migration_creates_profile_tables_and_current_view() -
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE core.symbol_profiles TO backtest_service;" in text
 
 
+def test_government_signals_migration_creates_serving_tables_and_mapping_state() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0039_government_signals.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.government_signal_source_state" in text
+    assert "CREATE TABLE IF NOT EXISTS core.government_signal_entity_map" in text
+    assert "CREATE TABLE IF NOT EXISTS core.government_signal_mapping_overrides" in text
+    assert "CREATE TABLE IF NOT EXISTS gold.government_signal_congress_events" in text
+    assert "CREATE TABLE IF NOT EXISTS gold.government_signal_contract_events" in text
+    assert "CREATE TABLE IF NOT EXISTS gold.government_signal_issuer_daily" in text
+    assert "CREATE TABLE IF NOT EXISTS gold.government_signal_agency_daily" in text
+    assert "CREATE TABLE IF NOT EXISTS gold.government_signal_alerts" in text
+    assert "CREATE OR REPLACE VIEW gold.government_signal_congress_events_by_date AS" in text
+    assert "CREATE OR REPLACE VIEW gold.government_signal_contract_events_by_date AS" in text
+    assert "CREATE OR REPLACE VIEW gold.government_signal_issuer_daily_by_date AS" in text
+    assert "GRANT SELECT ON TABLE gold.government_signal_issuer_daily TO backtest_service;" in text
+
+
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"

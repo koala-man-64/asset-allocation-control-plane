@@ -22,7 +22,7 @@ from monitoring.domain_metadata import collect_domain_metadata
 logger = logging.getLogger("asset-allocation.api.system.domain_metadata")
 
 _ALLOWED_LAYERS = {"bronze", "silver", "gold", "platinum"}
-_ALLOWED_DOMAINS = {"market", "finance", "earnings", "price-target", "platinum"}
+_ALLOWED_DOMAINS = {"market", "finance", "earnings", "price-target", "government-signals", "platinum"}
 
 
 def _runtime_attr(runtime: ModuleType, name: str) -> Any:

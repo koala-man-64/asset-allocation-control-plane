@@ -20,6 +20,7 @@ from api.endpoints import (
     backtests,
     data,
     etrade,
+    government_signals,
     intraday,
     internal,
     massive,
@@ -476,6 +477,11 @@ def create_app() -> FastAPI:
         app.include_router(rankings.router, prefix=f"{api_prefix}/rankings", tags=["Rankings"])
         app.include_router(regimes.router, prefix=f"{api_prefix}/regimes", tags=["Regimes"])
         app.include_router(backtests.router, prefix=f"{api_prefix}/backtests", tags=["Backtests"])
+        app.include_router(
+            government_signals.router,
+            prefix=f"{api_prefix}/government-signals",
+            tags=["Government Signals"],
+        )
         app.include_router(internal.router, prefix=f"{api_prefix}/internal", tags=["Internal"])
         app.include_router(portfolio_internal.router, prefix=f"{api_prefix}/internal/portfolios", tags=["Internal"])
         app.include_router(portfolio_internal.compat_router, prefix=f"{api_prefix}/internal", tags=["Internal"])

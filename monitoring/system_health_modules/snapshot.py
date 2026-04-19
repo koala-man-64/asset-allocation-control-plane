@@ -73,6 +73,15 @@ def _get_domain_description(layer_name: str, name: str) -> str:
             return "Market-wide regime monitor outputs"
         return "Regime monitor outputs"
 
+    if "government" in name_clean:
+        if "bronze" in layer_name_clean:
+            return "Raw congressional trading and procurement source payloads"
+        if "silver" in layer_name_clean:
+            return "Canonicalized government signal events and entity mapping state"
+        if "gold" in layer_name_clean:
+            return "Issuer and agency government signal serving tables"
+        return "Government signal datasets"
+
     return ""
 
 

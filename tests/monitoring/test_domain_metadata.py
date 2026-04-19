@@ -55,6 +55,14 @@ def test_collect_delta_table_metadata_reports_rows_and_date_range(
     assert max_dt.date().isoformat() == "2024-01-04"
 
 
+def test_blob_prefix_supports_government_signals_env_override(monkeypatch) -> None:
+    monkeypatch.setenv("AZURE_FOLDER_GOVERNMENT_SIGNALS", "gov-signals")
+
+    assert domain_metadata._blob_prefix("bronze", "government-signals") == "gov-signals/runs/"
+    assert domain_metadata._blob_prefix("silver", "government-signals") == "gov-signals/"
+    assert domain_metadata._blob_prefix("gold", "government-signals") == "gov-signals/"
+
+
 def test_collect_delta_table_metadata_parses_string_date_stats(monkeypatch) -> None:
     class _FakeStructArray:
         def __init__(self, rows: list[dict[str, object]]) -> None:

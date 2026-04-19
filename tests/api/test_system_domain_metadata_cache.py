@@ -99,6 +99,27 @@ async def test_domain_metadata_returns_cached_snapshot_when_refresh_is_false(
 
 
 @pytest.mark.asyncio
+async def test_domain_metadata_accepts_government_signals_domain(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        system,
+        "_read_cached_domain_metadata_snapshot",
+        lambda layer, domain, force_refresh=False: {
+            **_metadata_payload(layer=layer, domain=domain),
+            "cachedAt": "2026-02-20T12:00:00+00:00",
+            "cacheSource": "snapshot",
+        },
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/system/domain-metadata?layer=gold&domain=government-signals")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["domain"] == "government-signals"
+
+
+@pytest.mark.asyncio
 async def test_domain_metadata_refresh_collects_live_metadata_and_persists_snapshots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
