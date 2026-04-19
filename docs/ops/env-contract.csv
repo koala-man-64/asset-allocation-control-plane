@@ -119,6 +119,9 @@ AZURE_STORAGE_CONNECTION_STRING,secret,secret,secret_store,true,Storage connecti
 DISPATCH_APP_PRIVATE_KEY,secret,secret,secret_store,true,GitHub App private key with literal newline escapes or base64 encoding.
 RUN_LIVE_MASSIVE_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in for live Massive integration tests. Keep false unless intentionally exercising live Massive APIs.
 MASSIVE_API_KEY,secret,secret,secret_store,true,Massive API key. Never auto-discovered.
+SCHWAB_CLIENT_ID,secret,secret,secret_store,true,Schwab Trader API client id for the approved Schwab developer application.
+SCHWAB_CLIENT_SECRET,secret,secret,secret_store,true,Schwab Trader API client secret for the approved Schwab developer application.
+SCHWAB_APP_CALLBACK_URL,deploy_var,var,deploy_config,true,Registered callback URL used for Schwab OAuth authorization-code completion.
 POSTGRES_SERVER_NAME,deploy_var,var,deploy_config,true,Azure Database for PostgreSQL Flexible Server name used during provisioning and DSN generation.
 POSTGRES_DATABASE_NAME,deploy_var,var,deploy_config,true,Control-plane Postgres database name used during provisioning and DSN generation.
 POSTGRES_ADMIN_USER,deploy_var,var,deploy_config,true,Azure Postgres administrator username used during provisioning and DSN regeneration.
