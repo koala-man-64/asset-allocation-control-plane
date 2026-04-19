@@ -1788,6 +1788,68 @@
         "title": "ExitRule",
         "type": "object"
       },
+      "FreshnessStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "checkedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkedat"
+          },
+          "domain": {
+            "enum": [
+              "valuation",
+              "positions",
+              "risk",
+              "attribution",
+              "ledger",
+              "alerts"
+            ],
+            "title": "Domain",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "fresh",
+              "stale",
+              "error",
+              "missing"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain",
+          "state"
+        ],
+        "title": "FreshnessStatus",
+        "type": "object"
+      },
       "GoldColumnLookupRecord": {
         "properties": {
           "calculation_dependencies": {
@@ -1923,6 +1985,1869 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "PortfolioAccount": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountingDepth": {
+            "const": "position_level",
+            "default": "position_level",
+            "title": "Accountingdepth",
+            "type": "string"
+          },
+          "activePortfolioName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activeportfolioname"
+          },
+          "activePortfolioVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activeportfolioversion"
+          },
+          "activeRevision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activerevision"
+          },
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "cadenceMode": {
+            "const": "strategy_native",
+            "default": "strategy_native",
+            "title": "Cadencemode",
+            "type": "string"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "inceptionDate": {
+            "format": "date",
+            "title": "Inceptiondate",
+            "type": "string"
+          },
+          "lastMaterializedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastmaterializedat"
+          },
+          "latestRevision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestrevision"
+          },
+          "mandate": {
+            "default": "",
+            "title": "Mandate",
+            "type": "string"
+          },
+          "mode": {
+            "const": "internal_model_managed",
+            "default": "internal_model_managed",
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "openAlertCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Openalertcount",
+            "type": "integer"
+          },
+          "status": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "inceptionDate"
+        ],
+        "title": "PortfolioAccount",
+        "type": "object"
+      },
+      "PortfolioAccountDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/PortfolioAccount"
+          },
+          "activeAssignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioAssignment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recentLedgerEvents": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioLedgerEvent"
+            },
+            "title": "Recentledgerevents",
+            "type": "array"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioAccountRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account"
+        ],
+        "title": "PortfolioAccountDetailResponse",
+        "type": "object"
+      },
+      "PortfolioAccountListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          }
+        },
+        "title": "PortfolioAccountListResponse",
+        "type": "object"
+      },
+      "PortfolioAccountRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountingDepth": {
+            "const": "position_level",
+            "default": "position_level",
+            "title": "Accountingdepth",
+            "type": "string"
+          },
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "cadenceMode": {
+            "const": "strategy_native",
+            "default": "strategy_native",
+            "title": "Cadencemode",
+            "type": "string"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "createdBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdby"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "inceptionDate": {
+            "format": "date",
+            "title": "Inceptiondate",
+            "type": "string"
+          },
+          "mandate": {
+            "default": "",
+            "title": "Mandate",
+            "type": "string"
+          },
+          "mode": {
+            "const": "internal_model_managed",
+            "default": "internal_model_managed",
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "status": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "version",
+          "name",
+          "inceptionDate"
+        ],
+        "title": "PortfolioAccountRevision",
+        "type": "object"
+      },
+      "PortfolioAccountUpsertRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "inceptionDate": {
+            "format": "date",
+            "title": "Inceptiondate",
+            "type": "string"
+          },
+          "mandate": {
+            "default": "",
+            "title": "Mandate",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "openingCash": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openingcash"
+          }
+        },
+        "required": [
+          "name",
+          "inceptionDate"
+        ],
+        "title": "PortfolioAccountUpsertRequest",
+        "type": "object"
+      },
+      "PortfolioAlert": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedat"
+          },
+          "acknowledgedBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedby"
+          },
+          "alertId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Alertid",
+            "type": "string"
+          },
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "detectedAt": {
+            "format": "date-time",
+            "title": "Detectedat",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "accountId",
+          "severity",
+          "code",
+          "title",
+          "detectedAt"
+        ],
+        "title": "PortfolioAlert",
+        "type": "object"
+      },
+      "PortfolioAlertListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "openCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Opencount",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "PortfolioAlertListResponse",
+        "type": "object"
+      },
+      "PortfolioAssignment": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountVersion": {
+            "minimum": 1.0,
+            "title": "Accountversion",
+            "type": "integer"
+          },
+          "assignmentId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Assignmentid",
+            "type": "string"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "title": "Effectivefrom",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectiveto"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "portfolioName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Portfolioname",
+            "type": "string"
+          },
+          "portfolioVersion": {
+            "minimum": 1.0,
+            "title": "Portfolioversion",
+            "type": "integer"
+          },
+          "status": {
+            "default": "scheduled",
+            "enum": [
+              "scheduled",
+              "active",
+              "ended"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignmentId",
+          "accountId",
+          "accountVersion",
+          "portfolioName",
+          "portfolioVersion",
+          "effectiveFrom"
+        ],
+        "title": "PortfolioAssignment",
+        "type": "object"
+      },
+      "PortfolioAssignmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accountVersion": {
+            "minimum": 1.0,
+            "title": "Accountversion",
+            "type": "integer"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "title": "Effectivefrom",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "portfolioName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Portfolioname",
+            "type": "string"
+          },
+          "portfolioVersion": {
+            "minimum": 1.0,
+            "title": "Portfolioversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountVersion",
+          "portfolioName",
+          "portfolioVersion",
+          "effectiveFrom"
+        ],
+        "title": "PortfolioAssignmentRequest",
+        "type": "object"
+      },
+      "PortfolioDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "activeVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activeversion"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "latestVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestversion"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PortfolioDefinition",
+        "type": "object"
+      },
+      "PortfolioDefinitionDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activeRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "portfolio": {
+            "$ref": "#/components/schemas/PortfolioDefinition"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioRevision"
+            },
+            "title": "Revisions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "portfolio"
+        ],
+        "title": "PortfolioDefinitionDetailResponse",
+        "type": "object"
+      },
+      "PortfolioHistoryPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "cash": {
+            "title": "Cash",
+            "type": "number"
+          },
+          "costDragBps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Costdragbps"
+          },
+          "cumulativePnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cumulativepnl"
+          },
+          "cumulativeReturn": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cumulativereturn"
+          },
+          "drawdown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drawdown"
+          },
+          "grossExposure": {
+            "title": "Grossexposure",
+            "type": "number"
+          },
+          "nav": {
+            "title": "Nav",
+            "type": "number"
+          },
+          "netExposure": {
+            "title": "Netexposure",
+            "type": "number"
+          },
+          "periodPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodpnl"
+          },
+          "periodReturn": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodreturn"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnover"
+          }
+        },
+        "required": [
+          "asOf",
+          "nav",
+          "cash",
+          "grossExposure",
+          "netExposure"
+        ],
+        "title": "PortfolioHistoryPoint",
+        "type": "object"
+      },
+      "PortfolioHistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioHistoryPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "totalPoints": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Totalpoints",
+            "type": "integer"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "title": "PortfolioHistoryResponse",
+        "type": "object"
+      },
+      "PortfolioLedgerEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "cashAmount": {
+            "title": "Cashamount",
+            "type": "number"
+          },
+          "commission": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Commission",
+            "type": "number"
+          },
+          "currency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "eventId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Eventid",
+            "type": "string"
+          },
+          "eventType": {
+            "enum": [
+              "opening_balance",
+              "deposit",
+              "withdrawal",
+              "fee",
+              "dividend",
+              "rebalance_buy",
+              "rebalance_sell",
+              "correction"
+            ],
+            "title": "Eventtype",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "slippageCost": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Slippagecost",
+            "type": "number"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          }
+        },
+        "required": [
+          "effectiveAt",
+          "eventType",
+          "cashAmount",
+          "eventId",
+          "accountId"
+        ],
+        "title": "PortfolioLedgerEvent",
+        "type": "object"
+      },
+      "PortfolioLedgerEventPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "cashAmount": {
+            "title": "Cashamount",
+            "type": "number"
+          },
+          "commission": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Commission",
+            "type": "number"
+          },
+          "currency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "eventType": {
+            "enum": [
+              "opening_balance",
+              "deposit",
+              "withdrawal",
+              "fee",
+              "dividend",
+              "rebalance_buy",
+              "rebalance_sell",
+              "correction"
+            ],
+            "title": "Eventtype",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "slippageCost": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Slippagecost",
+            "type": "number"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          }
+        },
+        "required": [
+          "effectiveAt",
+          "eventType",
+          "cashAmount"
+        ],
+        "title": "PortfolioLedgerEventPayload",
+        "type": "object"
+      },
+      "PortfolioListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "portfolios": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioDefinition"
+            },
+            "title": "Portfolios",
+            "type": "array"
+          }
+        },
+        "title": "PortfolioListResponse",
+        "type": "object"
+      },
+      "PortfolioMaterializationClaimRequest": {
+        "properties": {
+          "executionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          }
+        },
+        "title": "PortfolioMaterializationClaimRequest",
+        "type": "object"
+      },
+      "PortfolioMaterializationCompleteRequest": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "claimToken": {
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "dependencyFingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencyfingerprint"
+          },
+          "dependencyState": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencystate"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioHistoryPoint"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPosition"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/PortfolioSnapshot"
+          }
+        },
+        "required": [
+          "claimToken",
+          "snapshot"
+        ],
+        "title": "PortfolioMaterializationCompleteRequest",
+        "type": "object"
+      },
+      "PortfolioMaterializationFailRequest": {
+        "properties": {
+          "claimToken": {
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "error": {
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimToken",
+          "error"
+        ],
+        "title": "PortfolioMaterializationFailRequest",
+        "type": "object"
+      },
+      "PortfolioMaterializationHeartbeatRequest": {
+        "properties": {
+          "claimToken": {
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claimToken"
+        ],
+        "title": "PortfolioMaterializationHeartbeatRequest",
+        "type": "object"
+      },
+      "PortfolioMaterializationRebuildRequest": {
+        "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
+          }
+        },
+        "title": "PortfolioMaterializationRebuildRequest",
+        "type": "object"
+      },
+      "PortfolioMaterializationStartRequest": {
+        "properties": {
+          "claimToken": {
+            "minLength": 1,
+            "title": "Claimtoken",
+            "type": "string"
+          },
+          "executionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionname"
+          }
+        },
+        "required": [
+          "claimToken"
+        ],
+        "title": "PortfolioMaterializationStartRequest",
+        "type": "object"
+      },
+      "PortfolioPosition": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "averageCost": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Averagecost"
+          },
+          "contributors": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPositionContributor"
+            },
+            "title": "Contributors",
+            "type": "array"
+          },
+          "lastPrice": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastprice"
+          },
+          "marketValue": {
+            "title": "Marketvalue",
+            "type": "number"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "number"
+          },
+          "realizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realizedpnl"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "unrealizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealizedpnl"
+          },
+          "weight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "asOf",
+          "symbol",
+          "quantity",
+          "marketValue",
+          "weight"
+        ],
+        "title": "PortfolioPosition",
+        "type": "object"
+      },
+      "PortfolioPositionContributor": {
+        "additionalProperties": false,
+        "properties": {
+          "marketValue": {
+            "title": "Marketvalue",
+            "type": "number"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "number"
+          },
+          "sleeveId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sleeveid",
+            "type": "string"
+          },
+          "strategyName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Strategyname",
+            "type": "string"
+          },
+          "strategyVersion": {
+            "minimum": 1.0,
+            "title": "Strategyversion",
+            "type": "integer"
+          },
+          "weight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sleeveId",
+          "strategyName",
+          "strategyVersion",
+          "quantity",
+          "marketValue",
+          "weight"
+        ],
+        "title": "PortfolioPositionContributor",
+        "type": "object"
+      },
+      "PortfolioPositionListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 200,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPosition"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "PortfolioPositionListResponse",
+        "type": "object"
+      },
+      "PortfolioRebalanceApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "executedAt": {
+            "format": "date-time",
+            "title": "Executedat",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "proposalId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Proposalid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId",
+          "executedAt"
+        ],
+        "title": "PortfolioRebalanceApplyRequest",
+        "type": "object"
+      },
+      "PortfolioRebalancePreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asOf"
+        ],
+        "title": "PortfolioRebalancePreviewRequest",
+        "type": "object"
+      },
+      "PortfolioRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioSleeveAllocation"
+            },
+            "minItems": 1,
+            "title": "Allocations",
+            "type": "array"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "createdBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdby"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "portfolioName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Portfolioname",
+            "type": "string"
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishedat"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "portfolioName",
+          "version",
+          "allocations"
+        ],
+        "title": "PortfolioRevision",
+        "type": "object"
+      },
+      "PortfolioSleeveAllocation": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "maxWeight": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxweight"
+          },
+          "minWeight": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minweight"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "rebalancePriority": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Rebalancepriority",
+            "type": "integer"
+          },
+          "sleeveId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sleeveid",
+            "type": "string"
+          },
+          "sleeveName": {
+            "default": "",
+            "title": "Sleevename",
+            "type": "string"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/StrategyVersionReference"
+          },
+          "targetWeight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Targetweight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sleeveId",
+          "strategy",
+          "targetWeight"
+        ],
+        "title": "PortfolioSleeveAllocation",
+        "type": "object"
+      },
+      "PortfolioSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountname",
+            "type": "string"
+          },
+          "activeAssignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioAssignment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asOf": {
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "cash": {
+            "title": "Cash",
+            "type": "number"
+          },
+          "currentDrawdown": {
+            "title": "Currentdrawdown",
+            "type": "number"
+          },
+          "freshness": {
+            "items": {
+              "$ref": "#/components/schemas/FreshnessStatus"
+            },
+            "title": "Freshness",
+            "type": "array"
+          },
+          "grossExposure": {
+            "title": "Grossexposure",
+            "type": "number"
+          },
+          "maxDrawdown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxdrawdown"
+          },
+          "nav": {
+            "title": "Nav",
+            "type": "number"
+          },
+          "netExposure": {
+            "title": "Netexposure",
+            "type": "number"
+          },
+          "openAlertCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Openalertcount",
+            "type": "integer"
+          },
+          "sinceInceptionPnl": {
+            "title": "Sinceinceptionpnl",
+            "type": "number"
+          },
+          "sinceInceptionReturn": {
+            "title": "Sinceinceptionreturn",
+            "type": "number"
+          },
+          "slices": {
+            "items": {
+              "$ref": "#/components/schemas/StrategySliceAttribution"
+            },
+            "title": "Slices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "asOf",
+          "nav",
+          "cash",
+          "grossExposure",
+          "netExposure",
+          "sinceInceptionPnl",
+          "sinceInceptionReturn",
+          "currentDrawdown"
+        ],
+        "title": "PortfolioSnapshot",
+        "type": "object"
+      },
+      "PortfolioUpsertRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioSleeveAllocation"
+            },
+            "minItems": 1,
+            "title": "Allocations",
+            "type": "array"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "allocations"
+        ],
+        "title": "PortfolioUpsertRequest",
         "type": "object"
       },
       "PostgresColumnMetadata": {
@@ -3274,6 +5199,146 @@
         "title": "RankingTransform",
         "type": "object"
       },
+      "RebalanceProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "asOf": {
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "blocked": {
+            "default": false,
+            "title": "Blocked",
+            "type": "boolean"
+          },
+          "blockedReasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockedreasons",
+            "type": "array"
+          },
+          "estimatedCashImpact": {
+            "default": 0.0,
+            "title": "Estimatedcashimpact",
+            "type": "number"
+          },
+          "estimatedTurnover": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Estimatedturnover",
+            "type": "number"
+          },
+          "portfolioName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Portfolioname",
+            "type": "string"
+          },
+          "portfolioVersion": {
+            "minimum": 1.0,
+            "title": "Portfolioversion",
+            "type": "integer"
+          },
+          "proposalId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Proposalid",
+            "type": "string"
+          },
+          "trades": {
+            "items": {
+              "$ref": "#/components/schemas/RebalanceTradeProposal"
+            },
+            "title": "Trades",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "proposalId",
+          "accountId",
+          "asOf",
+          "portfolioName",
+          "portfolioVersion"
+        ],
+        "title": "RebalanceProposal",
+        "type": "object"
+      },
+      "RebalanceTradeProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "estimatedCommission": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Estimatedcommission",
+            "type": "number"
+          },
+          "estimatedNotional": {
+            "title": "Estimatednotional",
+            "type": "number"
+          },
+          "estimatedPrice": {
+            "exclusiveMinimum": 0.0,
+            "title": "Estimatedprice",
+            "type": "number"
+          },
+          "estimatedSlippageCost": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Estimatedslippagecost",
+            "type": "number"
+          },
+          "quantity": {
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "type": "number"
+          },
+          "side": {
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "sleeveId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sleeveid",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sleeveId",
+          "symbol",
+          "side",
+          "quantity",
+          "estimatedPrice",
+          "estimatedNotional"
+        ],
+        "title": "RebalanceTradeProposal",
+        "type": "object"
+      },
       "RegimePolicy": {
         "additionalProperties": false,
         "properties": {
@@ -4190,6 +6255,108 @@
         "title": "StrategyReferenceInput",
         "type": "object"
       },
+      "StrategySliceAttribution": {
+        "additionalProperties": false,
+        "properties": {
+          "actualWeight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Actualweight",
+            "type": "number"
+          },
+          "asOf": {
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "drawdownContribution": {
+            "default": 0.0,
+            "title": "Drawdowncontribution",
+            "type": "number"
+          },
+          "grossExposure": {
+            "default": 0.0,
+            "title": "Grossexposure",
+            "type": "number"
+          },
+          "marketValue": {
+            "title": "Marketvalue",
+            "type": "number"
+          },
+          "netExposure": {
+            "default": 0.0,
+            "title": "Netexposure",
+            "type": "number"
+          },
+          "pnlContribution": {
+            "default": 0.0,
+            "title": "Pnlcontribution",
+            "type": "number"
+          },
+          "returnContribution": {
+            "default": 0.0,
+            "title": "Returncontribution",
+            "type": "number"
+          },
+          "sinceInceptionReturn": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sinceinceptionreturn"
+          },
+          "sleeveId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sleeveid",
+            "type": "string"
+          },
+          "strategyName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Strategyname",
+            "type": "string"
+          },
+          "strategyVersion": {
+            "minimum": 1.0,
+            "title": "Strategyversion",
+            "type": "integer"
+          },
+          "targetWeight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Targetweight",
+            "type": "number"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnover"
+          }
+        },
+        "required": [
+          "asOf",
+          "sleeveId",
+          "strategyName",
+          "strategyVersion",
+          "targetWeight",
+          "actualWeight",
+          "marketValue"
+        ],
+        "title": "StrategySliceAttribution",
+        "type": "object"
+      },
       "StrategySummaryResponse": {
         "properties": {
           "description": {
@@ -4265,6 +6432,28 @@
           "config"
         ],
         "title": "StrategyUpsertRequest",
+        "type": "object"
+      },
+      "StrategyVersionReference": {
+        "additionalProperties": false,
+        "properties": {
+          "strategyName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Strategyname",
+            "type": "string"
+          },
+          "strategyVersion": {
+            "minimum": 1.0,
+            "title": "Strategyversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "strategyName",
+          "strategyVersion"
+        ],
+        "title": "StrategyVersionReference",
         "type": "object"
       },
       "SubmitBacktestRequest": {
@@ -8402,6 +10591,892 @@
         ]
       }
     },
+    "/api/internal/portfolio-accounts/{account_id}": {
+      "get": {
+        "operationId": "get_portfolio_account_detail_compat_api_internal_portfolio_accounts__account_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Portfolio Account Detail Compat Api Internal Portfolio Accounts  Account Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Account Detail Compat",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/accounts/{account_id}/bundle": {
+      "get": {
+        "operationId": "get_portfolio_materialization_bundle_api_internal_portfolio_materializations_accounts__account_id__bundle_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "claimToken",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Claimtoken"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Portfolio Materialization Bundle Api Internal Portfolio Materializations Accounts  Account Id  Bundle Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Materialization Bundle",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/accounts/{account_id}/complete": {
+      "post": {
+        "operationId": "complete_portfolio_materialization_api_internal_portfolio_materializations_accounts__account_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Complete Portfolio Materialization Api Internal Portfolio Materializations Accounts  Account Id  Complete Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/accounts/{account_id}/fail": {
+      "post": {
+        "operationId": "fail_portfolio_materialization_api_internal_portfolio_materializations_accounts__account_id__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fail Portfolio Materialization Api Internal Portfolio Materializations Accounts  Account Id  Fail Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fail Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/accounts/{account_id}/heartbeat": {
+      "post": {
+        "operationId": "heartbeat_portfolio_materialization_api_internal_portfolio_materializations_accounts__account_id__heartbeat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationHeartbeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Heartbeat Portfolio Materialization Api Internal Portfolio Materializations Accounts  Account Id  Heartbeat Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Heartbeat Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/accounts/{account_id}/start": {
+      "post": {
+        "operationId": "start_portfolio_materialization_api_internal_portfolio_materializations_accounts__account_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Start Portfolio Materialization Api Internal Portfolio Materializations Accounts  Account Id  Start Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/claim": {
+      "post": {
+        "operationId": "claim_portfolio_materialization_api_internal_portfolio_materializations_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Claim Portfolio Materialization Api Internal Portfolio Materializations Claim Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/ready": {
+      "get": {
+        "operationId": "ready_portfolios_api_internal_portfolio_materializations_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ready Portfolios Api Internal Portfolio Materializations Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Portfolios",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/rebuild": {
+      "post": {
+        "operationId": "rebuild_portfolio_materializations_api_internal_portfolio_materializations_rebuild_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PortfolioMaterializationRebuildRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rebuild Portfolio Materializations Api Internal Portfolio Materializations Rebuild Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rebuild Portfolio Materializations",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolio-materializations/stale": {
+      "get": {
+        "operationId": "list_portfolio_materializations_api_internal_portfolio_materializations_stale_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Portfolio Materializations Api Internal Portfolio Materializations Stale Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Portfolio Materializations",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/accounts/{account_id}/bundle": {
+      "get": {
+        "operationId": "get_portfolio_materialization_bundle_api_internal_portfolios_accounts__account_id__bundle_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "claimToken",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Claimtoken"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Portfolio Materialization Bundle Api Internal Portfolios Accounts  Account Id  Bundle Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Materialization Bundle",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/accounts/{account_id}/start": {
+      "post": {
+        "operationId": "start_portfolio_materialization_api_internal_portfolios_accounts__account_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Start Portfolio Materialization Api Internal Portfolios Accounts  Account Id  Start Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/materializations/claim": {
+      "post": {
+        "operationId": "claim_portfolio_materialization_api_internal_portfolios_materializations_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Claim Portfolio Materialization Api Internal Portfolios Materializations Claim Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/materializations/rebuild": {
+      "post": {
+        "operationId": "rebuild_portfolio_materializations_api_internal_portfolios_materializations_rebuild_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PortfolioMaterializationRebuildRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rebuild Portfolio Materializations Api Internal Portfolios Materializations Rebuild Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rebuild Portfolio Materializations",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/materializations/stale": {
+      "get": {
+        "operationId": "list_portfolio_materializations_api_internal_portfolios_materializations_stale_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Portfolio Materializations Api Internal Portfolios Materializations Stale Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Portfolio Materializations",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/materializations/{account_id}/complete": {
+      "post": {
+        "operationId": "complete_portfolio_materialization_api_internal_portfolios_materializations__account_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Complete Portfolio Materialization Api Internal Portfolios Materializations  Account Id  Complete Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/materializations/{account_id}/fail": {
+      "post": {
+        "operationId": "fail_portfolio_materialization_api_internal_portfolios_materializations__account_id__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fail Portfolio Materialization Api Internal Portfolios Materializations  Account Id  Fail Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fail Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/materializations/{account_id}/heartbeat": {
+      "post": {
+        "operationId": "heartbeat_portfolio_materialization_api_internal_portfolios_materializations__account_id__heartbeat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioMaterializationHeartbeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Heartbeat Portfolio Materialization Api Internal Portfolios Materializations  Account Id  Heartbeat Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Heartbeat Portfolio Materialization",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/portfolios/ready": {
+      "get": {
+        "operationId": "ready_portfolios_api_internal_portfolios_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ready Portfolios Api Internal Portfolios Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Portfolios",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
     "/api/internal/rankings": {
       "get": {
         "operationId": "list_ranking_schemas_api_internal_rankings_get",
@@ -9161,6 +12236,745 @@
         "summary": "Get Universe Config Revision",
         "tags": [
           "Internal"
+        ]
+      }
+    },
+    "/api/portfolio-accounts": {
+      "get": {
+        "operationId": "list_portfolio_accounts_api_portfolio_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAccountListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Portfolio Accounts",
+        "tags": [
+          "Portfolios"
+        ]
+      },
+      "post": {
+        "operationId": "create_portfolio_account_api_portfolio_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioAccountUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAccountDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portfolio Account",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}": {
+      "get": {
+        "operationId": "get_portfolio_account_api_portfolio_accounts__account_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAccountDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Account",
+        "tags": [
+          "Portfolios"
+        ]
+      },
+      "put": {
+        "operationId": "update_portfolio_account_api_portfolio_accounts__account_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioAccountUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAccountDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Portfolio Account",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/alerts": {
+      "get": {
+        "operationId": "get_portfolio_alerts_api_portfolio_accounts__account_id__alerts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeResolved",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Includeresolved",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAlertListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Alerts",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/assignments": {
+      "post": {
+        "operationId": "assign_portfolio_api_portfolio_accounts__account_id__assignments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAssignment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Portfolio",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/history": {
+      "get": {
+        "operationId": "get_portfolio_history_api_portfolio_accounts__account_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 252,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio History",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/ledger-events": {
+      "post": {
+        "operationId": "post_portfolio_ledger_event_api_portfolio_accounts__account_id__ledger_events_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioLedgerEventPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioLedgerEvent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Portfolio Ledger Event",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/positions": {
+      "get": {
+        "operationId": "get_portfolio_positions_api_portfolio_accounts__account_id__positions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asof"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioPositionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Positions",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/rebalances/apply": {
+      "post": {
+        "operationId": "apply_portfolio_rebalance_api_portfolio_accounts__account_id__rebalances_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioRebalanceApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Portfolio Rebalance Api Portfolio Accounts  Account Id  Rebalances Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Portfolio Rebalance",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/rebalances/preview": {
+      "post": {
+        "operationId": "preview_portfolio_rebalance_api_portfolio_accounts__account_id__rebalances_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioRebalancePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebalanceProposal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Portfolio Rebalance",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/snapshot": {
+      "get": {
+        "operationId": "get_portfolio_snapshot_api_portfolio_accounts__account_id__snapshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Snapshot",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolios": {
+      "get": {
+        "operationId": "list_portfolios_api_portfolios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Portfolios",
+        "tags": [
+          "Portfolios"
+        ]
+      },
+      "post": {
+        "operationId": "save_portfolio_definition_api_portfolios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioDefinitionDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Portfolio Definition",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolios/{name}": {
+      "get": {
+        "operationId": "get_portfolio_definition_api_portfolios__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioDefinitionDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Definition",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolios/{name}/revisions": {
+      "get": {
+        "operationId": "list_portfolio_revisions_api_portfolios__name__revisions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortfolioRevision"
+                  },
+                  "title": "Response List Portfolio Revisions Api Portfolios  Name  Revisions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portfolio Revisions",
+        "tags": [
+          "Portfolios"
         ]
       }
     },
