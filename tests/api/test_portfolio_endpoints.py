@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 
 import pytest
 from asset_allocation_contracts.portfolio import (
