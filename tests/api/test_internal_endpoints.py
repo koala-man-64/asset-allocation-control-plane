@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import pytest
 from psycopg import OperationalError
+from asset_allocation_contracts.symbol_enrichment import (
+    SymbolCleanupRunSummary,
+    SymbolCleanupWorkItem,
+    SymbolEnrichmentResolveResponse,
+    SymbolProfileValues,
+)
 
 from api.endpoints import internal as internal_routes
 from api.service.app import create_app
@@ -217,3 +223,153 @@ async def test_internal_ranking_refresh_routes_delegate_to_freshness_service(
     assert claim_calls == ["job-7"]
     assert complete_calls == [("alpha", "claim-1", "run-1")]
     assert fail_calls == [("alpha", "boom")]
+
+
+async def test_internal_symbol_cleanup_routes_delegate_to_repository(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ENABLED", "true")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ALLOWED_JOBS", "symbol-cleanup-job")
+
+    claim_calls: list[str | None] = []
+    complete_calls: list[tuple[str, dict[str, object] | None]] = []
+    fail_calls: list[tuple[str, str]] = []
+    get_run_calls: list[str] = []
+
+    work_item = SymbolCleanupWorkItem(
+        workId="work-1",
+        runId="run-1",
+        symbol="AAPL",
+        status="claimed",
+        requestedFields=["sector_norm"],
+        attemptCount=1,
+        executionName="exec-1",
+    )
+    run_summary = SymbolCleanupRunSummary(
+        runId="run-1",
+        status="running",
+        mode="full_reconcile",
+        queuedCount=0,
+        claimedCount=1,
+        completedCount=0,
+        failedCount=0,
+    )
+
+    monkeypatch.setattr(
+        internal_routes,
+        "claim_next_symbol_cleanup_work",
+        lambda dsn, execution_name=None: claim_calls.append(execution_name) or work_item,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "complete_symbol_cleanup_work",
+        lambda dsn, *, work_id, result: complete_calls.append((work_id, result)) or run_summary,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "fail_symbol_cleanup_work",
+        lambda dsn, *, work_id, error: fail_calls.append((work_id, error)) or run_summary,
+    )
+    monkeypatch.setattr(
+        internal_routes,
+        "get_symbol_cleanup_run",
+        lambda dsn, run_id: get_run_calls.append(run_id) or run_summary,
+    )
+
+    app = create_app()
+    headers = {"X-Caller-Job": "symbol-cleanup-job"}
+    async with get_test_client(app) as client:
+        claim_response = await client.post("/api/internal/symbol-cleanup/claim", json={"executionName": "exec-1"}, headers=headers)
+        complete_response = await client.post(
+            "/api/internal/symbol-cleanup/work-1/complete",
+            json={
+                "result": {
+                    "symbol": "AAPL",
+                    "profile": {"sector_norm": "Technology"},
+                    "model": "gpt-5.4-mini",
+                    "confidence": 0.91,
+                    "sourceFingerprint": "fp-1",
+                    "warnings": [],
+                }
+            },
+            headers=headers,
+        )
+        fail_response = await client.post(
+            "/api/internal/symbol-cleanup/work-1/fail",
+            json={"error": "boom"},
+            headers=headers,
+        )
+        run_response = await client.get("/api/internal/symbol-cleanup/runs/run-1", headers=headers)
+
+    assert claim_response.status_code == 200
+    assert claim_response.json()["work"]["symbol"] == "AAPL"
+    assert complete_response.status_code == 200
+    assert fail_response.status_code == 200
+    assert run_response.status_code == 200
+    assert claim_calls == ["exec-1"]
+    assert complete_calls == [
+        (
+            "work-1",
+            {
+                "symbol": "AAPL",
+                "profile": {
+                    "security_type_norm": None,
+                    "exchange_mic": None,
+                    "country_of_risk": None,
+                    "sector_norm": "Technology",
+                    "industry_group_norm": None,
+                    "industry_norm": None,
+                    "is_adr": None,
+                    "is_etf": None,
+                    "is_cef": None,
+                    "is_preferred": None,
+                    "share_class": None,
+                    "listing_status_norm": None,
+                    "issuer_summary_short": None,
+                },
+                "model": "gpt-5.4-mini",
+                "confidence": 0.91,
+                "sourceFingerprint": "fp-1",
+                "warnings": [],
+            },
+        )
+    ]
+    assert fail_calls == [("work-1", "boom")]
+    assert get_run_calls == ["run-1"]
+
+
+async def test_internal_symbol_enrichment_resolve_checks_confidence_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ENABLED", "true")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_ALLOWED_JOBS", "symbol-cleanup-job")
+    monkeypatch.setenv("SYMBOL_ENRICHMENT_CONFIDENCE_MIN", "0.8")
+
+    async def _resolve(**_kwargs):  # type: ignore[no-untyped-def]
+        return SymbolEnrichmentResolveResponse(
+            symbol="AAPL",
+            profile=SymbolProfileValues(sector_norm="Technology"),
+            model="gpt-5.4-mini",
+            confidence=0.91,
+            sourceFingerprint="fp-1",
+            warnings=[],
+        )
+
+    monkeypatch.setattr(internal_routes, "resolve_symbol_profile_via_ai", _resolve)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.post(
+            "/api/internal/symbol-enrichment/resolve",
+            headers={"X-Caller-Job": "symbol-cleanup-job"},
+            json={
+                "symbol": "AAPL",
+                "overwriteMode": "fill_missing",
+                "requestedFields": ["sector_norm"],
+                "providerFacts": {"symbol": "AAPL"},
+                "currentProfile": {},
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["profile"]["sector_norm"] == "Technology"

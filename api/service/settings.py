@@ -175,6 +175,38 @@ class AiRelaySettings:
 
 
 @dataclass(frozen=True)
+class SymbolEnrichmentSettings:
+    enabled: bool = False
+    model: str = "gpt-5.4-mini"
+    confidence_min: float = 0.7
+    max_symbols_per_run: int = 500
+    allowed_jobs: list[str] = field(default_factory=list)
+
+    @staticmethod
+    def from_env() -> "SymbolEnrichmentSettings":
+        settings = SymbolEnrichmentSettings(
+            enabled=_get_optional_bool("SYMBOL_ENRICHMENT_ENABLED", default=False),
+            model=_get_optional_str("SYMBOL_ENRICHMENT_MODEL") or "gpt-5.4-mini",
+            confidence_min=_get_optional_float(
+                "SYMBOL_ENRICHMENT_CONFIDENCE_MIN",
+                default=0.7,
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            max_symbols_per_run=_get_optional_int(
+                "SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN",
+                default=500,
+                minimum=1,
+                maximum=50_000,
+            ),
+            allowed_jobs=_split_csv(_get_optional_str("SYMBOL_ENRICHMENT_ALLOWED_JOBS")),
+        )
+        if settings.enabled and not settings.allowed_jobs:
+            raise ValueError("SYMBOL_ENRICHMENT_ALLOWED_JOBS is required when SYMBOL_ENRICHMENT_ENABLED=true.")
+        return settings
+
+
+@dataclass(frozen=True)
 class ServiceSettings:
     oidc_auth_enabled: bool
     anonymous_local_auth_enabled: bool
@@ -187,6 +219,7 @@ class ServiceSettings:
     browser_oidc_enabled: bool
     ui_oidc_config: dict[str, Any]
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
+    symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
 
     @property
     def auth_required(self) -> bool:
@@ -244,6 +277,7 @@ class ServiceSettings:
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
+        symbol_enrichment = SymbolEnrichmentSettings.from_env()
         ui_oidc_config = {
             "authority": ui_authority,
             "clientId": ui_client_id,
@@ -265,4 +299,5 @@ class ServiceSettings:
             browser_oidc_enabled=browser_oidc_enabled,
             ui_oidc_config=ui_oidc_config,
             ai_relay=ai_relay,
+            symbol_enrichment=symbol_enrichment,
         )

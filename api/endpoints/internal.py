@@ -6,6 +6,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from psycopg import Error as PsycopgError
+from asset_allocation_contracts.symbol_enrichment import (
+    SymbolCleanupRunSummary,
+    SymbolCleanupWorkItem,
+    SymbolEnrichmentResolveRequest,
+    SymbolEnrichmentResolveResponse,
+)
 from asset_allocation_contracts.backtest import (
     BacktestClaimRequest,
     BacktestCompleteRequest,
@@ -14,9 +20,21 @@ from asset_allocation_contracts.backtest import (
     BacktestStartRequest,
 )
 
-from api.service.dependencies import validate_auth
+from api.service.dependencies import (
+    get_ai_relay_gateway,
+    get_settings,
+    require_symbol_enrichment_job_access,
+    validate_auth,
+)
+from api.service.symbol_enrichment_service import resolve_symbol_profile as resolve_symbol_profile_via_ai
 from core.backtest_reconcile import reconcile_backtest_runs
 from core.backtest_repository import BacktestRepository, BacktestResultsNotReadyError
+from core.symbol_enrichment_repository import (
+    claim_next_symbol_cleanup_work,
+    complete_symbol_cleanup_work,
+    fail_symbol_cleanup_work,
+    get_symbol_cleanup_run,
+)
 from asset_allocation_runtime_common.foundation.postgres import connect
 from core.ranking_repository import RankingRepository
 from core.regime_repository import RegimeRepository
@@ -51,6 +69,18 @@ class RankingRefreshCompleteRequest(BaseModel):
 
 class RankingRefreshFailRequest(BaseModel):
     claimToken: str
+    error: str
+
+
+class SymbolCleanupClaimRequest(BaseModel):
+    executionName: str | None = None
+
+
+class SymbolCleanupCompleteRequest(BaseModel):
+    result: SymbolEnrichmentResolveResponse | None = None
+
+
+class SymbolCleanupFailRequest(BaseModel):
     error: str
 
 
@@ -174,6 +204,92 @@ async def fail_ranking_refresh_work(
         )
     except LookupError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/symbol-cleanup/claim")
+async def claim_symbol_cleanup_work_route(
+    payload: SymbolCleanupClaimRequest,
+    request: Request,
+) -> dict[str, SymbolCleanupWorkItem | None]:
+    require_symbol_enrichment_job_access(request)
+    work = claim_next_symbol_cleanup_work(
+        _require_postgres_dsn(request),
+        execution_name=payload.executionName,
+    )
+    return {"work": work}
+
+
+@router.post("/symbol-cleanup/{work_id}/complete", response_model=SymbolCleanupRunSummary)
+async def complete_symbol_cleanup_work_route(
+    work_id: str,
+    payload: SymbolCleanupCompleteRequest,
+    request: Request,
+) -> SymbolCleanupRunSummary:
+    require_symbol_enrichment_job_access(request, require_enabled=False)
+    try:
+        return complete_symbol_cleanup_work(
+            _require_postgres_dsn(request),
+            work_id=work_id,
+            result=payload.result.model_dump(mode="json") if payload.result is not None else None,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/symbol-cleanup/{work_id}/fail", response_model=SymbolCleanupRunSummary)
+async def fail_symbol_cleanup_work_route(
+    work_id: str,
+    payload: SymbolCleanupFailRequest,
+    request: Request,
+) -> SymbolCleanupRunSummary:
+    require_symbol_enrichment_job_access(request, require_enabled=False)
+    try:
+        return fail_symbol_cleanup_work(
+            _require_postgres_dsn(request),
+            work_id=work_id,
+            error=payload.error,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/symbol-cleanup/runs/{run_id}", response_model=SymbolCleanupRunSummary)
+async def get_symbol_cleanup_run_route(run_id: str, request: Request) -> SymbolCleanupRunSummary:
+    require_symbol_enrichment_job_access(request, require_enabled=False)
+    run = get_symbol_cleanup_run(_require_postgres_dsn(request), run_id)
+    if run is None:
+        raise _not_found("Symbol cleanup run", run_id)
+    return run
+
+
+@router.post("/symbol-enrichment/resolve", response_model=SymbolEnrichmentResolveResponse)
+async def resolve_symbol_enrichment_route(
+    payload: SymbolEnrichmentResolveRequest,
+    request: Request,
+) -> SymbolEnrichmentResolveResponse:
+    auth_context = require_symbol_enrichment_job_access(request)
+    settings = get_settings(request).symbol_enrichment
+    try:
+        resolved = await resolve_symbol_profile_via_ai(
+            gateway=get_ai_relay_gateway(request),
+            auth_context=auth_context,
+            request_payload=payload,
+            model_name=settings.model,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if resolved.confidence is None or resolved.confidence < settings.confidence_min:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Symbol enrichment confidence below threshold: "
+                f"{resolved.confidence!r} < {settings.confidence_min}."
+            ),
+        )
+    return resolved
 
 
 @router.get("/universes/{name}")
