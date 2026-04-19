@@ -268,6 +268,7 @@ jobs:
                   exit 1
                   ;;
               esac
+              echo "Smoke job execution ${execution_name} status after attempt ${attempt}: ${status:-unknown}. Retrying..." >&2
               sleep 10
             done
             test "${status}" = "Succeeded"
@@ -335,9 +336,11 @@ jobs:
             fi
           fi
 
-          echo "fqdn=${fqdn}" >> "$GITHUB_OUTPUT"
-          echo "verification_mode=${verification_mode}" >> "$GITHUB_OUTPUT"
-          echo "verification_target=${verification_target}" >> "$GITHUB_OUTPUT"
+          {
+            echo "fqdn=${fqdn}"
+            echo "verification_mode=${verification_mode}"
+            echo "verification_target=${verification_target}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Write deployment summary
         shell: bash
