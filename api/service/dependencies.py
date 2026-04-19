@@ -92,3 +92,25 @@ def require_ai_relay_access(request: Request) -> AuthContext:
         raise HTTPException(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
     return auth_context
 
+
+def require_symbol_enrichment_job_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).symbol_enrichment
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Symbol enrichment is disabled.")
+
+    caller_job = str(request.headers.get("X-Caller-Job") or "").strip()
+    if not caller_job:
+        raise HTTPException(status_code=400, detail="X-Caller-Job header is required.")
+
+    allowed_jobs = {job.strip() for job in settings.allowed_jobs if job.strip()}
+    if caller_job not in allowed_jobs:
+        logger.warning(
+            "Symbol enrichment authz failed: subject=%s caller_job=%s path=%s",
+            auth_context.subject or "-",
+            caller_job,
+            request.url.path,
+        )
+        raise HTTPException(status_code=403, detail="Caller job is not allowed to use symbol enrichment.")
+    return auth_context
+

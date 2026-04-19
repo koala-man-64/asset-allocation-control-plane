@@ -374,6 +374,17 @@ def validate_ai_relay_configuration() -> None:
         )
 
 
+def validate_symbol_enrichment_configuration() -> None:
+    if not parse_bool("SYMBOL_ENRICHMENT_ENABLED", default=False):
+        return
+
+    if not optional_value("SYMBOL_ENRICHMENT_ALLOWED_JOBS"):
+        fail("SYMBOL_ENRICHMENT_ALLOWED_JOBS is required when SYMBOL_ENRICHMENT_ENABLED=true.")
+
+    parse_float("SYMBOL_ENRICHMENT_CONFIDENCE_MIN", default=0.7, min_value=0.0, max_value=1.0)
+    parse_int("SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN", default=500, min_value=1, max_value=50_000)
+
+
 def main() -> int:
     for name in REQUIRED_ENV_NAMES:
         require_value(name)
@@ -385,6 +396,7 @@ def main() -> int:
     validate_log_analytics()
     validate_auth_configuration()
     validate_ai_relay_configuration()
+    validate_symbol_enrichment_configuration()
     return 0
 
 

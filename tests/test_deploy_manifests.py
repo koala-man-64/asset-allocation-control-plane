@@ -69,6 +69,11 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "AI_RELAY_MAX_OUTPUT_TOKENS",
         "AI_RELAY_REQUIRED_ROLES",
         "AI_RELAY_API_KEY",
+        "SYMBOL_ENRICHMENT_ENABLED",
+        "SYMBOL_ENRICHMENT_MODEL",
+        "SYMBOL_ENRICHMENT_CONFIDENCE_MIN",
+        "SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN",
+        "SYMBOL_ENRICHMENT_ALLOWED_JOBS",
     }
 
     assert "ai-relay-api-key" in _secret_names(public_doc)
