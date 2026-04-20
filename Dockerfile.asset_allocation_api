@@ -19,6 +19,7 @@ RUN --mount=type=secret,id=pipconfig,target=/etc/pip.conf,required=false \
 COPY asset-allocation-control-plane/pyproject.toml asset-allocation-control-plane/README.md ./
 COPY asset-allocation-control-plane/alpha_vantage/ alpha_vantage/
 COPY asset-allocation-control-plane/core/ core/
+COPY asset-allocation-control-plane/etrade_provider/ etrade_provider/
 COPY asset-allocation-control-plane/massive_provider/ massive_provider/
 COPY asset-allocation-control-plane/monitoring/ monitoring/
 COPY asset-allocation-control-plane/api/ api/

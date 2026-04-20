@@ -52,6 +52,21 @@ def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
     assert runtime_common_arg.group(1) == shared["asset-allocation-runtime-common"]
 
 
+def test_api_dockerfile_copies_first_party_packages_needed_at_boot() -> None:
+    text = (repo_root() / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
+
+    required_copy_lines = (
+        "COPY asset-allocation-control-plane/alpha_vantage/ alpha_vantage/",
+        "COPY asset-allocation-control-plane/core/ core/",
+        "COPY asset-allocation-control-plane/etrade_provider/ etrade_provider/",
+        "COPY asset-allocation-control-plane/massive_provider/ massive_provider/",
+        "COPY asset-allocation-control-plane/monitoring/ monitoring/",
+        "COPY asset-allocation-control-plane/api/ api/",
+    )
+    for copy_line in required_copy_lines:
+        assert copy_line in text
+
+
 def test_readme_shared_package_setup_examples_match_pyproject() -> None:
     shared = shared_dependencies()
     text = (repo_root() / "README.md").read_text(encoding="utf-8")
