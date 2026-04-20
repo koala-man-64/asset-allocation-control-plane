@@ -18,8 +18,8 @@ def _env_float(name: str, default: float) -> float:
         return float(default)
     try:
         return float(raw)
-    except Exception:
-        return float(default)
+    except Exception as exc:
+        raise ValueError(f"{name} must be a number.") from exc
 
 
 def _env_int(name: str, default: int) -> int:
@@ -28,8 +28,8 @@ def _env_int(name: str, default: int) -> int:
         return int(default)
     try:
         return int(raw)
-    except Exception:
-        return int(default)
+    except Exception as exc:
+        raise ValueError(f"{name} must be an integer.") from exc
 
 
 @dataclass(frozen=True)

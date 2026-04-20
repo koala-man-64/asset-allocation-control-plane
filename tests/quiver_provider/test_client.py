@@ -108,3 +108,23 @@ def test_quiver_client_redacts_api_key_in_retry_logs(
 
     assert "super-secret-key" not in caplog.text
     assert "[REDACTED]" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("env_name", "env_value", "expected_message"),
+    [
+        ("QUIVER_TIMEOUT_SECONDS", "not-a-number", "QUIVER_TIMEOUT_SECONDS must be a number."),
+        ("QUIVER_RATE_LIMIT_PER_MIN", "not-an-int", "QUIVER_RATE_LIMIT_PER_MIN must be an integer."),
+    ],
+)
+def test_quiver_config_rejects_invalid_numeric_env_values(
+    monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    env_value: str,
+    expected_message: str,
+) -> None:
+    monkeypatch.setenv("QUIVER_API_KEY", "test-key")
+    monkeypatch.setenv(env_name, env_value)
+
+    with pytest.raises(ValueError, match=expected_message):
+        QuiverConfig.from_env(require_api_key=True)

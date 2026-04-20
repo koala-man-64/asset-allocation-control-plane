@@ -184,7 +184,7 @@ def create_app() -> FastAPI:
         if not hasattr(app.state, "massive_gateway"):
             app.state.massive_gateway = MassiveGateway()
         if not hasattr(app.state, "quiver_gateway"):
-            app.state.quiver_gateway = QuiverGateway()
+            app.state.quiver_gateway = QuiverGateway(settings.quiver)
         if not hasattr(app.state, "etrade_gateway"):
             app.state.etrade_gateway = ETradeGateway(settings.etrade)
         if not hasattr(app.state, "ai_relay_gateway"):

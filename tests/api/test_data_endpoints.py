@@ -212,6 +212,40 @@ async def test_validation_endpoint_rejects_invalid_ticker():
 
 
 @pytest.mark.asyncio
+async def test_storage_usage_includes_quiver_domains(monkeypatch):
+    class _FakeBlobStorageClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        @property
+        def container_client(self):
+            return self
+
+        def list_blobs(self, name_starts_with=None):
+            return []
+
+    monkeypatch.setattr(data_endpoints, "BlobStorageClient", _FakeBlobStorageClient)
+    monkeypatch.setenv("AZURE_CONTAINER_BRONZE", "bronze")
+    monkeypatch.setenv("AZURE_CONTAINER_SILVER", "silver")
+    monkeypatch.setenv("AZURE_CONTAINER_GOLD", "gold")
+    monkeypatch.setenv("AZURE_CONTAINER_PLATINUM", "platinum")
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        resp = await client.get("/api/data/storage-usage")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    bronze = next(item for item in payload["containers"] if item["layer"] == "bronze")
+    silver = next(item for item in payload["containers"] if item["layer"] == "silver")
+    gold = next(item for item in payload["containers"] if item["layer"] == "gold")
+
+    assert any(folder["path"] == "quiver-data/" for folder in bronze["folders"])
+    assert any(folder["path"] == "quiver-data/" for folder in silver["folders"])
+    assert any(folder["path"] == "quiver/" for folder in gold["folders"])
+
+
+@pytest.mark.asyncio
 async def test_adls_file_preview_endpoint_forwards_max_delta_files(monkeypatch):
     calls = []
 
