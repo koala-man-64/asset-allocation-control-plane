@@ -26,7 +26,7 @@ def test_build_authorization_url_uses_registered_app_settings():
 
     assert url == (
         "https://api.schwabapi.com/v1/oauth/authorize"
-        "?client_id=client-id&redirect_uri=https%3A%2F%2F127.0.0.1%2Fcallback&state=opaque-state"
+        "?response_type=code&client_id=client-id&redirect_uri=https%3A%2F%2F127.0.0.1%2Fcallback&state=opaque-state"
     )
 
 

@@ -79,6 +79,31 @@ function Write-NormalizedQuotedScalarWarnings {
     }
 }
 
+function Get-RemoteGitHubItemNames {
+    param([Parameter(Mandatory = $true)][string]$Kind)
+    $names = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $output = @(gh $Kind list --json name --jq ".[].name" 2>$null)
+    if ($LASTEXITCODE -ne 0) { return ,$names }
+    foreach ($line in $output) {
+        $name = Normalize-EnvValue -Value ([string]$line)
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        [void]$names.Add($name)
+    }
+    return ,$names
+}
+
+function Get-GitHubSecretNames {
+    if ($null -eq $script:GitHubSecretNames) {
+        $script:GitHubSecretNames = Get-RemoteGitHubItemNames -Kind "secret"
+    }
+    return ,$script:GitHubSecretNames
+}
+
+function Test-GitHubSecretExists {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    return (Get-GitHubSecretNames).Contains($Name)
+}
+
 function Resolve-ManagedIdentityClientId {
     param(
         [Parameter(Mandatory = $true)][string]$IdentityName,
@@ -153,6 +178,7 @@ if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scri
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) is required to sync vars and secrets." }
 
 $script:NormalizedQuotedScalarValues = @{}
+$script:GitHubSecretNames = $null
 $envMap = Parse-EnvFile -Path $envPath
 $normalizedEnvMap = @{}
 foreach ($key in $envMap.Keys) {
@@ -175,7 +201,11 @@ $missingRequired = New-Object System.Collections.Generic.List[string]
 foreach ($key in ($contractMap.Keys | Sort-Object)) {
     if ((Get-RequirementLevel -Name $key) -ne "required") { continue }
     $value = if ($envMap.ContainsKey($key)) { $envMap[$key] } else { "" }
-    if ([string]::IsNullOrWhiteSpace($value)) { $missingRequired.Add($key) }
+    if (-not [string]::IsNullOrWhiteSpace($value)) { continue }
+    $entry = $contractMap[$key]
+    $storage = (($entry.github_storage | Out-String).Trim()).ToLowerInvariant()
+    if ($storage -eq "secret" -and (Test-GitHubSecretExists -Name $key)) { continue }
+    $missingRequired.Add($key)
 }
 if ($missingRequired.Count -gt 0) {
     throw ".env.web is missing required values: $($missingRequired -join ', '). Run scripts/setup-env.ps1 and provide the missing values before syncing."
@@ -193,6 +223,10 @@ foreach ($key in ($contractMap.Keys | Sort-Object)) {
     $value = if ($envMap.ContainsKey($key)) { $envMap[$key] } else { "" }
     if ($storage -eq "var") { $expectedVars.Add($key) } else { $expectedSecrets.Add($key) }
     if ([string]::IsNullOrWhiteSpace($value)) {
+        if ($storage -eq "secret" -and (Test-GitHubSecretExists -Name $key)) {
+            Write-Host ("Preserving existing GitHub secret: {0}" -f $key) -ForegroundColor Cyan
+            continue
+        }
         Write-Host ("Skipping empty {0}: {1}" -f $storage, $key) -ForegroundColor Yellow
         continue
     }
