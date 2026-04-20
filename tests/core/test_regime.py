@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from asset_allocation_runtime_common.domain.regime import build_regime_outputs, classify_regime_row, compute_curve_state, compute_trend_state
+from core.regime import build_regime_outputs, classify_regime_row, compute_curve_state, compute_trend_state
 def test_compute_states_use_deadbands() -> None:
     assert compute_trend_state(0.03) == "positive"
     assert compute_trend_state(-0.03) == "negative"

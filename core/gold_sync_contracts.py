@@ -18,6 +18,10 @@ _MARKET_COLUMNS: tuple[str, ...] = (
     "low",
     "close",
     "volume",
+    "dividend_amount",
+    "split_coefficient",
+    "is_dividend_day",
+    "is_split_day",
     "return_1d",
     "return_5d",
     "return_20d",
@@ -152,6 +156,8 @@ _MARKET_COLUMNS: tuple[str, ...] = (
 )
 _MARKET_INTEGER_COLUMNS = frozenset(
     {
+        "is_dividend_day",
+        "is_split_day",
         "sma_20_gt_sma_50",
         "sma_50_gt_sma_200",
         "above_sma_50",

@@ -69,6 +69,18 @@ function Normalize-EnvValue {
     return $Value.Replace("`r", "").Replace("`n", "\n")
 }
 
+function Normalize-EnvValueForKey {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [AllowNull()][string]$Value
+    )
+    $normalized = Normalize-EnvValue -Value $Value
+    if ($Name -like "*_REQUIRED_ROLES") {
+        return ($normalized -replace '^[''"]+', '' -replace '[''"]+$', '')
+    }
+    return $normalized
+}
+
 function Test-TruthyValue {
     param([AllowNull()][string]$Value)
     if ($null -eq $Value) { return $false }
@@ -294,7 +306,9 @@ function Get-GitHubVariables {
 function Get-GitHubVariableValue {
     param([Parameter(Mandatory = $true)][string]$Name)
     $map = Get-GitHubVariables
-    if ($map.ContainsKey($Name) -and -not [string]::IsNullOrWhiteSpace($map[$Name])) { return $map[$Name] }
+    if ($map.ContainsKey($Name) -and -not [string]::IsNullOrWhiteSpace($map[$Name])) {
+        return (Normalize-EnvValueForKey -Name $Name -Value $map[$Name])
+    }
     return ""
 }
 
@@ -302,18 +316,18 @@ function Get-ConfiguredValue {
     param([Parameter(Mandatory = $true)][string[]]$Keys, [string]$Fallback = "")
     foreach ($key in $Keys) {
         if ($overrideMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$key])) {
-            return (Normalize-EnvValue -Value $overrideMap[$key])
+            return (Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key])
         }
         if ($existingMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($existingMap[$key])) {
-            return (Normalize-EnvValue -Value $existingMap[$key])
+            return (Normalize-EnvValueForKey -Name $key -Value $existingMap[$key])
         }
         $githubValue = Get-GitHubVariableValue -Name $key
         if (-not [string]::IsNullOrWhiteSpace($githubValue)) { return $githubValue }
         if ($templateMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($templateMap[$key])) {
-            return (Normalize-EnvValue -Value $templateMap[$key])
+            return (Normalize-EnvValueForKey -Name $key -Value $templateMap[$key])
         }
     }
-    return (Normalize-EnvValue -Value $Fallback)
+    return (Normalize-EnvValueForKey -Name $Keys[0] -Value $Fallback)
 }
 
 function Get-AzureAccount {
@@ -819,7 +833,7 @@ function Resolve-DiscoveredValue {
 
     $runtimeValue = Get-RuntimeEnvValue -Key $Key
     if (-not [string]::IsNullOrWhiteSpace($runtimeValue)) {
-        return (New-Resolution -Value $runtimeValue -Source "azure-runtime")
+        return (New-Resolution -Value (Normalize-EnvValueForKey -Name $Key -Value $runtimeValue) -Source "azure-runtime")
     }
 
     switch ($Key) {
@@ -1005,7 +1019,7 @@ foreach ($row in $contractRows) {
     $description = (($row.notes | Out-String).Trim())
     $isSecret = $row.github_storage -eq "secret"
     $requirement = Get-RequirementLevel -Name $name
-    $defaultValue = if ($templateMap.ContainsKey($name)) { Normalize-EnvValue -Value $templateMap[$name] } else { "" }
+    $defaultValue = if ($templateMap.ContainsKey($name)) { Normalize-EnvValueForKey -Name $name -Value $templateMap[$name] } else { "" }
 
     if ($secretFileOverrideMap.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace($secretFileOverrideMap[$name])) {
         $value = Normalize-EnvValue -Value $secretFileOverrideMap[$name]
@@ -1013,12 +1027,12 @@ foreach ($row in $contractRows) {
         continue
     }
     if ($existingMap.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace($existingMap[$name])) {
-        $value = Normalize-EnvValue -Value $existingMap[$name]
+        $value = Normalize-EnvValueForKey -Name $name -Value $existingMap[$name]
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "existing"; IsSecret = $isSecret; PromptRequired = $false })
         continue
     }
     if ($overrideMap.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$name])) {
-        $value = Normalize-EnvValue -Value $overrideMap[$name]
+        $value = Normalize-EnvValueForKey -Name $name -Value $overrideMap[$name]
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "prompted"; IsSecret = $isSecret; PromptRequired = $false })
         continue
     }
@@ -1037,7 +1051,7 @@ foreach ($row in $contractRows) {
         }
         $value = Prompt-PlainValue -Name $name -Suggestion $defaultValue -Description $description -Requirement $requirement
         $source = if ([string]::IsNullOrWhiteSpace($value) -or $value -eq $defaultValue) { "default" } else { "prompted" }
-        $results.Add([pscustomobject]@{ Name = $name; Value = (Normalize-EnvValue -Value $value); SuggestedValue = $defaultValue; Requirement = $requirement; Source = $source; IsSecret = $false; PromptRequired = $false })
+        $results.Add([pscustomobject]@{ Name = $name; Value = (Normalize-EnvValueForKey -Name $name -Value $value); SuggestedValue = $defaultValue; Requirement = $requirement; Source = $source; IsSecret = $false; PromptRequired = $false })
         continue
     }
 
