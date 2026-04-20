@@ -61,6 +61,7 @@ include = [
     "etrade_provider*",
     "massive_provider*",
     "monitoring*",
+    "quiver_provider*",
 ]
 
 [tool.setuptools]

@@ -889,7 +889,6 @@ function Resolve-DiscoveredValue {
     $runtimeValue = Get-RuntimeEnvValue -Key $Key
     if (-not [string]::IsNullOrWhiteSpace($runtimeValue)) {
         return (New-Resolution -Key $Key -Value $runtimeValue -Source "azure-runtime")
-        return (New-Resolution -Value (Normalize-EnvValueForKey -Name $Key -Value $runtimeValue) -Source "azure-runtime")
     }
 
     switch ($Key) {

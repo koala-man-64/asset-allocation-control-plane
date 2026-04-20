@@ -50,6 +50,14 @@ AI_RELAY_MAX_FILE_BYTES,deploy_var,var,deploy_config,true,Maximum bytes accepted
 AI_RELAY_MAX_TOTAL_FILE_BYTES,deploy_var,var,deploy_config,true,Maximum combined upload bytes accepted by the AI relay endpoint.
 AI_RELAY_MAX_OUTPUT_TOKENS,deploy_var,var,deploy_config,true,Maximum completion token budget passed to the AI relay model.
 AI_RELAY_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required to use the AI relay endpoint.
+QUIVER_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the repo-local Quiver integration routes.
+QUIVER_BASE_URL,deploy_var,var,deploy_config,true,Quiver API base url.
+QUIVER_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound Quiver API requests.
+QUIVER_RATE_LIMIT_PER_MIN,deploy_var,var,deploy_config,true,Per-process Quiver request budget used by the control-plane client.
+QUIVER_MAX_CONCURRENCY,deploy_var,var,deploy_config,true,Maximum concurrent outbound Quiver requests issued by the shared client.
+QUIVER_MAX_RETRIES,deploy_var,var,deploy_config,true,Maximum retry attempts for retryable Quiver GET requests.
+QUIVER_BACKOFF_BASE_SECONDS,deploy_var,var,deploy_config,true,Base backoff in seconds between retryable Quiver GET requests.
+QUIVER_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Quiver read access.
 ETRADE_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the repo-local E*TRADE integration routes.
 ETRADE_TRADING_ENABLED,deploy_var,var,deploy_config,true,Separately enable or disable E*TRADE preview, place, and cancel operations.
 ETRADE_CALLBACK_URL,deploy_var,var,deploy_config,true,Configured callback URL registered with E*TRADE for browser-based OAuth completion.
@@ -111,6 +119,7 @@ ALPHA_VANTAGE_API_KEY,secret,secret,secret_store,true,Alpha Vantage API key. Nev
 AI_RELAY_API_KEY,secret,secret,secret_store,true,OpenAI API key used by the control-plane AI relay. Never auto-discovered.
 AI_RELAY_SMOKE_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify an authorized AI relay stream.
 AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify AI relay role-denied behavior.
+QUIVER_API_KEY,secret,secret,secret_store,true,Quiver API key. Never auto-discovered.
 ETRADE_SANDBOX_CONSUMER_KEY,secret,secret,secret_store,true,E*TRADE sandbox consumer key for OAuth 1.0a login and sandbox API calls.
 ETRADE_SANDBOX_CONSUMER_SECRET,secret,secret,secret_store,true,E*TRADE sandbox consumer secret for OAuth 1.0a login and sandbox API calls.
 ETRADE_LIVE_CONSUMER_KEY,secret,secret,secret_store,true,E*TRADE live consumer key for OAuth 1.0a login and live API calls.
@@ -118,6 +127,7 @@ ETRADE_LIVE_CONSUMER_SECRET,secret,secret,secret_store,true,E*TRADE live consume
 AZURE_STORAGE_CONNECTION_STRING,secret,secret,secret_store,true,Storage connection string. Never auto-discovered.
 DISPATCH_APP_PRIVATE_KEY,secret,secret,secret_store,true,GitHub App private key with literal newline escapes or base64 encoding.
 RUN_LIVE_MASSIVE_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in for live Massive integration tests. Keep false unless intentionally exercising live Massive APIs.
+RUN_LIVE_QUIVER_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in for live Quiver integration tests. Keep false unless intentionally exercising live Quiver APIs.
 MASSIVE_API_KEY,secret,secret,secret_store,true,Massive API key. Never auto-discovered.
 SCHWAB_CLIENT_ID,secret,secret,secret_store,true,Schwab Trader API client id for the approved Schwab developer application.
 SCHWAB_CLIENT_SECRET,secret,secret,secret_store,true,Schwab Trader API client secret for the approved Schwab developer application.

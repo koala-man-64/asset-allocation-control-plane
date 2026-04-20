@@ -27,6 +27,7 @@ from api.endpoints import (
     portfolio_internal,
     portfolios,
     postgres,
+    quiver,
     rankings,
     realtime,
     regimes,
@@ -42,6 +43,7 @@ from api.service.log_streaming import LogStreamManager
 from api.service.openapi_schema import stabilize_openapi_schema
 from api.service.massive_gateway import MassiveGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
+from api.service.quiver_gateway import QuiverGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.settings import ServiceSettings
 from api.service.realtime import manager as realtime_manager
@@ -181,6 +183,8 @@ def create_app() -> FastAPI:
             app.state.alpha_vantage_gateway = AlphaVantageGateway()
         if not hasattr(app.state, "massive_gateway"):
             app.state.massive_gateway = MassiveGateway()
+        if not hasattr(app.state, "quiver_gateway"):
+            app.state.quiver_gateway = QuiverGateway()
         if not hasattr(app.state, "etrade_gateway"):
             app.state.etrade_gateway = ETradeGateway(settings.etrade)
         if not hasattr(app.state, "ai_relay_gateway"):
@@ -322,6 +326,11 @@ def create_app() -> FastAPI:
 
         try:
             app.state.massive_gateway.close()
+        except Exception:
+            pass
+
+        try:
+            app.state.quiver_gateway.close()
         except Exception:
             pass
 
@@ -495,6 +504,11 @@ def create_app() -> FastAPI:
             massive.router,
             prefix=f"{api_prefix}/providers/massive",
             tags=["Massive"],
+        )
+        app.include_router(
+            quiver.router,
+            prefix=f"{api_prefix}/providers/quiver",
+            tags=["Quiver"],
         )
         app.include_router(
             etrade.router,
