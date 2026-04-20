@@ -219,6 +219,7 @@ $script:AzureResourceGroup = $null
 $script:ResourceGroupName = $null
 $script:GitHubRepo = $null
 $script:GitHubVariables = $null
+$script:GitHubSecretNames = $null
 $script:GitOwner = $null
 $script:GitHubRepoDefaultBranches = @{}
 $script:Identities = $null
@@ -356,6 +357,26 @@ function Get-GitHubVariableValue {
         return (Normalize-EnvValueForKey -Name $Name -Value $map[$Name])
     }
     return ""
+}
+
+function Get-GitHubSecretNames {
+    if ($null -eq $script:GitHubSecretNames) {
+        $names = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $secrets = Invoke-JsonCommand -FilePath "gh" -ArgumentList @("secret", "list", "--json", "name")
+        foreach ($entry in @($secrets)) {
+            if ($null -eq $entry) { continue }
+            $name = if ($entry.PSObject.Properties["name"]) { [string]$entry.name } else { "" }
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+            [void]$names.Add($name)
+        }
+        $script:GitHubSecretNames = $names
+    }
+    return ,$script:GitHubSecretNames
+}
+
+function Test-GitHubSecretExists {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    return (Get-GitHubSecretNames).Contains($Name)
 }
 
 function Get-ConfiguredValue {
@@ -1089,6 +1110,11 @@ foreach ($row in $contractRows) {
     if ($overrideMap.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$name])) {
         $value = Normalize-EnvValueForKey -Name $name -Value $overrideMap[$name]
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "prompted"; IsSecret = $isSecret; PromptRequired = $false })
+        continue
+    }
+
+    if ($isSecret -and (Test-GitHubSecretExists -Name $name)) {
+        $results.Add([pscustomobject]@{ Name = $name; Value = ""; SuggestedValue = ""; Requirement = $requirement; Source = "github-secret"; IsSecret = $true; PromptRequired = $false })
         continue
     }
 
