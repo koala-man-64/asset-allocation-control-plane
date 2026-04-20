@@ -5,7 +5,7 @@ import logging
 import threading
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, Mapping, Optional
 from zoneinfo import ZoneInfo
@@ -47,6 +47,12 @@ _SUPPORTED_ORDER_TERMS = {
 _SUPPORTED_MARKET_SESSIONS = {"REGULAR", "EXTENDED"}
 _EQUITY_SIDES = {"BUY", "SELL", "SELL_SHORT", "BUY_TO_COVER"}
 _OPTION_SIDES = {"BUY_OPEN", "BUY_CLOSE", "SELL_OPEN", "SELL_CLOSE"}
+_SUPPORTED_SORT_ORDERS = {"ASC", "DESC"}
+_TRANSACTION_GROUP_PATHS = {
+    "TRADES": "Trades",
+    "WITHDRAWALS": "Withdrawals",
+    "CASH": "Cash",
+}
 
 
 @dataclass
@@ -183,14 +189,19 @@ def _first(value: Any) -> Any:
 
 
 def _format_date_mmddyyyy(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    return _parse_iso_date(value).strftime("%m%d%Y")
+
+
+def _parse_iso_date(value: str) -> date:
     raw = str(value or "").strip()
     if not raw:
-        return None
+        raise ETradeValidationError("Date is required.")
     try:
-        parsed = datetime.fromisoformat(raw).date()
+        return datetime.fromisoformat(raw).date()
     except ValueError:
         raise ETradeValidationError(f"Invalid date={value!r}. Use YYYY-MM-DD.") from None
-    return parsed.strftime("%m%d%Y")
 
 
 def _format_number(value: Any, *, default: str = "0") -> str:
@@ -268,7 +279,7 @@ class ETradeGateway:
         env = _normalize_environment(environment)
         client = self._client_for(env)
         now = _utc_now()
-        payload = client.fetch_request_token(callback_uri=self._settings.callback_url)
+        payload = client.fetch_request_token(callback_uri="oob")
         request_token = str(payload.get("oauth_token") or "").strip()
         request_token_secret = str(payload.get("oauth_token_secret") or "").strip()
         if not request_token or not request_token_secret:
@@ -353,9 +364,9 @@ class ETradeGateway:
                 logger.warning("Failed to revoke E*TRADE access token for %s.", env, exc_info=True)
         return {"environment": env, "disconnected": True, "revoked": revoked}
 
-    def list_accounts(self, *, environment: str, subject: Optional[str]) -> dict[str, Any]:
+    def list_accounts(self, *, environment: str, subject: Optional[str]) -> Optional[dict[str, Any]]:
         env = _normalize_environment(environment)
-        return self._execute_read(
+        return self._execute_optional_read(
             environment=env,
             operation="accounts",
             subject=subject,
@@ -372,7 +383,7 @@ class ETradeGateway:
         account_key: str,
         subject: Optional[str],
         account_type: Optional[str] = None,
-        real_time_nav: bool = True,
+        real_time_nav: bool = False,
     ) -> dict[str, Any]:
         env = _normalize_environment(environment)
         return self._execute_read(
@@ -403,7 +414,7 @@ class ETradeGateway:
         totals_required: bool = False,
         lots_required: bool = False,
         view: Optional[str] = None,
-    ) -> dict[str, Any]:
+    ) -> Optional[dict[str, Any]]:
         env = _normalize_environment(environment)
         params: dict[str, Any] = {}
         if count is not None:
@@ -423,7 +434,7 @@ class ETradeGateway:
         if view:
             params["view"] = str(view).strip().upper()
 
-        return self._execute_read(
+        return self._execute_optional_read(
             environment=env,
             operation="portfolio",
             subject=subject,
@@ -521,6 +532,90 @@ class ETradeGateway:
                 access_token_secret=session.access_token_secret,
                 account_key=account_key,
                 params=params or None,
+            ),
+        )
+
+    def list_transactions(
+        self,
+        *,
+        environment: str,
+        account_key: str,
+        subject: Optional[str],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        marker: Optional[str] = None,
+        count: Optional[int] = None,
+        transaction_group: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        env = _normalize_environment(environment)
+        params: dict[str, Any] = {}
+        normalized_group: Optional[str] = None
+
+        if count is not None:
+            params["count"] = count
+        if marker:
+            params["marker"] = str(marker).strip()
+        if sort_order:
+            normalized_sort_order = str(sort_order).strip().upper()
+            if normalized_sort_order not in _SUPPORTED_SORT_ORDERS:
+                raise ETradeValidationError("sortOrder must be ASC or DESC.")
+            params["sortOrder"] = normalized_sort_order
+        if transaction_group:
+            normalized_group = str(transaction_group).strip().upper()
+            if normalized_group not in _TRANSACTION_GROUP_PATHS:
+                raise ETradeValidationError("transactionGroup must be one of TRADES, WITHDRAWALS, or CASH.")
+
+        has_start_date = bool(str(start_date or "").strip())
+        has_end_date = bool(str(end_date or "").strip())
+        if has_start_date != has_end_date:
+            raise ETradeValidationError("startDate and endDate must be provided together.")
+        if has_start_date and has_end_date:
+            parsed_start_date = _parse_iso_date(str(start_date))
+            parsed_end_date = _parse_iso_date(str(end_date))
+            if parsed_end_date < parsed_start_date:
+                raise ETradeValidationError("endDate must be on or after startDate.")
+            params["startDate"] = parsed_start_date.strftime("%m%d%Y")
+            params["endDate"] = parsed_end_date.strftime("%m%d%Y")
+
+        return self._execute_optional_read(
+            environment=env,
+            operation="transactions",
+            subject=subject,
+            call=lambda session: self._client_for(env).list_transactions(
+                access_token=session.access_token,
+                access_token_secret=session.access_token_secret,
+                account_key=account_key,
+                transaction_group=_TRANSACTION_GROUP_PATHS.get(normalized_group) if normalized_group else None,
+                params=params or None,
+            ),
+        )
+
+    def get_transaction_details(
+        self,
+        *,
+        environment: str,
+        account_key: str,
+        transaction_id: str,
+        subject: Optional[str],
+        store_id: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        env = _normalize_environment(environment)
+        transaction_id_value = str(transaction_id or "").strip()
+        if not transaction_id_value:
+            raise ETradeValidationError("transaction_id is required.")
+        store_id_value = str(store_id or "").strip() or None
+
+        return self._execute_optional_read(
+            environment=env,
+            operation="transaction_detail",
+            subject=subject,
+            call=lambda session: self._client_for(env).get_transaction_details(
+                access_token=session.access_token,
+                access_token_secret=session.access_token_secret,
+                account_key=account_key,
+                transaction_id=transaction_id_value,
+                store_id=store_id_value,
             ),
         )
 
@@ -823,6 +918,27 @@ class ETradeGateway:
         subject: Optional[str],
         call: Any,
     ) -> dict[str, Any]:
+        del operation, subject
+        session = self._session_for_read(environment)
+        try:
+            payload = call(session)
+        except ETradeBrokerAuthError as exc:
+            self._clear_session(environment)
+            raise ETradeSessionExpiredError("E*TRADE rejected the broker session. Reconnect required.") from exc
+        with self._lock:
+            current = self._sessions.get(environment)
+            if current is not None:
+                current.last_activity_at = _utc_now()
+        return payload
+
+    def _execute_optional_read(
+        self,
+        *,
+        environment: ETradeEnvironment,
+        operation: str,
+        subject: Optional[str],
+        call: Any,
+    ) -> Optional[dict[str, Any]]:
         del operation, subject
         session = self._session_for_read(environment)
         try:

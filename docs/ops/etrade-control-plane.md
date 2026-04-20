@@ -7,7 +7,7 @@ This is local-only and does not require contracts repo routing.
 The control-plane E*TRADE integration lives under `/api/providers/etrade` and supports:
 
 - sandbox and live OAuth 1.0a login
-- account list, balances, portfolio, quotes, and order list
+- account list, balances, portfolio, transaction history, quotes, and order list
 - order preview, place, and cancel
 - equities and single-leg options only
 
@@ -48,7 +48,10 @@ E*TRADE does not self-serve callback registration. Per the official developer gu
 Official references:
 
 - [Developer Guides](https://developer.etrade.com/getting-started/developer-guides)
+- [Get Request Token](https://apisb.etrade.com/docs/api/authorization/request_token.html)
 - [Authorize Application](https://apisb.etrade.com/docs/api/authorization/authorize.html)
+
+Per the E*TRADE request-token doc, the control-plane always requests the token with `oauth_callback=oob`. Callback registration is handled on the E*TRADE side against the consumer key, not by sending the callback URL in the request-token call.
 
 Use separate sandbox and live keys. The same callback path can be used for both because the control-plane matches callbacks by the pending request token.
 
@@ -84,6 +87,51 @@ Official references:
 - [Get Request Token](https://apisb.etrade.com/docs/api/authorization/request_token.html)
 - [Get Access Token](https://apisb.etrade.com/docs/api/authorization/get_access_token.html)
 - [Renew Access Token](https://apisb.etrade.com/docs/api/authorization/renew_access_token.html)
+- [Revoke Access Token](https://apisb.etrade.com/docs/api/authorization/revoke_access_token.html)
+
+## Accounts And Portfolio
+
+The account list and portfolio routes can return HTTP `204 No Content` when E*TRADE returns no data:
+
+- `GET /api/providers/etrade/accounts`
+- `GET /api/providers/etrade/accounts/{account_key}/portfolio`
+
+The balance route defaults `real_time_nav=false` unless you explicitly opt in with the query parameter.
+
+Official references:
+
+- [Accounts API](https://apisb.etrade.com/docs/api/account/api-account-v1.html)
+- [Balance API](https://apisb.etrade.com/docs/api/account/api-balance-v1.html)
+
+## Transaction History
+
+Use the transaction routes for account activity history:
+
+- `GET /api/providers/etrade/accounts/{account_key}/transactions`
+- `GET /api/providers/etrade/accounts/{account_key}/transactions/{transaction_id}`
+
+Supported query parameters on the list route:
+
+- `environment`
+- `startDate` and `endDate` together, formatted as `YYYY-MM-DD` for the control-plane route
+- `sortOrder`
+- `marker`
+- `count`
+- `transactionGroup`
+
+Use `transactionGroup=TRADES` when you specifically want trade history. Supported local group filters are:
+
+- `TRADES`
+- `WITHDRAWALS`
+- `CASH`
+
+The control-plane normalizes those filters to the broker paths and returns the raw broker JSON payload.
+
+If E*TRADE returns no matching transactions, the control-plane responds with HTTP `204 No Content` instead of an empty JSON body.
+
+Official reference:
+
+- [Transaction API](https://apisb.etrade.com/docs/api/account/api-transaction-v1.html)
 
 ## Order Workflow
 
