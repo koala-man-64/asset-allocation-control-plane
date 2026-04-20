@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Optional
 
@@ -38,9 +39,13 @@ class SchwabConfig:
     timeout_seconds: float = SCHWAB_TIMEOUT_SECONDS
 
     @staticmethod
-    def from_env(*, require_client_credentials: bool = True) -> "SchwabConfig":
-        client_id = _strip_or_none(os.environ.get("SCHWAB_CLIENT_ID"))
-        client_secret = _strip_or_none(os.environ.get("SCHWAB_CLIENT_SECRET"))
+    def from_mapping(
+        values: Mapping[str, object],
+        *,
+        require_client_credentials: bool = True,
+    ) -> "SchwabConfig":
+        client_id = _strip_or_none(values.get("SCHWAB_CLIENT_ID"))
+        client_secret = _strip_or_none(values.get("SCHWAB_CLIENT_SECRET"))
 
         if require_client_credentials and not client_id:
             raise ValueError("SCHWAB_CLIENT_ID is required.")
@@ -50,9 +55,16 @@ class SchwabConfig:
         return SchwabConfig(
             client_id=str(client_id or ""),
             client_secret=str(client_secret or ""),
-            app_callback_url=str(_strip_or_none(os.environ.get("SCHWAB_APP_CALLBACK_URL")) or ""),
-            access_token=str(_strip_or_none(os.environ.get("SCHWAB_ACCESS_TOKEN")) or ""),
-            refresh_token=str(_strip_or_none(os.environ.get("SCHWAB_REFRESH_TOKEN")) or ""),
+            app_callback_url=str(_strip_or_none(values.get("SCHWAB_APP_CALLBACK_URL")) or ""),
+            access_token=str(_strip_or_none(values.get("SCHWAB_ACCESS_TOKEN")) or ""),
+            refresh_token=str(_strip_or_none(values.get("SCHWAB_REFRESH_TOKEN")) or ""),
+        )
+
+    @staticmethod
+    def from_env(*, require_client_credentials: bool = True) -> "SchwabConfig":
+        return SchwabConfig.from_mapping(
+            os.environ,
+            require_client_credentials=require_client_credentials,
         )
 
     def get_authorization_url(self) -> str:
