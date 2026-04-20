@@ -107,6 +107,27 @@ def test_quiver_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.quiver.required_roles == ["AssetAllocation.Quiver.Read", "AssetAllocation.Admin"]
 
 
+@pytest.mark.parametrize(
+    ("env_name", "env_value", "expected_message"),
+    [
+        ("QUIVER_TIMEOUT_SECONDS", "not-a-number", "QUIVER_TIMEOUT_SECONDS must be a number."),
+        ("QUIVER_RATE_LIMIT_PER_MIN", "not-an-int", "QUIVER_RATE_LIMIT_PER_MIN must be an integer."),
+    ],
+)
+def test_quiver_settings_reject_invalid_numeric_values(
+    monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    env_value: str,
+    expected_message: str,
+) -> None:
+    monkeypatch.setenv("QUIVER_ENABLED", "true")
+    monkeypatch.setenv("QUIVER_API_KEY", "quiver-key")
+    monkeypatch.setenv(env_name, env_value)
+
+    with pytest.raises(ValueError, match=expected_message):
+        ServiceSettings.from_env()
+
+
 def test_etrade_trading_requires_etrade_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ETRADE_TRADING_ENABLED", "true")
     monkeypatch.delenv("ETRADE_ENABLED", raising=False)

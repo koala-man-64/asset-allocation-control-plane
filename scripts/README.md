@@ -42,4 +42,4 @@ If you change FastAPI request or response models, including imported shared Pyda
 - Shared Azure provision: `pwsh ./scripts/ops/provision/provision_azure.ps1`
 - Postgres migrations: `pwsh ./scripts/ops/data/apply_postgres_migrations.ps1`
 
-When `AI_RELAY_ENABLED=true`, `scripts/setup-env.ps1` requires `AI_RELAY_REQUIRED_ROLES` and leaves `AI_RELAY_API_KEY` as manual input. `scripts/sync-all-to-github.ps1` fails fast if those AI relay requirements are still missing.
+When `AI_RELAY_ENABLED=true`, `scripts/setup-env.ps1` requires `AI_RELAY_REQUIRED_ROLES` and leaves `AI_RELAY_API_KEY` as manual input unless the repo already has that GitHub secret configured. `scripts/sync-all-to-github.ps1` preserves existing remote secrets when the local `.env.web` entry is blank.

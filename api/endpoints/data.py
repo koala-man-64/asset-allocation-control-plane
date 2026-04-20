@@ -36,6 +36,7 @@ _STORAGE_USAGE_CATALOG = (
             "finance-data",
             "earnings-data",
             "price-target-data",
+            "quiver-data",
         ),
     ),
     (
@@ -47,6 +48,7 @@ _STORAGE_USAGE_CATALOG = (
             "finance-data",
             "earnings-data",
             "price-target-data",
+            "quiver-data",
         ),
     ),
     (
@@ -58,6 +60,7 @@ _STORAGE_USAGE_CATALOG = (
             "finance",
             "earnings",
             "targets",
+            "quiver",
         ),
     ),
     (
