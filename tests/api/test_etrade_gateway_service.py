@@ -15,9 +15,20 @@ class _FakeClient:
         self.config = type("Config", (), {"is_configured": True})()
         self.preview_payload = None
         self.place_payload = None
+        self.request_token_callback_uri = None
+        self.balance_request = None
+        self.portfolio_request = None
+        self.transactions_request = None
+        self.transaction_detail_request = None
+        self.accounts_response = {"AccountListResponse": {"accounts": []}}
+        self.balance_response = {"BalanceResponse": {"accountId": "1"}}
+        self.portfolio_response = {"PortfolioResponse": {"AccountPortfolio": []}}
+        self.transactions_response = {"TransactionDetailsResponse": {"Transaction": []}}
+        self.transaction_detail_response = {"TransactionDetailsResponse": {"transactionId": "123"}}
         self.renew_calls = 0
 
     def fetch_request_token(self, *, callback_uri: str | None = None):
+        self.request_token_callback_uri = callback_uri
         return {
             "oauth_token": "request-token",
             "oauth_token_secret": "request-secret",
@@ -45,7 +56,69 @@ class _FakeClient:
     def list_accounts(self, *, access_token: str, access_token_secret: str):
         assert access_token == "access-token"
         assert access_token_secret == "access-secret"
-        return {"AccountListResponse": {"accounts": []}}
+        return self.accounts_response
+
+    def get_balance(
+        self,
+        *,
+        access_token: str,
+        access_token_secret: str,
+        account_key: str,
+        inst_type: str,
+        real_time_nav: bool = False,
+        account_type: str | None = None,
+    ):
+        assert access_token == "access-token"
+        assert access_token_secret == "access-secret"
+        self.balance_request = {
+            "account_key": account_key,
+            "inst_type": inst_type,
+            "real_time_nav": real_time_nav,
+            "account_type": account_type,
+        }
+        return self.balance_response
+
+    def get_portfolio(self, *, access_token: str, access_token_secret: str, account_key: str, params=None):
+        assert access_token == "access-token"
+        assert access_token_secret == "access-secret"
+        self.portfolio_request = {"account_key": account_key, "params": params}
+        return self.portfolio_response
+
+    def list_transactions(
+        self,
+        *,
+        access_token: str,
+        access_token_secret: str,
+        account_key: str,
+        transaction_group: str | None = None,
+        params=None,
+    ):
+        assert access_token == "access-token"
+        assert access_token_secret == "access-secret"
+        self.transactions_request = {
+            "account_key": account_key,
+            "transaction_group": transaction_group,
+            "params": params,
+        }
+        return self.transactions_response
+
+    def get_transaction_details(
+        self,
+        *,
+        access_token: str,
+        access_token_secret: str,
+        account_key: str,
+        transaction_id: str,
+        store_id: str | None = None,
+    ):
+        assert access_token == "access-token"
+        assert access_token_secret == "access-secret"
+        self.transaction_detail_request = {
+            "account_key": account_key,
+            "transaction_id": transaction_id,
+            "store_id": store_id,
+        }
+        return self.transaction_detail_response
 
     def preview_order(self, *, access_token: str, access_token_secret: str, account_key: str, payload):
         assert access_token == "access-token"
@@ -109,6 +182,7 @@ def test_gateway_connect_flow_sets_request_ttl_and_eastern_midnight_expiry(monke
 
     assert start["request_token_expires_at"] == "2026-04-19T15:05:00Z"
     assert start["callback_confirmed"] is True
+    assert gateway._clients["sandbox"].request_token_callback_uri == "oob"
     assert complete["expires_at"] == "2026-04-20T04:00:00Z"
     assert session["connected"] is True
     assert session["token_expires_at"] == "2026-04-20T04:00:00Z"
@@ -145,6 +219,178 @@ def test_gateway_read_renews_idle_session(monkeypatch: pytest.MonkeyPatch) -> No
     assert client.renew_calls == 1
     assert gateway._sessions["sandbox"].last_activity_at == now
     assert gateway._sessions["sandbox"].renewed_at == now
+
+
+def test_gateway_list_accounts_returns_none_when_broker_has_no_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, client = _gateway()
+    client.accounts_response = None
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    payload = gateway.list_accounts(environment="sandbox", subject="user-123")
+
+    assert payload is None
+    assert gateway._sessions["sandbox"].last_activity_at == now
+
+
+def test_gateway_balance_defaults_real_time_nav_to_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, client = _gateway()
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    payload = gateway.get_balance(environment="sandbox", account_key="acct-key", subject="user-123")
+
+    assert payload == {"BalanceResponse": {"accountId": "1"}}
+    assert client.balance_request == {
+        "account_key": "acct-key",
+        "inst_type": "BROKERAGE",
+        "real_time_nav": False,
+        "account_type": None,
+    }
+
+
+def test_gateway_portfolio_returns_none_when_broker_has_no_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, client = _gateway()
+    client.portfolio_response = None
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    payload = gateway.get_portfolio(environment="sandbox", account_key="acct-key", subject="user-123")
+
+    assert payload is None
+    assert client.portfolio_request == {"account_key": "acct-key", "params": None}
+
+
+def test_gateway_list_transactions_formats_filters_and_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, client = _gateway()
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    payload = gateway.list_transactions(
+        environment="sandbox",
+        account_key="acct-key",
+        subject="user-123",
+        start_date="2026-04-01",
+        end_date="2026-04-19",
+        sort_order="desc",
+        marker="12345",
+        count=25,
+        transaction_group="trades",
+    )
+
+    assert payload == {"TransactionDetailsResponse": {"Transaction": []}}
+    assert client.transactions_request == {
+        "account_key": "acct-key",
+        "transaction_group": "Trades",
+        "params": {
+            "count": 25,
+            "marker": "12345",
+            "sortOrder": "DESC",
+            "startDate": "04012026",
+            "endDate": "04192026",
+        },
+    }
+    assert gateway._sessions["sandbox"].last_activity_at == now
+
+
+def test_gateway_list_transactions_requires_paired_dates(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, _client = _gateway()
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    with pytest.raises(ETradeValidationError, match="must be provided together"):
+        gateway.list_transactions(
+            environment="sandbox",
+            account_key="acct-key",
+            subject="user-123",
+            start_date="2026-04-01",
+        )
+
+
+def test_gateway_list_transactions_rejects_inverted_dates(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, _client = _gateway()
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    with pytest.raises(ETradeValidationError, match="on or after"):
+        gateway.list_transactions(
+            environment="sandbox",
+            account_key="acct-key",
+            subject="user-123",
+            start_date="2026-04-19",
+            end_date="2026-04-01",
+        )
+
+
+def test_gateway_transaction_detail_returns_none_when_broker_has_no_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 4, 19, 18, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: now)
+
+    gateway, client = _gateway()
+    client.transaction_detail_response = None
+    _seed_session(
+        gateway,
+        now=now,
+        expires_at=now + timedelta(hours=3),
+        last_activity_at=now - timedelta(minutes=5),
+    )
+
+    payload = gateway.get_transaction_details(
+        environment="sandbox",
+        account_key="acct-key",
+        transaction_id="123",
+        subject="user-123",
+        store_id="store-1",
+    )
+
+    assert payload is None
+    assert client.transaction_detail_request == {
+        "account_key": "acct-key",
+        "transaction_id": "123",
+        "store_id": "store-1",
+    }
 
 
 def test_gateway_preview_and_place_reuse_cached_request(monkeypatch: pytest.MonkeyPatch) -> None:

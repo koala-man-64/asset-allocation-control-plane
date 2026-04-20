@@ -4,7 +4,7 @@ import logging
 from decimal import Decimal
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -239,17 +239,19 @@ def etrade_disconnect(
     return JSONResponse(response, headers={"Cache-Control": "no-store"})
 
 
-@router.get("/accounts")
+@router.get("/accounts", responses={204: {"description": "No Content"}})
 def etrade_accounts(
     environment: ETradeEnvironment = Query(...),
     auth_context: AuthContext = Depends(require_etrade_access),
     gateway: ETradeGateway = Depends(_get_gateway),
-) -> JSONResponse:
+) -> Response:
     try:
         response = gateway.list_accounts(environment=environment, subject=auth_context.subject)
     except Exception as exc:
         _handle_etrade_error(exc)
         raise
+    if response is None:
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
     return JSONResponse(response, headers={"Cache-Control": "no-store"})
 
 
@@ -258,7 +260,7 @@ def etrade_balance(
     account_key: str,
     environment: ETradeEnvironment = Query(...),
     account_type: Optional[str] = Query(default=None),
-    real_time_nav: bool = Query(default=True),
+    real_time_nav: bool = Query(default=False),
     auth_context: AuthContext = Depends(require_etrade_access),
     gateway: ETradeGateway = Depends(_get_gateway),
 ) -> JSONResponse:
@@ -276,7 +278,7 @@ def etrade_balance(
     return JSONResponse(response, headers={"Cache-Control": "no-store"})
 
 
-@router.get("/accounts/{account_key}/portfolio")
+@router.get("/accounts/{account_key}/portfolio", responses={204: {"description": "No Content"}})
 def etrade_portfolio(
     account_key: str,
     environment: ETradeEnvironment = Query(...),
@@ -290,7 +292,7 @@ def etrade_portfolio(
     view: Optional[str] = Query(default=None),
     auth_context: AuthContext = Depends(require_etrade_access),
     gateway: ETradeGateway = Depends(_get_gateway),
-) -> JSONResponse:
+) -> Response:
     try:
         response = gateway.get_portfolio(
             environment=environment,
@@ -308,6 +310,66 @@ def etrade_portfolio(
     except Exception as exc:
         _handle_etrade_error(exc)
         raise
+    if response is None:
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
+    return JSONResponse(response, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/accounts/{account_key}/transactions", responses={204: {"description": "No Content"}})
+def etrade_transactions(
+    account_key: str,
+    environment: ETradeEnvironment = Query(...),
+    start_date: Optional[str] = Query(default=None, alias="startDate"),
+    end_date: Optional[str] = Query(default=None, alias="endDate"),
+    sort_order: Optional[str] = Query(default=None, alias="sortOrder"),
+    marker: Optional[str] = Query(default=None),
+    count: Optional[int] = Query(default=None, ge=1, le=50),
+    transaction_group: Optional[str] = Query(default=None, alias="transactionGroup"),
+    auth_context: AuthContext = Depends(require_etrade_access),
+    gateway: ETradeGateway = Depends(_get_gateway),
+) -> Response:
+    try:
+        response = gateway.list_transactions(
+            environment=environment,
+            account_key=account_key,
+            subject=auth_context.subject,
+            start_date=start_date,
+            end_date=end_date,
+            sort_order=sort_order,
+            marker=marker,
+            count=count,
+            transaction_group=transaction_group,
+        )
+    except Exception as exc:
+        _handle_etrade_error(exc)
+        raise
+    if response is None:
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
+    return JSONResponse(response, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/accounts/{account_key}/transactions/{transaction_id}", responses={204: {"description": "No Content"}})
+def etrade_transaction_details(
+    account_key: str,
+    transaction_id: str,
+    environment: ETradeEnvironment = Query(...),
+    store_id: Optional[str] = Query(default=None, alias="storeId"),
+    auth_context: AuthContext = Depends(require_etrade_access),
+    gateway: ETradeGateway = Depends(_get_gateway),
+) -> Response:
+    try:
+        response = gateway.get_transaction_details(
+            environment=environment,
+            account_key=account_key,
+            transaction_id=transaction_id,
+            subject=auth_context.subject,
+            store_id=store_id,
+        )
+    except Exception as exc:
+        _handle_etrade_error(exc)
+        raise
+    if response is None:
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
     return JSONResponse(response, headers={"Cache-Control": "no-store"})
 
 

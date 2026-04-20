@@ -53,6 +53,14 @@ def _proxy_target_port() -> int | None:
     return None
 
 
+def _resolve_env_path(repo_root: Path) -> Path:
+    for candidate_name in (".env", ".env.web"):
+        candidate = repo_root / candidate_name
+        if candidate.exists():
+            return candidate
+    return repo_root / ".env"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run local API dev server with env-aware port checks.")
     parser.add_argument("--host", default="0.0.0.0", help="Host interface for uvicorn (default: 0.0.0.0).")
@@ -64,7 +72,7 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = _repo_root()
-    env_path = repo_root / ".env"
+    env_path = _resolve_env_path(repo_root)
     load_dotenv(env_path, override=False)
 
     try:

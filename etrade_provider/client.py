@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any, Mapping, Optional
 from urllib.parse import parse_qs, parse_qsl, quote, urlparse
@@ -10,6 +11,7 @@ from oauthlib.oauth1 import Client as OAuth1Client
 from oauthlib.oauth1.rfc5849 import signature, utils
 from requests import Response
 from requests_oauthlib import OAuth1Session
+from requests_oauthlib.oauth1_session import TokenRequestDenied
 
 from etrade_provider.config import ETradeEnvironmentConfig
 from etrade_provider.errors import (
@@ -102,6 +104,33 @@ def _safe_json_loads(raw: str) -> Any:
         return None
 
 
+def _extract_oauth_problem(raw: str) -> str:
+    match = re.search(r"oauth_problem=([A-Za-z0-9_:-]+)", raw or "")
+    if match:
+        return str(match.group(1)).strip()
+    return ""
+
+
+def _extract_broker_error_message(response: Response | None, *, fallback: str) -> tuple[str, int | None, dict[str, Any]]:
+    status_code = int(response.status_code) if response is not None else None
+    raw_text = str(response.text or "").strip() if response is not None else ""
+    payload = _safe_json_loads(raw_text)
+    message = _extract_message(payload)
+    if not message:
+        message = _extract_oauth_problem(raw_text)
+    if not message:
+        message = fallback
+
+    error_payload: dict[str, Any] = {}
+    if status_code is not None:
+        error_payload["status_code"] = status_code
+    if isinstance(payload, dict):
+        error_payload["body"] = payload
+    elif raw_text:
+        error_payload["body"] = raw_text[:500]
+    return message, status_code, error_payload
+
+
 class ETradeClient:
     def __init__(
         self,
@@ -143,9 +172,16 @@ class ETradeClient:
         )
 
     def fetch_request_token(self, *, callback_uri: str | None = None) -> dict[str, Any]:
-        session = self._oauth_session(callback_uri=callback_uri or "oob")
+        del callback_uri
+        session = self._oauth_session(callback_uri="oob")
         try:
             payload = session.fetch_request_token(self.config.request_token_url, timeout=self.timeout_seconds)
+        except TokenRequestDenied as exc:
+            message, status_code, payload = _extract_broker_error_message(
+                getattr(exc, "response", None),
+                fallback="Failed to request an E*TRADE request token.",
+            )
+            raise ETradeBrokerAuthError(message, status_code=status_code, payload=payload) from exc
         except requests.RequestException as exc:
             raise ETradeBrokerAuthError("Failed to request an E*TRADE request token.") from exc
         return dict(payload)
@@ -171,6 +207,12 @@ class ETradeClient:
         )
         try:
             payload = session.fetch_access_token(self.config.access_token_url, timeout=self.timeout_seconds)
+        except TokenRequestDenied as exc:
+            message, status_code, payload = _extract_broker_error_message(
+                getattr(exc, "response", None),
+                fallback="Failed to exchange the request token for an E*TRADE access token.",
+            )
+            raise ETradeBrokerAuthError(message, status_code=status_code, payload=payload) from exc
         except requests.RequestException as exc:
             raise ETradeBrokerAuthError("Failed to exchange the request token for an E*TRADE access token.") from exc
         return dict(payload)
@@ -199,8 +241,8 @@ class ETradeClient:
         )
         return str(response.text or "").strip()
 
-    def list_accounts(self, *, access_token: str, access_token_secret: str) -> dict[str, Any]:
-        return self._request_json(
+    def list_accounts(self, *, access_token: str, access_token_secret: str) -> Optional[dict[str, Any]]:
+        return self._request_optional_json(
             "GET",
             "/v1/accounts/list",
             access_token=access_token,
@@ -214,7 +256,7 @@ class ETradeClient:
         access_token_secret: str,
         account_key: str,
         inst_type: str,
-        real_time_nav: bool = True,
+        real_time_nav: bool = False,
         account_type: str | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"instType": inst_type, "realTimeNAV": str(bool(real_time_nav)).lower()}
@@ -235,8 +277,8 @@ class ETradeClient:
         access_token_secret: str,
         account_key: str,
         params: Optional[Mapping[str, Any]] = None,
-    ) -> dict[str, Any]:
-        return self._request_json(
+    ) -> Optional[dict[str, Any]]:
+        return self._request_optional_json(
             "GET",
             f"/v1/accounts/{account_key}/portfolio",
             access_token=access_token,
@@ -274,6 +316,46 @@ class ETradeClient:
             access_token=access_token,
             access_token_secret=access_token_secret,
             params=params,
+        )
+
+    def list_transactions(
+        self,
+        *,
+        access_token: str,
+        access_token_secret: str,
+        account_key: str,
+        transaction_group: str | None = None,
+        params: Optional[Mapping[str, Any]] = None,
+    ) -> Optional[dict[str, Any]]:
+        path = f"/v1/accounts/{account_key}/transactions"
+        if transaction_group:
+            path = f"{path}/{transaction_group}"
+        return self._request_optional_json(
+            "GET",
+            path,
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+            params=params,
+        )
+
+    def get_transaction_details(
+        self,
+        *,
+        access_token: str,
+        access_token_secret: str,
+        account_key: str,
+        transaction_id: str,
+        store_id: str | None = None,
+    ) -> Optional[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if store_id:
+            params["storeId"] = store_id
+        return self._request_optional_json(
+            "GET",
+            f"/v1/accounts/{account_key}/transactions/{transaction_id}",
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+            params=params or None,
         )
 
     def preview_order(
@@ -354,6 +436,38 @@ class ETradeClient:
             write_operation=write_operation,
             expects_json=True,
         )
+        payload = _safe_json_loads(response.text or "")
+        if not isinstance(payload, dict):
+            raise ETradeApiError(
+                "E*TRADE returned a non-JSON response when JSON was expected.",
+                code="invalid_response",
+                status_code=response.status_code,
+                payload={"path": path},
+            )
+        return payload
+
+    def _request_optional_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        access_token: str,
+        access_token_secret: str,
+        params: Optional[Mapping[str, Any]] = None,
+        attempts: Optional[int] = None,
+    ) -> Optional[dict[str, Any]]:
+        response = self._request(
+            method,
+            path,
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+            params=params,
+            attempts=attempts or self.read_retry_attempts,
+            write_operation=False,
+            expects_json=True,
+        )
+        if response.status_code == 204:
+            return None
         payload = _safe_json_loads(response.text or "")
         if not isinstance(payload, dict):
             raise ETradeApiError(

@@ -19632,6 +19632,9 @@
             },
             "description": "Successful Response"
           },
+          "204": {
+            "description": "No Content"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -19696,7 +19699,7 @@
             "name": "real_time_nav",
             "required": false,
             "schema": {
-              "default": true,
+              "default": false,
               "title": "Real Time Nav",
               "type": "boolean"
             }
@@ -19903,6 +19906,9 @@
             },
             "description": "Successful Response"
           },
+          "204": {
+            "description": "No Content"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -19915,6 +19921,261 @@
           }
         },
         "summary": "Etrade Portfolio",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/accounts/{account_key}/transactions": {
+      "get": {
+        "operationId": "etrade_transactions_api_providers_etrade_accounts__account_key__transactions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Startdate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enddate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortOrder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sortorder"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marker",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Marker"
+            }
+          },
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 50,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Count"
+            }
+          },
+          {
+            "in": "query",
+            "name": "transactionGroup",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transactiongroup"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Transactions",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
+    "/api/providers/etrade/accounts/{account_key}/transactions/{transaction_id}": {
+      "get": {
+        "operationId": "etrade_transaction_details_api_providers_etrade_accounts__account_key__transactions__transaction_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "title": "Environment",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "storeId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Storeid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Etrade Transaction Details",
         "tags": [
           "ETrade"
         ]

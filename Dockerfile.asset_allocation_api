@@ -17,6 +17,7 @@ RUN --mount=type=secret,id=pipconfig,target=/etc/pip.conf,required=false \
     "asset-allocation-runtime-common==${RUNTIME_COMMON_VERSION}"
 
 COPY asset-allocation-control-plane/pyproject.toml asset-allocation-control-plane/README.md ./
+COPY asset-allocation-control-plane/alpaca/ alpaca/
 COPY asset-allocation-control-plane/alpha_vantage/ alpha_vantage/
 COPY asset-allocation-control-plane/core/ core/
 COPY asset-allocation-control-plane/etrade_provider/ etrade_provider/
