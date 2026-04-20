@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -28,6 +30,15 @@ def _run_renderer(*, template: Path, output: Path, extra_env: dict[str, str]) ->
         text=True,
         check=False,
     )
+
+
+def _manifest_env_value(rendered: str, name: str) -> str:
+    doc = yaml.safe_load(rendered)
+    env_entries = doc["properties"]["template"]["containers"][0]["env"]
+    for entry in env_entries:
+        if entry["name"] == name:
+            return entry["value"]
+    raise AssertionError(f"Missing env entry {name}")
 
 
 def test_renderer_omits_ai_relay_secret_and_env_binding_when_key_missing(tmp_path: Path) -> None:
@@ -84,3 +95,26 @@ def test_renderer_keeps_ai_relay_secret_and_env_binding_when_key_present(tmp_pat
     rendered = output.read_text(encoding="utf-8")
     assert 'value: "test-key"' in rendered
     assert "\n      - name: AI_RELAY_API_KEY\n        secretRef: ai-relay-api-key\n" in rendered
+
+
+def test_renderer_serializes_env_values_as_yaml_safe_strings(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api_public.yaml"
+    output = tmp_path / "rendered.yaml"
+    issuer = '"https://login.microsoftonline.com/example-tenant/v2.0"'
+    freshness_json = '{"readyz":{"max_age_seconds":60}}'
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env={
+            "AI_RELAY_ENABLED": "false",
+            "AI_RELAY_API_KEY": "",
+            "API_OIDC_ISSUER": issuer,
+            "SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON": freshness_json,
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output.read_text(encoding="utf-8")
+    assert _manifest_env_value(rendered, "API_OIDC_ISSUER") == "https://login.microsoftonline.com/example-tenant/v2.0"
+    assert _manifest_env_value(rendered, "SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON") == freshness_json

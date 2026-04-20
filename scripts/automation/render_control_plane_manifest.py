@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Iterable
 
+import yaml
+
 
 _PLACEHOLDER_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)\}")
+_QUOTED_PLACEHOLDER_PATTERN = re.compile(r'(["\'])\$\{([A-Z0-9_]+)\}\1')
 _AI_RELAY_SECRET_BLOCK = (
     "    - name: ai-relay-api-key",
     '      value: "${AI_RELAY_API_KEY}"',
@@ -36,7 +40,42 @@ def _remove_exact_block(lines: list[str], block: Iterable[str]) -> list[str]:
 
 
 def _render_placeholders(template: str, env: dict[str, str]) -> str:
-    return _PLACEHOLDER_PATTERN.sub(lambda match: env.get(match.group(1), match.group(0)), template)
+    def replace_quoted(match: re.Match[str]) -> str:
+        return _render_yaml_scalar(match.group(2), env, fallback=match.group(0))
+
+    rendered = _QUOTED_PLACEHOLDER_PATTERN.sub(replace_quoted, template)
+    return _PLACEHOLDER_PATTERN.sub(lambda match: _render_yaml_scalar(match.group(1), env, fallback=match.group(0)), rendered)
+
+
+def _normalize_quoted_scalar_env_value(value: str) -> str:
+    candidate = value.strip()
+    if len(candidate) < 2:
+        return value
+
+    quote = candidate[0]
+    if quote not in {'"', "'"} or candidate[-1] != quote:
+        return value
+
+    inner = candidate[1:-1].strip()
+    if not inner or "\n" in inner or inner[:1] in "{[":
+        return value
+
+    return inner
+
+
+def _render_yaml_scalar(name: str, env: dict[str, str], *, fallback: str) -> str:
+    if name not in env:
+        return fallback
+    return json.dumps(_normalize_quoted_scalar_env_value(env[name]))
+
+
+def _validate_rendered_manifest(rendered: str) -> None:
+    try:
+        loaded = yaml.safe_load(rendered)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Rendered manifest is invalid YAML: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise ValueError("Rendered manifest must parse into a YAML mapping.")
 
 
 def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
@@ -54,6 +93,7 @@ def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
     rendered = _render_placeholders("\n".join(lines), env)
     if template.endswith("\n"):
         rendered += "\n"
+    _validate_rendered_manifest(rendered)
     return rendered
 
 
