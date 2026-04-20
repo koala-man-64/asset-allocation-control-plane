@@ -112,6 +112,7 @@ class SchwabClient:
             raise SchwabNotConfiguredError("SCHWAB_APP_CALLBACK_URL is required to build the authorization URL.")
 
         params: dict[str, str] = {
+            "response_type": "code",
             "client_id": client_id,
             "redirect_uri": callback_url,
         }
