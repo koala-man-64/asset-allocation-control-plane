@@ -39,8 +39,8 @@ dependencies = [
     "pydantic-settings==2.13.1",
     "PyYAML==6.0.3",
     "pydantic==2.12.5",
-    "asset-allocation-contracts==2.3.0",
-    "asset-allocation-runtime-common==2.0.8",
+    "asset-allocation-contracts==2.4.0",
+    "asset-allocation-runtime-common==2.0.9",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +61,7 @@ include = [
     "etrade_provider*",
     "massive_provider*",
     "monitoring*",
+    "quiver_provider*",
 ]
 
 [tool.setuptools]

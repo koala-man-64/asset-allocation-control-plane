@@ -75,6 +75,38 @@ def test_symbol_enrichment_settings_parse_from_env(monkeypatch: pytest.MonkeyPat
     ]
 
 
+def test_quiver_requires_api_key_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QUIVER_ENABLED", "true")
+    monkeypatch.delenv("QUIVER_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="QUIVER_API_KEY is required"):
+        ServiceSettings.from_env()
+
+
+def test_quiver_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QUIVER_ENABLED", "true")
+    monkeypatch.setenv("QUIVER_API_KEY", "quiver-key")
+    monkeypatch.setenv("QUIVER_BASE_URL", "https://api.quiverquant.com")
+    monkeypatch.setenv("QUIVER_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("QUIVER_RATE_LIMIT_PER_MIN", "60")
+    monkeypatch.setenv("QUIVER_MAX_CONCURRENCY", "4")
+    monkeypatch.setenv("QUIVER_MAX_RETRIES", "5")
+    monkeypatch.setenv("QUIVER_BACKOFF_BASE_SECONDS", "1.5")
+    monkeypatch.setenv("QUIVER_REQUIRED_ROLES", "AssetAllocation.Quiver.Read,AssetAllocation.Admin")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.quiver.enabled is True
+    assert settings.quiver.api_key == "quiver-key"
+    assert settings.quiver.base_url == "https://api.quiverquant.com"
+    assert settings.quiver.timeout_seconds == pytest.approx(45.0)
+    assert settings.quiver.rate_limit_per_min == 60
+    assert settings.quiver.max_concurrency == 4
+    assert settings.quiver.max_retries == 5
+    assert settings.quiver.backoff_base_seconds == pytest.approx(1.5)
+    assert settings.quiver.required_roles == ["AssetAllocation.Quiver.Read", "AssetAllocation.Admin"]
+
+
 def test_etrade_trading_requires_etrade_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ETRADE_TRADING_ENABLED", "true")
     monkeypatch.delenv("ETRADE_ENABLED", raising=False)

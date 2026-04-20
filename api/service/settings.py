@@ -179,6 +179,71 @@ class AiRelaySettings:
 
 
 @dataclass(frozen=True)
+class QuiverSettings:
+    enabled: bool = False
+    api_key: Optional[str] = None
+    base_url: str = "https://api.quiverquant.com"
+    timeout_seconds: float = 30.0
+    rate_limit_per_min: int = 30
+    max_concurrency: int = 2
+    max_retries: int = 3
+    backoff_base_seconds: float = 1.0
+    required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Quiver.Read"])
+
+    @staticmethod
+    def from_env() -> "QuiverSettings":
+        settings = QuiverSettings(
+            enabled=_get_optional_bool("QUIVER_ENABLED", default=False),
+            api_key=_get_optional_str("QUIVER_API_KEY"),
+            base_url=_get_optional_str("QUIVER_BASE_URL") or "https://api.quiverquant.com",
+            timeout_seconds=_get_optional_float(
+                "QUIVER_TIMEOUT_SECONDS",
+                default=30.0,
+                minimum=1.0,
+                maximum=300.0,
+            ),
+            rate_limit_per_min=_get_optional_int(
+                "QUIVER_RATE_LIMIT_PER_MIN",
+                default=30,
+                minimum=1,
+                maximum=1_000,
+            ),
+            max_concurrency=_get_optional_int(
+                "QUIVER_MAX_CONCURRENCY",
+                default=2,
+                minimum=1,
+                maximum=32,
+            ),
+            max_retries=_get_optional_int(
+                "QUIVER_MAX_RETRIES",
+                default=3,
+                minimum=0,
+                maximum=10,
+            ),
+            backoff_base_seconds=_get_optional_float(
+                "QUIVER_BACKOFF_BASE_SECONDS",
+                default=1.0,
+                minimum=0.0,
+                maximum=30.0,
+            ),
+            required_roles=_split_csv(_get_optional_str("QUIVER_REQUIRED_ROLES")) or ["AssetAllocation.Quiver.Read"],
+        )
+        if settings.enabled and not settings.api_key:
+            raise ValueError("QUIVER_API_KEY is required when QUIVER_ENABLED=true.")
+        return QuiverSettings(
+            enabled=settings.enabled,
+            api_key=settings.api_key,
+            base_url=_validate_absolute_http_url(settings.base_url, env_name="QUIVER_BASE_URL"),
+            timeout_seconds=settings.timeout_seconds,
+            rate_limit_per_min=settings.rate_limit_per_min,
+            max_concurrency=settings.max_concurrency,
+            max_retries=settings.max_retries,
+            backoff_base_seconds=settings.backoff_base_seconds,
+            required_roles=settings.required_roles,
+        )
+
+
+@dataclass(frozen=True)
 class SymbolEnrichmentSettings:
     enabled: bool = False
     model: str = "gpt-5.4-mini"
@@ -327,6 +392,7 @@ class ServiceSettings:
     browser_oidc_enabled: bool
     ui_oidc_config: dict[str, Any]
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
+    quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
@@ -387,6 +453,7 @@ class ServiceSettings:
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
+        quiver = QuiverSettings.from_env()
         etrade = ETradeSettings.from_env()
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
@@ -411,6 +478,7 @@ class ServiceSettings:
             browser_oidc_enabled=browser_oidc_enabled,
             ui_oidc_config=ui_oidc_config,
             ai_relay=ai_relay,
+            quiver=quiver,
             etrade=etrade,
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,

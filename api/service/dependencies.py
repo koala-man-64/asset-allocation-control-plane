@@ -115,6 +115,21 @@ def require_ai_relay_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_quiver_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).quiver
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Quiver integration is disabled.")
+
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Quiver",
+    )
+    return auth_context
+
+
 def require_etrade_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
     auth_context = validate_auth(request)
     settings = get_settings(request).etrade

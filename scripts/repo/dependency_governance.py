@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Dict, List, Tuple
 import zipfile
@@ -157,6 +158,35 @@ def parse_pyproject_runtime_dependencies(pyproject_path: Path) -> Tuple[List[str
         ordered_entries.append(f"{match.group(1)}=={package_version}")
 
     return ordered_entries, pinned, duplicates, malformed
+
+
+def read_shared_version_matrix(pyproject_path: Path) -> Dict[str, str]:
+    project = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("project", {})
+    dependencies = project.get("dependencies", [])
+    shared_versions: Dict[str, str] = {}
+
+    for dependency in dependencies:
+        if not dependency.startswith("asset-allocation-"):
+            continue
+        name, version = dependency.split("==", 1)
+        shared_versions[name] = version
+
+    contracts_version = shared_versions.get("asset-allocation-contracts")
+    runtime_common_version = shared_versions.get("asset-allocation-runtime-common")
+    control_plane_version = project.get("version")
+
+    if not contracts_version or not runtime_common_version or not control_plane_version:
+        raise ValueError(
+            "Unable to resolve shared version matrix from pyproject.toml. "
+            "Expected project.version plus exact pins for asset-allocation-contracts "
+            "and asset-allocation-runtime-common."
+        )
+
+    return {
+        "contracts_version": contracts_version,
+        "runtime_common_version": runtime_common_version,
+        "control_plane_version": str(control_plane_version),
+    }
 
 
 def diff_dependency_sets(expected: Dict[str, str], observed: Dict[str, str], expected_label: str, observed_label: str) -> List[str]:
@@ -450,6 +480,18 @@ def command_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_emit_shared_versions(args: argparse.Namespace) -> int:
+    version_matrix = read_shared_version_matrix(args.pyproject)
+
+    if args.format == "json":
+        print(json.dumps(version_matrix, sort_keys=True))
+        return 0
+
+    for key in ("contracts_version", "runtime_common_version", "control_plane_version"):
+        print(f"{key}={version_matrix[key]}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Runtime dependency governance checks and sync utilities.")
     parser.set_defaults(func=None)
@@ -505,6 +547,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the generated shared package requirements file",
     )
     shared_compat.set_defaults(func=command_check_shared_compat)
+
+    emit_shared_versions = check_parser.add_parser(
+        "emit-shared-versions",
+        help="Emit the shared package and control-plane version matrix from pyproject.toml",
+    )
+    emit_shared_versions.add_argument(
+        "--pyproject",
+        type=Path,
+        default=Path("pyproject.toml"),
+        help="Path to pyproject.toml containing project.version and shared package pins",
+    )
+    emit_shared_versions.add_argument(
+        "--format",
+        choices=("env", "json"),
+        default="env",
+        help="Output format for the shared version matrix",
+    )
+    emit_shared_versions.set_defaults(func=command_emit_shared_versions)
 
     return parser
 

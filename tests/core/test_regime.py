@@ -4,19 +4,22 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from asset_allocation_runtime_common.domain.regime import build_regime_outputs, classify_regime_row, compute_curve_state, compute_trend_state
+import core.regime as local_regime
+from asset_allocation_runtime_common.domain import regime as shared_regime
+
+
 def test_compute_states_use_deadbands() -> None:
-    assert compute_trend_state(0.03) == "positive"
-    assert compute_trend_state(-0.03) == "negative"
-    assert compute_trend_state(0.01) == "near_zero"
+    assert shared_regime.compute_trend_state(0.03) == "positive"
+    assert shared_regime.compute_trend_state(-0.03) == "negative"
+    assert shared_regime.compute_trend_state(0.01) == "near_zero"
 
-    assert compute_curve_state(0.6) == "contango"
-    assert compute_curve_state(-0.6) == "inverted"
-    assert compute_curve_state(0.1) == "flat"
+    assert shared_regime.compute_curve_state(0.6) == "contango"
+    assert shared_regime.compute_curve_state(-0.6) == "inverted"
+    assert shared_regime.compute_curve_state(0.1) == "flat"
 
 
-def test_classify_regime_row_handles_transition_band_and_cold_start() -> None:
-    cold_start = classify_regime_row(
+def test_classify_regime_row_uses_canonical_default_without_transition_band() -> None:
+    cold_start = shared_regime.classify_regime_row(
         {
             "inputs_complete_flag": True,
             "return_20d": 0.0,
@@ -28,9 +31,31 @@ def test_classify_regime_row_handles_transition_band_and_cold_start() -> None:
     )
     assert cold_start["regime_code"] == "unclassified"
     assert cold_start["regime_status"] == "unclassified"
+    assert cold_start["matched_rule_id"] is None
+
+
+def test_classify_regime_row_can_use_noncanonical_transition_band_override() -> None:
+    config = {
+        "highVolEnterThreshold": 28.0,
+        "highVolExitThreshold": 25.0,
+    }
+
+    cold_start = shared_regime.classify_regime_row(
+        {
+            "inputs_complete_flag": True,
+            "return_20d": 0.0,
+            "vix_slope": 0.0,
+            "rvol_10d_ann": 26.5,
+            "vix_spot_close": 24.0,
+            "vix_gt_32_streak": 0,
+        },
+        config=config,
+    )
+    assert cold_start["regime_code"] == "unclassified"
+    assert cold_start["regime_status"] == "unclassified"
     assert cold_start["matched_rule_id"] == "transition_band"
 
-    follow_on = classify_regime_row(
+    follow_on = shared_regime.classify_regime_row(
         {
             "inputs_complete_flag": True,
             "return_20d": 0.0,
@@ -40,13 +65,48 @@ def test_classify_regime_row_handles_transition_band_and_cold_start() -> None:
             "vix_gt_32_streak": 0,
         },
         prev_confirmed_regime="trending_bear",
+        config=config,
     )
     assert follow_on["regime_code"] == "trending_bear"
     assert follow_on["regime_status"] == "transition"
+    assert follow_on["matched_rule_id"] == "transition_band"
+
+
+def test_local_regime_facade_matches_shared_runtime_defaults() -> None:
+    row = {
+        "inputs_complete_flag": True,
+        "return_20d": -0.01,
+        "vix_slope": 0.1,
+        "rvol_10d_ann": 26.5,
+        "vix_spot_close": 24.0,
+        "vix_gt_32_streak": 0,
+    }
+
+    assert local_regime.classify_regime_row(row) == shared_regime.classify_regime_row(row)
+
+
+def test_local_regime_facade_matches_shared_runtime_noncanonical_override() -> None:
+    row = {
+        "inputs_complete_flag": True,
+        "return_20d": 0.0,
+        "vix_slope": 0.0,
+        "rvol_10d_ann": 26.5,
+        "vix_spot_close": 24.0,
+        "vix_gt_32_streak": 0,
+    }
+    config = {
+        "highVolEnterThreshold": 28.0,
+        "highVolExitThreshold": 25.0,
+    }
+
+    assert local_regime.classify_regime_row(row, config=config) == shared_regime.classify_regime_row(
+        row,
+        config=config,
+    )
 
 
 def test_classify_regime_row_sets_high_vol_and_halt_overlay() -> None:
-    row = classify_regime_row(
+    row = shared_regime.classify_regime_row(
         {
             "inputs_complete_flag": True,
             "return_20d": -0.04,
@@ -91,7 +151,7 @@ def test_build_regime_outputs_uses_next_input_date_as_effective_date() -> None:
         ]
     )
 
-    history, latest, transitions = build_regime_outputs(
+    history, latest, transitions = shared_regime.build_regime_outputs(
         inputs,
         model_name="default-regime",
         model_version=1,
