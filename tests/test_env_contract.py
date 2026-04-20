@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
 import stat
@@ -250,8 +251,89 @@ def test_setup_env_can_read_dispatch_private_key_from_file(tmp_path: Path) -> No
 
 
 def test_setup_env_makes_ai_requirements_conditional(tmp_path: Path) -> None:
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+
+    write_stub_command(
+        stub_dir,
+        "gh",
+        """
+if args[:2] == ["repo", "view"]:
+    print(json.dumps({
+        "name": "asset-allocation-control-plane",
+        "nameWithOwner": "koala-man-64/asset-allocation-control-plane",
+        "owner": {"login": "koala-man-64"},
+        "defaultBranchRef": {"name": "main"},
+    }))
+elif args[:2] == ["variable", "list"]:
+    print(json.dumps([
+        {"name": "AI_RELAY_REQUIRED_ROLES", "value": "\\"AssetAllocation.AiRelay.Use\\""},
+        {"name": "UI_OIDC_CLIENT_ID", "value": "\\"ui-client-id\\""},
+    ]))
+else:
+    print("[]")
+""".strip(),
+    )
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["account", "show"]:
+    print(json.dumps({"tenantId": "tenant-id", "id": "subscription-id"}))
+elif args[:2] == ["group", "show"]:
+    print(json.dumps({"name": "AssetAllocationRG", "location": "eastus"}))
+elif args[:2] == ["acr", "list"]:
+    print(json.dumps([{"name": "assetallocationacr"}]))
+elif args[:2] == ["identity", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-acr-pull-mi"}]))
+elif args[:3] == ["containerapp", "env", "show"]:
+    print(json.dumps({
+        "name": "asset-allocation-env",
+        "properties": {
+            "appLogsConfiguration": {
+                "logAnalyticsConfiguration": {"customerId": "workspace-id"}
+            }
+        },
+    }))
+elif args[:3] == ["containerapp", "env", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-env"}]))
+elif args[:2] == ["containerapp", "show"]:
+    app_name = args[args.index("--name") + 1] if "--name" in args else "asset-allocation-api"
+    fqdn = f"{app_name}.example.test"
+    payload = {
+        "name": app_name,
+        "properties": {
+            "configuration": {"ingress": {"fqdn": fqdn}},
+            "template": {"containers": [{"env": [{"name": "API_ROOT_PREFIX", "value": "asset-allocation"}]}]},
+        },
+    }
+    print(json.dumps(payload))
+elif args[:2] == ["containerapp", "list"]:
+    print(json.dumps([
+        {"resourceGroup": "ignored"},
+        {"name": "asset-allocation-api"},
+        {"name": "asset-allocation-ui"},
+    ]))
+elif args[:4] == ["monitor", "log-analytics", "workspace", "list"]:
+    print(json.dumps([{"resourceGroup": "ignored"}, {"name": "asset-allocation-law", "customerId": "workspace-id"}]))
+elif args[:3] == ["storage", "account", "list"]:
+    print(json.dumps([{"name": "assetallocstorage001"}]))
+elif args[:4] == ["postgres", "flexible-server", "db", "list"]:
+    print(json.dumps([{"name": "asset_allocation"}]))
+elif args[:3] == ["postgres", "flexible-server", "list"]:
+    print(json.dumps([{"name": "pg-asset-allocation", "administratorLogin": "assetallocadmin"}]))
+elif args[:3] == ["ad", "app", "list"]:
+    display_name = args[args.index("--display-name") + 1] if "--display-name" in args else "unknown"
+    print(json.dumps([{"id": "missing-display-name"}, {"displayName": display_name, "appId": f"{display_name}-app-id"}]))
+else:
+    print("[]")
+""".strip(),
+    )
+
     script = repo_root() / "scripts" / "setup-env.ps1"
     env_file = tmp_path / "ai.env.web"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
     completed = subprocess.run(
         [
             powershell_exe(),
@@ -265,19 +347,115 @@ def test_setup_env_makes_ai_requirements_conditional(tmp_path: Path) -> None:
             "AI_RELAY_ENABLED=true",
         ],
         cwd=repo_root(),
+        env=env,
         check=True,
         capture_output=True,
         text=True,
     )
     stdout = completed.stdout
+    combined_output = completed.stdout + completed.stderr
     assert "AI_RELAY_API_KEY=<redacted> [requirement=required;" in stdout
     assert "AI_RELAY_REQUIRED_ROLES=AssetAllocation.AiRelay.Use [requirement=required;" in stdout
+    assert "UI_OIDC_CLIENT_ID=ui-client-id [requirement=required;" in stdout
+    assert "Normalized quoted scalar value for AI_RELAY_REQUIRED_ROLES from github." in combined_output
+    assert "Normalized quoted scalar value for UI_OIDC_CLIENT_ID from github." in combined_output
 
 
 def test_ai_relay_smoke_tokens_are_documented_as_secrets() -> None:
     contract = contract_map()
     assert contract["AI_RELAY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
     assert contract["AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN"]["github_storage"] == "secret"
+
+
+def test_sync_script_normalizes_quoted_scalar_values_before_github_sync(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values(
+            {
+                "AI_RELAY_ENABLED": "true",
+                "AI_RELAY_REQUIRED_ROLES": '"AssetAllocation.AiRelay.Use"',
+                "UI_OIDC_CLIENT_ID": '"ui-client-id"',
+                "AZURE_CLIENT_ID": '"deploy-client-id"',
+                "SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON": '"{}"',
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    gh_log_path = tmp_path / "gh-sync-log.jsonl"
+    write_stub_command(
+        stub_dir,
+        "gh",
+        f"""
+from pathlib import Path
+
+log_path = Path(r\"\"\"{gh_log_path}\"\"\")
+payload = sys.stdin.read().rstrip("\\r\\n")
+if args[:2] == ["variable", "set"] or args[:2] == ["secret", "set"]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({{"kind": args[0], "name": args[2], "value": payload}}) + "\\n")
+elif args[:2] == ["variable", "list"] or args[:2] == ["secret", "list"]:
+    print("")
+else:
+    print("")
+""".strip(),
+    )
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("other-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    records = [
+        json.loads(line)
+        for line in gh_log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    values_by_name = {record["name"]: record["value"] for record in records}
+    combined_output = completed.stdout + completed.stderr
+
+    assert values_by_name["AI_RELAY_REQUIRED_ROLES"] == "AssetAllocation.AiRelay.Use"
+    assert values_by_name["UI_OIDC_CLIENT_ID"] == "ui-client-id"
+    assert values_by_name["AZURE_CLIENT_ID"] == "deploy-client-id"
+    assert values_by_name["SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON"] == '"{}"'
+    assert "Normalized quoted scalar value for AI_RELAY_REQUIRED_ROLES from .env.web before GitHub sync." in combined_output
+    assert "Normalized quoted scalar value for UI_OIDC_CLIENT_ID from .env.web before GitHub sync." in combined_output
+    assert "Normalized quoted scalar value for AZURE_CLIENT_ID from .env.web before GitHub sync." in combined_output
 
 
 def test_setup_env_prompt_functions_reject_blank_required_values() -> None:

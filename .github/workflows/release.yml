@@ -79,21 +79,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import tomllib
-          from pathlib import Path
-
-          pyproject = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
-          dependencies = {}
-          for dependency in pyproject["project"]["dependencies"]:
-              if dependency.startswith("asset-allocation-"):
-                  name, version = dependency.split("==", 1)
-                  dependencies[name] = version
-          with Path("shared-versions.txt").open("w", encoding="utf-8") as handle:
-              handle.write(f"contracts_version={dependencies['asset-allocation-contracts']}\n")
-              handle.write(f"runtime_common_version={dependencies['asset-allocation-runtime-common']}\n")
-              handle.write(f"control_plane_version={pyproject['project']['version']}\n")
-          PY
+          python asset-allocation-control-plane/scripts/repo/dependency_governance.py \
+            emit-shared-versions \
+            --pyproject asset-allocation-control-plane/pyproject.toml > shared-versions.txt
           cat shared-versions.txt >> "$GITHUB_OUTPUT"
 
       - name: Verify shared package availability
@@ -193,16 +181,9 @@ jobs:
           mkdir -p artifacts
           python - <<'PY'
           import json
-          import tomllib
           from pathlib import Path
           import os
 
-          project = tomllib.loads(Path("asset-allocation-control-plane/pyproject.toml").read_text(encoding="utf-8"))
-          shared = {}
-          for dependency in project["project"]["dependencies"]:
-              if dependency.startswith("asset-allocation-"):
-                  name, version = dependency.split("==", 1)
-                  shared[name] = version
           manifest = {
               "repo": os.environ["GITHUB_REPOSITORY"],
               "git_sha": os.environ["GITHUB_SHA"],
@@ -210,9 +191,9 @@ jobs:
               "artifact_ref": os.environ["IMAGE_REF"],
               "image_digest": os.environ["IMAGE_DIGEST"],
               "version_matrix": {
-                  "contracts": shared.get("asset-allocation-contracts"),
-                  "runtime_common": shared.get("asset-allocation-runtime-common"),
-                  "control_plane": project["project"]["version"],
+                  "contracts": os.environ["CONTRACTS_VERSION"],
+                  "runtime_common": os.environ["RUNTIME_COMMON_VERSION"],
+                  "control_plane": os.environ["CONTROL_PLANE_VERSION"],
                   "jobs": None,
                   "ui": None,
               },
@@ -222,6 +203,9 @@ jobs:
         env:
           IMAGE_REF: ${{ steps.image.outputs.image_ref }}
           IMAGE_DIGEST: ${{ steps.image.outputs.image_digest }}
+          CONTRACTS_VERSION: ${{ steps.shared.outputs.contracts_version }}
+          RUNTIME_COMMON_VERSION: ${{ steps.shared.outputs.runtime_common_version }}
+          CONTROL_PLANE_VERSION: ${{ steps.shared.outputs.control_plane_version }}
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

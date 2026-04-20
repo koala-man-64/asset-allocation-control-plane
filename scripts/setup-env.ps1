@@ -69,6 +69,51 @@ function Normalize-EnvValue {
     return $Value.Replace("`r", "").Replace("`n", "\n")
 }
 
+function Register-NormalizedQuotedScalarValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    if ([string]::IsNullOrWhiteSpace($Key) -or [string]::IsNullOrWhiteSpace($Source)) { return }
+    $entryKey = "$Source::$Key"
+    if (-not $script:NormalizedQuotedScalarValues.ContainsKey($entryKey)) {
+        $script:NormalizedQuotedScalarValues[$entryKey] = [pscustomobject]@{
+            Key    = $Key
+            Source = $Source
+        }
+    }
+}
+
+function Normalize-QuotedScalarValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [AllowNull()][string]$Value,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    $candidate = (Normalize-EnvValue -Value $Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate.Length -lt 2) { return $candidate }
+
+    $quote = $candidate.Substring(0, 1)
+    if (($quote -ne '"' -and $quote -ne "'") -or $candidate.Substring($candidate.Length - 1, 1) -ne $quote) {
+        return $candidate
+    }
+
+    $inner = $candidate.Substring(1, $candidate.Length - 2).Trim()
+    if ([string]::IsNullOrWhiteSpace($inner)) { return $candidate }
+    if ($inner.Contains("\n")) { return $candidate }
+    if ($inner.StartsWith("{") -or $inner.StartsWith("[")) { return $candidate }
+
+    Register-NormalizedQuotedScalarValue -Key $Key -Source $Source
+    return $inner
+}
+
+function Write-NormalizedQuotedScalarWarnings {
+    foreach ($entryKey in ($script:NormalizedQuotedScalarValues.Keys | Sort-Object)) {
+        $entry = $script:NormalizedQuotedScalarValues[$entryKey]
+        Write-Warning ("Normalized quoted scalar value for {0} from {1}." -f $entry.Key, $entry.Source)
+    }
+}
+
 function Normalize-EnvValueForKey {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -168,6 +213,7 @@ $existingMap = Parse-EnvFile -Path $EnvFilePath
 $templateMap = Parse-EnvFile -Path $templatePath
 $contractRows = Load-ContractRows -Path $contractPath
 
+$script:NormalizedQuotedScalarValues = @{}
 $script:AzureAccount = $null
 $script:AzureResourceGroup = $null
 $script:ResourceGroupName = $null
@@ -291,7 +337,7 @@ function Get-GitHubVariables {
             $name = if ($entry.PSObject.Properties["name"]) { [string]$entry.name } else { "" }
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
             $value = if ($entry.PSObject.Properties["value"] -and $null -ne $entry.value) {
-                Normalize-EnvValue -Value ([string]$entry.value)
+                Normalize-QuotedScalarValue -Key $name -Value ([string]$entry.value) -Source "github"
             }
             else {
                 ""
@@ -612,7 +658,6 @@ function Convert-ToAbsoluteOrigin {
     )
     $candidate = (Normalize-EnvValue -Value $Value).Trim()
     if ([string]::IsNullOrWhiteSpace($candidate)) { return "" }
-    $candidate = ($candidate -replace '^[''"]+', '' -replace '[''"]+$', '').Trim()
     if ($AssumeHttpsHostname -and $candidate -notmatch "^[a-zA-Z][a-zA-Z0-9+\-.]*://") {
         $candidate = "https://$candidate"
     }
@@ -755,8 +800,9 @@ function Get-ContainerAppRuntimeEnvMap {
                 $envEntries = @(Get-ObjectPropertyValue -Object $container -PropertyName "env")
                 foreach ($entry in $envEntries) {
                     $name = Get-ObjectStringProperty -Object $entry -PropertyName "name"
-                    $value = Normalize-EnvValue -Value (Get-ObjectStringProperty -Object $entry -PropertyName "value")
-                    if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrWhiteSpace($value)) { continue }
+                    if ([string]::IsNullOrWhiteSpace($name)) { continue }
+                    $value = Normalize-QuotedScalarValue -Key $name -Value (Get-ObjectStringProperty -Object $entry -PropertyName "value") -Source "azure-runtime"
+                    if ([string]::IsNullOrWhiteSpace($value)) { continue }
                     if (-not $map.ContainsKey($name)) { $map[$name] = $value }
                 }
             }
@@ -819,8 +865,17 @@ function Get-OidcIssuer {
 }
 
 function New-Resolution {
-    param([AllowEmptyString()][string]$Value = "", [string]$Source = "default", [bool]$PromptRequired = $false)
-    return @{ Value = (Normalize-EnvValue -Value $Value); Source = $Source; PromptRequired = $PromptRequired }
+    param(
+        [string]$Key = "",
+        [AllowEmptyString()][string]$Value = "",
+        [string]$Source = "default",
+        [bool]$PromptRequired = $false
+    )
+    $normalizedValue = Normalize-EnvValue -Value $Value
+    if (-not [string]::IsNullOrWhiteSpace($Key) -and $Source -in @("github", "azure", "azure-runtime")) {
+        $normalizedValue = Normalize-QuotedScalarValue -Key $Key -Value $normalizedValue -Source $Source
+    }
+    return @{ Value = $normalizedValue; Source = $Source; PromptRequired = $PromptRequired }
 }
 
 function Resolve-DiscoveredValue {
@@ -828,135 +883,136 @@ function Resolve-DiscoveredValue {
 
     $githubValue = Get-GitHubVariableValue -Name $Key
     if (-not [string]::IsNullOrWhiteSpace($githubValue)) {
-        return (New-Resolution -Value $githubValue -Source "github")
+        return (New-Resolution -Key $Key -Value $githubValue -Source "github")
     }
 
     $runtimeValue = Get-RuntimeEnvValue -Key $Key
     if (-not [string]::IsNullOrWhiteSpace($runtimeValue)) {
+        return (New-Resolution -Key $Key -Value $runtimeValue -Source "azure-runtime")
         return (New-Resolution -Value (Normalize-EnvValueForKey -Name $Key -Value $runtimeValue) -Source "azure-runtime")
     }
 
     switch ($Key) {
         "AZURE_TENANT_ID" {
             $account = Get-AzureAccount
-            if ($account -and $account.tenantId) { return (New-Resolution -Value ([string]$account.tenantId) -Source "azure") }
+            if ($account -and $account.tenantId) { return (New-Resolution -Key $Key -Value ([string]$account.tenantId) -Source "azure") }
         }
         "AZURE_SUBSCRIPTION_ID" {
             $account = Get-AzureAccount
-            if ($account -and $account.id) { return (New-Resolution -Value ([string]$account.id) -Source "azure") }
+            if ($account -and $account.id) { return (New-Resolution -Key $Key -Value ([string]$account.id) -Source "azure") }
         }
         "RESOURCE_GROUP" {
             $resourceGroupName = Get-ResourceGroupName
-            if (-not [string]::IsNullOrWhiteSpace($resourceGroupName)) { return (New-Resolution -Value $resourceGroupName -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($resourceGroupName)) { return (New-Resolution -Key $Key -Value $resourceGroupName -Source "azure") }
         }
         "AZURE_LOCATION" {
             $resourceGroup = Get-AzureResourceGroup
-            if ($resourceGroup -and $resourceGroup.location) { return (New-Resolution -Value ([string]$resourceGroup.location).ToLowerInvariant() -Source "azure") }
+            if ($resourceGroup -and $resourceGroup.location) { return (New-Resolution -Key $Key -Value ([string]$resourceGroup.location).ToLowerInvariant() -Source "azure") }
         }
         "ACR_NAME" {
             $configuredName = Get-ConfiguredValue -Keys @("ACR_NAME") -Fallback "assetallocationacr"
             $selected = Select-PreferredItem -Items (Get-AcrRegistries) -Preferred $configuredName -Contains @("asset", "acr") -AllowSingleItemFallback
-            if ($selected) { return (New-Resolution -Value ([string]$selected.name) -Source "azure") }
+            if ($selected) { return (New-Resolution -Key $Key -Value ([string]$selected.name) -Source "azure") }
         }
         "ACR_PULL_IDENTITY_NAME" {
             $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
             $configuredName = Get-ConfiguredValue -Keys @("ACR_PULL_IDENTITY_NAME") -Fallback "asset-allocation-acr-pull-mi"
             $identityName = Get-ContainerAppIdentityName -App $app -PreferredName $configuredName
-            if (-not [string]::IsNullOrWhiteSpace($identityName)) { return (New-Resolution -Value $identityName -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($identityName)) { return (New-Resolution -Key $Key -Value $identityName -Source "azure") }
             $selected = Select-PreferredItem -Items (Get-UserAssignedIdentities) -Preferred $configuredName -Contains @("acr", "pull") -AllowSingleItemFallback
-            if ($selected) { return (New-Resolution -Value ([string]$selected.name) -Source "azure") }
+            if ($selected) { return (New-Resolution -Key $Key -Value ([string]$selected.name) -Source "azure") }
         }
         "SERVICE_ACCOUNT_NAME" {
             $configuredName = Get-ConfiguredValue -Keys @("SERVICE_ACCOUNT_NAME") -Fallback ""
             $selected = Select-PreferredItem -Items (Get-UserAssignedIdentities) -Preferred $configuredName -Contains @("service", "sa")
-            if ($selected) { return (New-Resolution -Value ([string]$selected.name) -Source "azure") }
+            if ($selected) { return (New-Resolution -Key $Key -Value ([string]$selected.name) -Source "azure") }
         }
         "CONTAINER_APPS_ENVIRONMENT_NAME" {
             $envName = Get-ContainerAppEnvironmentName
-            if (-not [string]::IsNullOrWhiteSpace($envName)) { return (New-Resolution -Value $envName -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($envName)) { return (New-Resolution -Key $Key -Value $envName -Source "azure") }
         }
         "LOG_ANALYTICS_WORKSPACE_NAME" {
             $workspace = Get-PreferredLogAnalyticsWorkspace
-            if ($workspace -and $workspace.name) { return (New-Resolution -Value ([string]$workspace.name) -Source "azure") }
+            if ($workspace -and $workspace.name) { return (New-Resolution -Key $Key -Value ([string]$workspace.name) -Source "azure") }
         }
         "AZURE_STORAGE_ACCOUNT_NAME" {
             $configuredName = Get-ConfiguredValue -Keys @("AZURE_STORAGE_ACCOUNT_NAME") -Fallback "assetallocstorage001"
             $selected = Select-PreferredItem -Items (Get-StorageAccounts) -Preferred $configuredName -Contains @("asset", "storage") -AllowSingleItemFallback
-            if ($selected) { return (New-Resolution -Value ([string]$selected.name) -Source "azure") }
+            if ($selected) { return (New-Resolution -Key $Key -Value ([string]$selected.name) -Source "azure") }
         }
         "POSTGRES_SERVER_NAME" {
             $server = Get-PreferredPostgresServer
-            if ($server -and $server.name) { return (New-Resolution -Value ([string]$server.name) -Source "azure") }
+            if ($server -and $server.name) { return (New-Resolution -Key $Key -Value ([string]$server.name) -Source "azure") }
         }
         "POSTGRES_DATABASE_NAME" {
             $databaseName = Get-PreferredPostgresDatabaseName
-            if (-not [string]::IsNullOrWhiteSpace($databaseName)) { return (New-Resolution -Value $databaseName -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($databaseName)) { return (New-Resolution -Key $Key -Value $databaseName -Source "azure") }
         }
         "POSTGRES_ADMIN_USER" {
             $server = Get-PreferredPostgresServer
-            if ($server -and $server.administratorLogin) { return (New-Resolution -Value ([string]$server.administratorLogin) -Source "azure") }
+            if ($server -and $server.administratorLogin) { return (New-Resolution -Key $Key -Value ([string]$server.administratorLogin) -Source "azure") }
         }
         "AZURE_CLIENT_ID" {
             return $null
         }
         "API_APP_NAME" {
             $appName = Get-ApiContainerAppName
-            if (-not [string]::IsNullOrWhiteSpace($appName)) { return (New-Resolution -Value $appName -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($appName)) { return (New-Resolution -Key $Key -Value $appName -Source "azure") }
         }
         "API_OIDC_ISSUER" {
             $issuer = Get-OidcIssuer
-            if (-not [string]::IsNullOrWhiteSpace($issuer)) { return (New-Resolution -Value $issuer -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($issuer)) { return (New-Resolution -Key $Key -Value $issuer -Source "azure") }
         }
         "API_OIDC_AUDIENCE" {
             $app = Get-ApiEntraApp
-            if ($app -and $app.appId) { return (New-Resolution -Value ([string]$app.appId) -Source "azure") }
+            if ($app -and $app.appId) { return (New-Resolution -Key $Key -Value ([string]$app.appId) -Source "azure") }
         }
         "UI_OIDC_CLIENT_ID" {
             $app = Get-UiEntraApp
-            if ($app -and $app.appId) { return (New-Resolution -Value ([string]$app.appId) -Source "azure") }
+            if ($app -and $app.appId) { return (New-Resolution -Key $Key -Value ([string]$app.appId) -Source "azure") }
         }
         "UI_OIDC_AUTHORITY" {
             $authority = Get-OidcAuthority
-            if (-not [string]::IsNullOrWhiteSpace($authority)) { return (New-Resolution -Value $authority -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($authority)) { return (New-Resolution -Key $Key -Value $authority -Source "azure") }
         }
         "UI_OIDC_SCOPES" {
             $app = Get-ApiEntraApp
             if ($app -and $app.appId) {
-                return (New-Resolution -Value "api://$([string]$app.appId)/user_impersonation openid profile offline_access" -Source "azure")
+                return (New-Resolution -Key $Key -Value "api://$([string]$app.appId)/user_impersonation openid profile offline_access" -Source "azure")
             }
         }
         "UI_OIDC_REDIRECT_URI" {
             $app = Get-ContainerApp -AppName (Get-UiContainerAppName)
             $redirectUri = Get-ContainerAppRedirectUri -App $app
-            if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { return (New-Resolution -Value $redirectUri -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { return (New-Resolution -Key $Key -Value $redirectUri -Source "azure") }
         }
         "API_CORS_ALLOW_ORIGINS" {
             $origins = Get-ApiCorsAllowOrigins
             if (-not [string]::IsNullOrWhiteSpace($origins)) {
-                return (New-Resolution -Value $origins -Source "azure")
+                return (New-Resolution -Key $Key -Value $origins -Source "azure")
             }
         }
         "CONTRACTS_REPOSITORY" {
             $slug = Get-RepoSlug -RepoName "asset-allocation-contracts"
-            if (-not [string]::IsNullOrWhiteSpace($slug)) { return (New-Resolution -Value $slug -Source "github") }
+            if (-not [string]::IsNullOrWhiteSpace($slug)) { return (New-Resolution -Key $Key -Value $slug -Source "github") }
         }
         "CONTRACTS_REF" {
             $slug = Get-RepoSlug -RepoName "asset-allocation-contracts"
             $branch = Get-GitHubRepoDefaultBranch -RepoSlug $slug
-            if (-not [string]::IsNullOrWhiteSpace($branch)) { return (New-Resolution -Value $branch -Source "github") }
+            if (-not [string]::IsNullOrWhiteSpace($branch)) { return (New-Resolution -Key $Key -Value $branch -Source "github") }
         }
         "JOBS_REPOSITORY" {
             $slug = Get-RepoSlug -RepoName "asset-allocation-jobs"
-            if (-not [string]::IsNullOrWhiteSpace($slug)) { return (New-Resolution -Value $slug -Source "github") }
+            if (-not [string]::IsNullOrWhiteSpace($slug)) { return (New-Resolution -Key $Key -Value $slug -Source "github") }
         }
         "SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID" {
             $workspaceId = Get-ManagedEnvironmentWorkspaceId
-            if (-not [string]::IsNullOrWhiteSpace($workspaceId)) { return (New-Resolution -Value $workspaceId -Source "azure") }
+            if (-not [string]::IsNullOrWhiteSpace($workspaceId)) { return (New-Resolution -Key $Key -Value $workspaceId -Source "azure") }
             $workspace = Get-PreferredLogAnalyticsWorkspace
-            if ($workspace -and $workspace.customerId) { return (New-Resolution -Value ([string]$workspace.customerId) -Source "azure") }
+            if ($workspace -and $workspace.customerId) { return (New-Resolution -Key $Key -Value ([string]$workspace.customerId) -Source "azure") }
         }
     }
-    return (New-Resolution)
+    return (New-Resolution -Key $Key)
 }
 
 function Prompt-PlainValue {
@@ -1083,6 +1139,7 @@ foreach ($result in $results) {
     $suggestedDisplay = Format-SuggestedDisplayValue -Value $result.SuggestedValue -Requirement $result.Requirement -IsSecret $result.IsSecret
     Write-Host ("{0}={1} [requirement={2}; suggested={3}; source={4}; prompt_required={5}]" -f $result.Name, $displayValue, $result.Requirement, $suggestedDisplay, $result.Source, $result.PromptRequired.ToString().ToLowerInvariant())
 }
+Write-NormalizedQuotedScalarWarnings
 if ($DryRun) {
     $requiredPending = @($results | Where-Object { $_.PromptRequired -and $_.Requirement -eq "required" })
     $optionalPending = @($results | Where-Object { $_.PromptRequired -and $_.Requirement -eq "optional" })

@@ -52,6 +52,21 @@ def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
     assert runtime_common_arg.group(1) == shared["asset-allocation-runtime-common"]
 
 
+def test_readme_shared_package_setup_examples_match_pyproject() -> None:
+    shared = shared_dependencies()
+    text = (repo_root() / "README.md").read_text(encoding="utf-8")
+
+    assert f"asset-allocation-contracts=={shared['asset-allocation-contracts']}" in text
+    assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in text
+
+
+def test_release_workflow_uses_dependency_governance_for_shared_versions() -> None:
+    text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "scripts/repo/dependency_governance.py" in text
+    assert "emit-shared-versions" in text
+
+
 def test_normal_ci_and_release_workflows_do_not_checkout_sibling_repos() -> None:
     for path in (repo_root() / ".github" / "workflows").glob("*.yml"):
         text = path.read_text(encoding="utf-8")
