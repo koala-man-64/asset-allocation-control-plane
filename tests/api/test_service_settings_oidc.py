@@ -173,3 +173,52 @@ def test_etrade_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     ]
     assert settings.etrade.sandbox_consumer_key == "sandbox-key"
     assert settings.etrade.live_consumer_secret == "live-secret"
+
+
+def test_api_public_base_url_accepts_origin_without_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.api_public_base_url == "https://api.example.com"
+
+
+def test_api_public_base_url_rejects_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com/root")
+
+    with pytest.raises(ValueError, match="API_PUBLIC_BASE_URL must be an absolute http\\(s\\) origin"):
+        ServiceSettings.from_env()
+
+
+def test_provider_callback_urls_derive_from_public_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_ROOT_PREFIX", "asset-allocation")
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.api_root_prefix == "/asset-allocation"
+    assert settings.get_provider_callback_path("etrade") == "/asset-allocation/api/providers/etrade/connect/callback"
+    assert settings.get_provider_callback_url("etrade") == (
+        "https://api.example.com/asset-allocation/api/providers/etrade/connect/callback"
+    )
+    assert settings.get_provider_callback_url("schwab") == (
+        "https://api.example.com/asset-allocation/api/providers/schwab/connect/callback"
+    )
+
+
+def test_etrade_callback_url_override_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.setenv("ETRADE_CALLBACK_URL", "https://override.example.com/etrade/callback")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.get_provider_callback_url("etrade") == "https://override.example.com/etrade/callback"
+
+
+def test_schwab_placeholder_callback_url_falls_back_to_derived_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.setenv("SCHWAB_APP_CALLBACK_URL", "https://api.example.com/")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.get_provider_callback_url("schwab") == "https://api.example.com/api/providers/schwab/connect/callback"

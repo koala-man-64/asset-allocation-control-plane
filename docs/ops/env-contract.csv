@@ -33,6 +33,7 @@ AZURE_FOLDER_TARGETS,deploy_var,var,deploy_config,true,Canonical price-target fo
 API_APP_NAME,deploy_var,var,deploy_config,true,Control-plane Container App name.
 API_DEPLOY_MANIFEST,deploy_var,var,deploy_config,true,Manifest path used by deploy-prod.yml. Use deploy/app_api_public.yaml for the transitional public edge and deploy/app_api.yaml after internal-only cutover.
 API_ROOT_PREFIX,deploy_var,var,deploy_config,true,Optional API root prefix.
+API_PUBLIC_BASE_URL,deploy_var,var,deploy_config,true,Absolute public API origin used to derive provider OAuth callback URLs when provider-specific callback overrides are unset.
 API_CSP,deploy_var,var,deploy_config,true,Control-plane CSP header.
 API_CORS_ALLOW_ORIGINS,deploy_var,var,deploy_config,true,Allowed browser origins for the API.
 API_OIDC_ISSUER,deploy_var,var,deploy_config,true,OIDC issuer url for API auth.
@@ -60,7 +61,7 @@ QUIVER_BACKOFF_BASE_SECONDS,deploy_var,var,deploy_config,true,Base backoff in se
 QUIVER_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Quiver read access.
 ETRADE_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the repo-local E*TRADE integration routes.
 ETRADE_TRADING_ENABLED,deploy_var,var,deploy_config,true,Separately enable or disable E*TRADE preview, place, and cancel operations.
-ETRADE_CALLBACK_URL,deploy_var,var,deploy_config,true,Configured callback URL registered with E*TRADE for browser-based OAuth completion.
+ETRADE_CALLBACK_URL,deploy_var,var,deploy_config,true,Optional explicit E*TRADE callback URL override. When unset, the API derives the callback from API_PUBLIC_BASE_URL plus the canonical E*TRADE callback path.
 ETRADE_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound E*TRADE API and OAuth requests.
 ETRADE_READ_RETRY_ATTEMPTS,deploy_var,var,deploy_config,true,Maximum read retry attempts for retryable E*TRADE read failures.
 ETRADE_READ_RETRY_BASE_DELAY_SECONDS,deploy_var,var,deploy_config,true,Base backoff in seconds between E*TRADE read retries.
@@ -131,7 +132,7 @@ RUN_LIVE_QUIVER_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in fo
 MASSIVE_API_KEY,secret,secret,secret_store,true,Massive API key. Never auto-discovered.
 SCHWAB_CLIENT_ID,secret,secret,secret_store,true,Schwab Trader API client id for the approved Schwab developer application.
 SCHWAB_CLIENT_SECRET,secret,secret,secret_store,true,Schwab Trader API client secret for the approved Schwab developer application.
-SCHWAB_APP_CALLBACK_URL,deploy_var,var,deploy_config,true,Registered callback URL used for Schwab OAuth authorization-code completion.
+SCHWAB_APP_CALLBACK_URL,deploy_var,var,deploy_config,true,Optional explicit Schwab callback URL override. When unset, the API derives the callback from API_PUBLIC_BASE_URL plus the canonical Schwab callback path.
 POSTGRES_SERVER_NAME,deploy_var,var,deploy_config,true,Azure Database for PostgreSQL Flexible Server name used during provisioning and DSN generation.
 POSTGRES_DATABASE_NAME,deploy_var,var,deploy_config,true,Control-plane Postgres database name used during provisioning and DSN generation.
 POSTGRES_ADMIN_USER,deploy_var,var,deploy_config,true,Azure Postgres administrator username used during provisioning and DSN regeneration.

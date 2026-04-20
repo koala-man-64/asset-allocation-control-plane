@@ -31,6 +31,27 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     assert "/api/backtests/results/lookup" in body["paths"]
     assert "/api/backtests/runs" in body["paths"]
     assert "/api/backtests/{run_id}/events" in body["paths"]
+    assert "/api/providers/etrade/connect/callback-url" in body["paths"]
+    assert "/api/providers/schwab/connect/callback" in body["paths"]
+    assert "/api/providers/schwab/connect/callback-url" in body["paths"]
+    assert (
+        body["paths"]["/api/providers/etrade/connect/callback-url"]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        == "#/components/schemas/ProviderCallbackUrlResponse"
+    )
+    assert (
+        body["paths"]["/api/providers/schwab/connect/callback"]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        == "#/components/schemas/SchwabCallbackReceiptResponse"
+    )
+    assert (
+        body["paths"]["/api/providers/schwab/connect/callback-url"]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        == "#/components/schemas/ProviderCallbackUrlResponse"
+    )
     ai_operation = body["paths"]["/api/ai/chat/stream"]["post"]
     assert set(ai_operation["requestBody"]["content"]) == {"application/json", "multipart/form-data"}
     assert "text/event-stream" in ai_operation["responses"]["200"]["content"]

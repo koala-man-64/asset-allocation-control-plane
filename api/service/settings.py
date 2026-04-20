@@ -6,6 +6,7 @@ from typing import Any, List, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
 AuthMode = Literal["anonymous", "oidc"]
+ProviderName = Literal["etrade", "schwab"]
 _FIXED_UI_API_BASE_URL = "/api"
 _LOCAL_RUNTIME_MARKER_ENV_VARS = (
     "CONTAINER_APP_ENV_DNS_SUFFIX",
@@ -14,6 +15,10 @@ _LOCAL_RUNTIME_MARKER_ENV_VARS = (
     "KUBERNETES_SERVICE_HOST",
 )
 _AI_RELAY_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
+_PROVIDER_CALLBACK_BASE_PATHS: dict[ProviderName, str] = {
+    "etrade": "/api/providers/etrade/connect/callback",
+    "schwab": "/api/providers/schwab/connect/callback",
+}
 
 
 def _split_csv(value: Optional[str]) -> List[str]:
@@ -80,6 +85,13 @@ def _is_local_runtime() -> bool:
     return not any((os.environ.get(key) or "").strip() for key in _LOCAL_RUNTIME_MARKER_ENV_VARS)
 
 
+def _normalize_root_prefix(value: str | None) -> str:
+    raw = (value or "").strip()
+    if not raw or raw == "/":
+        return ""
+    return "/" + raw.strip("/")
+
+
 def _validate_absolute_http_url(value: str, *, env_name: str) -> str:
     parsed = urlparse(value)
     host = (parsed.hostname or "").strip().lower()
@@ -92,6 +104,78 @@ def _validate_absolute_http_url(value: str, *, env_name: str) -> str:
 
 def _validate_ui_redirect_uri(value: str) -> str:
     return _validate_absolute_http_url(value, env_name="UI_OIDC_REDIRECT_URI")
+
+
+def _validate_absolute_http_origin(value: str, *, env_name: str) -> str:
+    parsed = urlparse(value)
+    host = (parsed.hostname or "").strip().lower()
+    if parsed.scheme not in {"http", "https"} or not host:
+        raise ValueError(f"{env_name} must be an absolute http(s) origin without path, query, or fragment.")
+    if parsed.scheme != "https" and host not in {"localhost", "127.0.0.1"}:
+        raise ValueError(f"{env_name} must use https unless targeting localhost.")
+
+    normalized_path = "/" if not (parsed.path or "").strip() else parsed.path
+    if normalized_path != "/" or parsed.params or parsed.query or parsed.fragment:
+        raise ValueError(f"{env_name} must be an absolute http(s) origin without path, query, or fragment.")
+
+    return urlunparse(parsed._replace(path="", params="", query="", fragment="")).rstrip("/")
+
+
+def _normalize_path(value: str | None) -> str:
+    raw = (value or "").strip()
+    if not raw or raw == "/":
+        return "/"
+    return "/" + raw.strip("/")
+
+
+def _build_provider_callback_path(provider: ProviderName, *, api_root_prefix: str) -> str:
+    return f"{api_root_prefix}{_PROVIDER_CALLBACK_BASE_PATHS[provider]}" if api_root_prefix else _PROVIDER_CALLBACK_BASE_PATHS[provider]
+
+
+def _build_provider_callback_url(
+    provider: ProviderName,
+    *,
+    api_root_prefix: str,
+    api_public_base_url: str | None,
+) -> str | None:
+    if not api_public_base_url:
+        return None
+    return f"{api_public_base_url}{_build_provider_callback_path(provider, api_root_prefix=api_root_prefix)}"
+
+
+def _is_schwab_callback_placeholder(value: str, *, api_root_prefix: str) -> bool:
+    parsed = urlparse(value)
+    if parsed.params or parsed.query or parsed.fragment:
+        return False
+
+    normalized_path = _normalize_path(parsed.path)
+    placeholder_paths = {"/"}
+    if api_root_prefix:
+        placeholder_paths.add(api_root_prefix)
+        placeholder_paths.add(f"{api_root_prefix}/api")
+    else:
+        placeholder_paths.add("/api")
+    return normalized_path in placeholder_paths
+
+
+def _resolve_provider_callback_url(
+    provider: ProviderName,
+    *,
+    api_root_prefix: str,
+    api_public_base_url: str | None,
+    override_url: str | None,
+    override_env_name: str,
+    allow_placeholder_override: bool = False,
+) -> str | None:
+    if override_url:
+        validated_override = _validate_absolute_http_url(override_url, env_name=override_env_name)
+        if not (allow_placeholder_override and _is_schwab_callback_placeholder(validated_override, api_root_prefix=api_root_prefix)):
+            return validated_override
+    return _build_provider_callback_url(
+        provider,
+        api_root_prefix=api_root_prefix,
+        api_public_base_url=api_public_base_url,
+    )
 
 
 def _derive_ui_post_logout_redirect_uri(redirect_uri: str | None) -> str | None:
@@ -295,10 +379,18 @@ class ETradeSettings:
     live_consumer_secret: Optional[str] = None
 
     @staticmethod
-    def from_env() -> "ETradeSettings":
-        callback_url = _get_optional_str("ETRADE_CALLBACK_URL")
-        if callback_url:
-            callback_url = _validate_absolute_http_url(callback_url, env_name="ETRADE_CALLBACK_URL")
+    def from_env(
+        *,
+        api_root_prefix: str = "",
+        api_public_base_url: str | None = None,
+    ) -> "ETradeSettings":
+        callback_url = _resolve_provider_callback_url(
+            "etrade",
+            api_root_prefix=api_root_prefix,
+            api_public_base_url=api_public_base_url,
+            override_url=_get_optional_str("ETRADE_CALLBACK_URL"),
+            override_env_name="ETRADE_CALLBACK_URL",
+        )
 
         settings = ETradeSettings(
             enabled=_get_optional_bool("ETRADE_ENABLED", default=False),
@@ -381,6 +473,8 @@ class IntradayMonitorSettings:
 
 @dataclass(frozen=True)
 class ServiceSettings:
+    api_root_prefix: str
+    api_public_base_url: Optional[str]
     oidc_auth_enabled: bool
     anonymous_local_auth_enabled: bool
     oidc_issuer: Optional[str]
@@ -394,6 +488,7 @@ class ServiceSettings:
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
     quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
+    schwab_callback_url: Optional[str] = None
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
 
@@ -405,8 +500,24 @@ class ServiceSettings:
     def auth_summary(self) -> str:
         return "oidc" if self.oidc_auth_enabled else "anonymous-local"
 
+    def get_provider_callback_path(self, provider: ProviderName) -> str:
+        return _build_provider_callback_path(provider, api_root_prefix=self.api_root_prefix)
+
+    def get_provider_callback_url(self, provider: ProviderName) -> str | None:
+        if provider == "etrade":
+            return self.etrade.callback_url
+        return self.schwab_callback_url
+
     @staticmethod
     def from_env() -> "ServiceSettings":
+        api_root_prefix = _normalize_root_prefix(_get_optional_str("API_ROOT_PREFIX"))
+        api_public_base_url = _get_optional_str("API_PUBLIC_BASE_URL")
+        if api_public_base_url:
+            api_public_base_url = _validate_absolute_http_origin(
+                api_public_base_url,
+                env_name="API_PUBLIC_BASE_URL",
+            )
+
         oidc_issuer = _get_optional_str("API_OIDC_ISSUER")
         oidc_audience = _split_csv(_get_optional_str("API_OIDC_AUDIENCE"))
         oidc_jwks_url = _get_optional_str("API_OIDC_JWKS_URL")
@@ -454,7 +565,18 @@ class ServiceSettings:
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
         quiver = QuiverSettings.from_env()
-        etrade = ETradeSettings.from_env()
+        etrade = ETradeSettings.from_env(
+            api_root_prefix=api_root_prefix,
+            api_public_base_url=api_public_base_url,
+        )
+        schwab_callback_url = _resolve_provider_callback_url(
+            "schwab",
+            api_root_prefix=api_root_prefix,
+            api_public_base_url=api_public_base_url,
+            override_url=_get_optional_str("SCHWAB_APP_CALLBACK_URL"),
+            override_env_name="SCHWAB_APP_CALLBACK_URL",
+            allow_placeholder_override=True,
+        )
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
         ui_oidc_config = {
@@ -467,6 +589,8 @@ class ServiceSettings:
         }
 
         return ServiceSettings(
+            api_root_prefix=api_root_prefix,
+            api_public_base_url=api_public_base_url,
             oidc_auth_enabled=oidc_auth_enabled,
             anonymous_local_auth_enabled=anonymous_local_auth_enabled,
             oidc_issuer=oidc_issuer,
@@ -480,6 +604,7 @@ class ServiceSettings:
             ai_relay=ai_relay,
             quiver=quiver,
             etrade=etrade,
+            schwab_callback_url=schwab_callback_url,
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
         )

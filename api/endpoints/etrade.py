@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from api.openapi_models import ProviderCallbackUrlResponse
 from api.service.auth import AuthContext
-from api.service.dependencies import require_etrade_access, require_etrade_trade_access
+from api.service.dependencies import get_settings, require_etrade_access, require_etrade_trade_access, validate_auth
 from api.service.etrade_gateway import ETradeGateway
 from etrade_provider import (
     ETradeApiError,
@@ -164,6 +165,16 @@ def _split_symbols(value: str) -> list[str]:
     return symbols
 
 
+def _require_provider_callback_url(request: Request) -> str:
+    callback_url = get_settings(request).get_provider_callback_url("etrade")
+    if callback_url:
+        return callback_url
+    raise HTTPException(
+        status_code=503,
+        detail="E*TRADE callback URL is not configured. Set ETRADE_CALLBACK_URL or API_PUBLIC_BASE_URL.",
+    )
+
+
 @router.post("/connect/start")
 def etrade_connect_start(
     payload: ETradeConnectStartRequest,
@@ -207,6 +218,15 @@ def etrade_connect_callback(
         _handle_etrade_error(exc)
         raise
     return JSONResponse(response, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/connect/callback-url", response_model=ProviderCallbackUrlResponse)
+def etrade_connect_callback_url(
+    request: Request,
+    _auth_context: AuthContext = Depends(validate_auth),
+) -> JSONResponse:
+    payload = ProviderCallbackUrlResponse(callback_url=_require_provider_callback_url(request))
+    return JSONResponse(payload.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/session")

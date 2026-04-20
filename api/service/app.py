@@ -31,6 +31,7 @@ from api.endpoints import (
     rankings,
     realtime,
     regimes,
+    schwab,
     strategies,
     system,
     universes,
@@ -387,7 +388,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    api_root_prefix = _normalize_root_prefix(os.environ.get("API_ROOT_PREFIX"))
+    api_root_prefix = app.state.settings.api_root_prefix
     api_prefixes = ["/api"]
     if api_root_prefix:
         api_prefixes.append(f"{api_root_prefix}/api")
@@ -514,6 +515,11 @@ def create_app() -> FastAPI:
             etrade.router,
             prefix=f"{api_prefix}/providers/etrade",
             tags=["ETrade"],
+        )
+        app.include_router(
+            schwab.router,
+            prefix=f"{api_prefix}/providers/schwab",
+            tags=["Schwab"],
         )
 
     @app.get("/healthz")

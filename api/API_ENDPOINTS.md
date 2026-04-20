@@ -58,12 +58,32 @@ API Root
     |   |   |-- /time-series/daily [GET] (alpha_vantage.get_daily_time_series) - Alpha Vantage TIME_SERIES_DAILY CSV :: api/endpoints/alpha_vantage.py
     |   |   |-- /earnings [GET] (alpha_vantage.get_earnings) - Alpha Vantage EARNINGS payload :: api/endpoints/alpha_vantage.py
     |   |   `-- /earnings-calendar [GET] (alpha_vantage.get_earnings_calendar) - Alpha Vantage earnings calendar CSV :: api/endpoints/alpha_vantage.py
-    |   `-- /massive
-    |       |-- /time-series/daily [GET] (massive.get_daily_time_series) - Massive OHLCV CSV normalized to Date,Open,High,Low,Close,Volume :: api/endpoints/massive.py
-    |       |-- /fundamentals/short-interest [GET] (massive.get_short_interest) - Massive short interest payload :: api/endpoints/massive.py
-    |       |-- /fundamentals/short-volume [GET] (massive.get_short_volume) - Massive short volume payload :: api/endpoints/massive.py
-    |       |-- /fundamentals/float [GET] (massive.get_float) - Massive float payload :: api/endpoints/massive.py
-    |       `-- /financials/{report} [GET] (massive.get_finance_report) - Massive financial payload :: api/endpoints/massive.py
+    |   |-- /etrade
+    |   |   |-- /connect/start [POST] (etrade.etrade_connect_start) - Starts E*TRADE OAuth and returns the authorize URL plus callback metadata when configured :: api/endpoints/etrade.py
+    |   |   |-- /connect/complete [POST] (etrade.etrade_connect_complete) - Completes manual E*TRADE OAuth verifier exchange :: api/endpoints/etrade.py
+    |   |   |-- /connect/callback [GET] (etrade.etrade_connect_callback) - Unauthenticated browser callback for E*TRADE OAuth completion :: api/endpoints/etrade.py
+    |   |   |-- /connect/callback-url [GET] (etrade.etrade_connect_callback_url) - Authenticated discovery route that returns the canonical E*TRADE callback URL to register with the provider :: api/endpoints/etrade.py
+    |   |   |-- /session [GET] (etrade.etrade_session) - Returns current E*TRADE connection state :: api/endpoints/etrade.py
+    |   |   |-- /disconnect [POST] (etrade.etrade_disconnect) - Revokes the local E*TRADE session :: api/endpoints/etrade.py
+    |   |   |-- /accounts [GET] (etrade.etrade_accounts) - Lists available E*TRADE accounts :: api/endpoints/etrade.py
+    |   |   |-- /accounts/{account_key}/balance [GET] (etrade.etrade_balance) - Returns account balances :: api/endpoints/etrade.py
+    |   |   |-- /accounts/{account_key}/portfolio [GET] (etrade.etrade_portfolio) - Returns account positions :: api/endpoints/etrade.py
+    |   |   |-- /accounts/{account_key}/transactions [GET] (etrade.etrade_transactions) - Returns account transactions :: api/endpoints/etrade.py
+    |   |   |-- /accounts/{account_key}/transactions/{transaction_id} [GET] (etrade.etrade_transaction_details) - Returns transaction details :: api/endpoints/etrade.py
+    |   |   |-- /quotes [GET] (etrade.etrade_quotes) - Returns E*TRADE quotes :: api/endpoints/etrade.py
+    |   |   |-- /orders [GET] (etrade.etrade_orders) - Returns E*TRADE orders :: api/endpoints/etrade.py
+    |   |   |-- /orders/preview [POST] (etrade.etrade_preview_order) - Previews an E*TRADE order :: api/endpoints/etrade.py
+    |   |   |-- /orders/place [POST] (etrade.etrade_place_order) - Places an E*TRADE order :: api/endpoints/etrade.py
+    |   |   `-- /orders/cancel [POST] (etrade.etrade_cancel_order) - Cancels an E*TRADE order :: api/endpoints/etrade.py
+    |   |-- /massive
+    |   |   |-- /time-series/daily [GET] (massive.get_daily_time_series) - Massive OHLCV CSV normalized to Date,Open,High,Low,Close,Volume :: api/endpoints/massive.py
+    |   |   |-- /fundamentals/short-interest [GET] (massive.get_short_interest) - Massive short interest payload :: api/endpoints/massive.py
+    |   |   |-- /fundamentals/short-volume [GET] (massive.get_short_volume) - Massive short volume payload :: api/endpoints/massive.py
+    |   |   |-- /fundamentals/float [GET] (massive.get_float) - Massive float payload :: api/endpoints/massive.py
+    |   |   `-- /financials/{report} [GET] (massive.get_finance_report) - Massive financial payload :: api/endpoints/massive.py
+    |   `-- /schwab
+    |       |-- /connect/callback [GET] (schwab.schwab_connect_callback) - Unauthenticated browser callback receipt for Schwab OAuth authorization codes :: api/endpoints/schwab.py
+    |       `-- /connect/callback-url [GET] (schwab.schwab_connect_callback_url) - Authenticated discovery route that returns the canonical Schwab callback URL to register with the provider :: api/endpoints/schwab.py
 
     # Raw Data Layer
     |-- /data

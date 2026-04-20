@@ -7024,6 +7024,20 @@
         "title": "PostgresColumnMetadata",
         "type": "object"
       },
+      "ProviderCallbackUrlResponse": {
+        "properties": {
+          "callback_url": {
+            "minLength": 1,
+            "title": "Callback Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "callback_url"
+        ],
+        "title": "ProviderCallbackUrlResponse",
+        "type": "object"
+      },
       "PurgeCandidatesRequest": {
         "properties": {
           "aggregation": {
@@ -9187,6 +9201,23 @@
           "key"
         ],
         "title": "RuntimeConfigUpsertRequest",
+        "type": "object"
+      },
+      "SchwabCallbackReceiptResponse": {
+        "properties": {
+          "authorizationReceived": {
+            "default": true,
+            "title": "Authorizationreceived",
+            "type": "boolean"
+          },
+          "provider": {
+            "const": "schwab",
+            "default": "schwab",
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "title": "SchwabCallbackReceiptResponse",
         "type": "object"
       },
       "StrategyConfig-Output": {
@@ -20232,6 +20263,27 @@
         ]
       }
     },
+    "/api/providers/etrade/connect/callback-url": {
+      "get": {
+        "operationId": "etrade_connect_callback_url_api_providers_etrade_connect_callback_url_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCallbackUrlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Etrade Connect Callback Url",
+        "tags": [
+          "ETrade"
+        ]
+      }
+    },
     "/api/providers/etrade/connect/complete": {
       "post": {
         "operationId": "etrade_connect_complete_api_providers_etrade_connect_complete_post",
@@ -22869,6 +22921,102 @@
         "summary": "Get Live Senate Trading",
         "tags": [
           "Quiver"
+        ]
+      }
+    },
+    "/api/providers/schwab/connect/callback": {
+      "get": {
+        "operationId": "schwab_connect_callback_api_providers_schwab_connect_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchwabCallbackReceiptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Connect Callback",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/connect/callback-url": {
+      "get": {
+        "operationId": "schwab_connect_callback_url_api_providers_schwab_connect_callback_url_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCallbackUrlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Schwab Connect Callback Url",
+        "tags": [
+          "Schwab"
         ]
       }
     },

@@ -279,7 +279,8 @@ class ETradeGateway:
         env = _normalize_environment(environment)
         client = self._client_for(env)
         now = _utc_now()
-        payload = client.fetch_request_token(callback_uri="oob")
+        callback_uri = self._settings.callback_url or "oob"
+        payload = client.fetch_request_token(callback_uri=callback_uri)
         request_token = str(payload.get("oauth_token") or "").strip()
         request_token_secret = str(payload.get("oauth_token_secret") or "").strip()
         if not request_token or not request_token_secret:
@@ -297,12 +298,15 @@ class ETradeGateway:
         with self._lock:
             self._purge_expired_locked(now)
             self._pending_auth[env] = pending
-        return {
+        response = {
             "environment": env,
             "authorize_url": pending.authorize_url,
             "callback_confirmed": pending.callback_confirmed,
             "request_token_expires_at": _isoformat_or_none(pending.expires_at),
         }
+        if self._settings.callback_url:
+            response["callback_url"] = self._settings.callback_url
+        return response
 
     def complete_connect(self, *, environment: str, verifier: str) -> dict[str, Any]:
         env = _normalize_environment(environment)

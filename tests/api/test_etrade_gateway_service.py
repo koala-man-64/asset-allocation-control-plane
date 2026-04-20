@@ -139,16 +139,17 @@ class _FakeClient:
 
 
 def _settings(**overrides) -> ETradeSettings:
-    return ETradeSettings(
-        enabled=True,
-        trading_enabled=True,
-        callback_url="http://localhost:8000/api/providers/etrade/connect/callback",
-        sandbox_consumer_key="sandbox-key",
-        sandbox_consumer_secret="sandbox-secret",
-        live_consumer_key="live-key",
-        live_consumer_secret="live-secret",
-        **overrides,
-    )
+    values = {
+        "enabled": True,
+        "trading_enabled": True,
+        "callback_url": "http://localhost:8000/api/providers/etrade/connect/callback",
+        "sandbox_consumer_key": "sandbox-key",
+        "sandbox_consumer_secret": "sandbox-secret",
+        "live_consumer_key": "live-key",
+        "live_consumer_secret": "live-secret",
+    }
+    values.update(overrides)
+    return ETradeSettings(**values)
 
 
 def _gateway(fake_client: _FakeClient | None = None, **settings_overrides) -> tuple[ETradeGateway, _FakeClient]:
@@ -182,10 +183,23 @@ def test_gateway_connect_flow_sets_request_ttl_and_eastern_midnight_expiry(monke
 
     assert start["request_token_expires_at"] == "2026-04-19T15:05:00Z"
     assert start["callback_confirmed"] is True
-    assert gateway._clients["sandbox"].request_token_callback_uri == "oob"
+    assert start["callback_url"] == "http://localhost:8000/api/providers/etrade/connect/callback"
+    assert gateway._clients["sandbox"].request_token_callback_uri == "http://localhost:8000/api/providers/etrade/connect/callback"
     assert complete["expires_at"] == "2026-04-20T04:00:00Z"
     assert session["connected"] is True
     assert session["token_expires_at"] == "2026-04-20T04:00:00Z"
+
+
+def test_gateway_connect_flow_uses_oob_when_callback_url_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixed_now = datetime(2026, 4, 19, 15, 0, tzinfo=UTC)
+    monkeypatch.setattr(etrade_gateway_module, "_utc_now", lambda: fixed_now)
+
+    gateway, client = _gateway(callback_url=None)
+
+    start = gateway.start_connect(environment="sandbox")
+
+    assert "callback_url" not in start
+    assert client.request_token_callback_uri == "oob"
 
 
 def test_gateway_callback_completion_matches_pending_request_token(monkeypatch: pytest.MonkeyPatch) -> None:

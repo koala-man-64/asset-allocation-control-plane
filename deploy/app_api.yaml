@@ -79,6 +79,12 @@ properties:
         secretRef: backtest-pg-dsn
       - name: API_ROOT_PREFIX
         value: "${API_ROOT_PREFIX}"
+      - name: API_PUBLIC_BASE_URL
+        value: "${API_PUBLIC_BASE_URL}"
+      - name: ETRADE_CALLBACK_URL
+        value: "${ETRADE_CALLBACK_URL}"
+      - name: SCHWAB_APP_CALLBACK_URL
+        value: "${SCHWAB_APP_CALLBACK_URL}"
       - name: API_OIDC_ISSUER
         value: "${API_OIDC_ISSUER}"
       - name: API_OIDC_AUDIENCE

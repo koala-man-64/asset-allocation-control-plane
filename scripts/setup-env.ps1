@@ -693,6 +693,19 @@ function Convert-ToAbsoluteOrigin {
     return $uri.GetLeftPart([System.UriPartial]::Authority).TrimEnd("/")
 }
 
+function Get-ContainerAppIngressOrigin {
+    param([AllowNull()]$App)
+    $fqdn = [string](Get-NestedObjectPropertyValue -Object $App -PropertyPath @("properties", "configuration", "ingress", "fqdn"))
+    if ([string]::IsNullOrWhiteSpace($fqdn)) { return "" }
+    return (Convert-ToAbsoluteOrigin -Value $fqdn -AssumeHttpsHostname)
+}
+
+function Get-ApiPublicBaseUrl {
+    $app = Get-ContainerApp -AppName (Get-ApiContainerAppName)
+    if ($null -eq $app) { return "" }
+    return (Get-ContainerAppIngressOrigin -App $app)
+}
+
 function Join-DistinctCsvValues {
     param([AllowNull()][string[]]$Values)
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -831,6 +844,10 @@ function Get-ContainerAppRuntimeEnvMap {
                 $uiApp = Get-ContainerApp -AppName (Get-UiContainerAppName)
                 $redirectUri = Get-ContainerAppRedirectUri -App $uiApp
                 if (-not [string]::IsNullOrWhiteSpace($redirectUri)) { $map["UI_OIDC_REDIRECT_URI"] = $redirectUri }
+            }
+            if (-not $map.ContainsKey("API_PUBLIC_BASE_URL")) {
+                $apiPublicBaseUrl = Get-ApiPublicBaseUrl
+                if (-not [string]::IsNullOrWhiteSpace($apiPublicBaseUrl)) { $map["API_PUBLIC_BASE_URL"] = $apiPublicBaseUrl }
             }
         }
         $script:ContainerAppRuntimeEnv = $map
@@ -1010,6 +1027,12 @@ function Resolve-DiscoveredValue {
             $origins = Get-ApiCorsAllowOrigins
             if (-not [string]::IsNullOrWhiteSpace($origins)) {
                 return (New-Resolution -Key $Key -Value $origins -Source "azure")
+            }
+        }
+        "API_PUBLIC_BASE_URL" {
+            $origin = Get-ApiPublicBaseUrl
+            if (-not [string]::IsNullOrWhiteSpace($origin)) {
+                return (New-Resolution -Key $Key -Value $origin -Source "azure")
             }
         }
         "CONTRACTS_REPOSITORY" {
