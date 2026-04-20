@@ -54,6 +54,7 @@ massive-flatfiles = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
+    "alpaca*",
     "schwab*",
     "alpha_vantage*",
     "api*",
