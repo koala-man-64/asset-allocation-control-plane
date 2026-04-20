@@ -114,6 +114,18 @@ function Write-NormalizedQuotedScalarWarnings {
     }
 }
 
+function Normalize-EnvValueForKey {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [AllowNull()][string]$Value
+    )
+    $normalized = Normalize-EnvValue -Value $Value
+    if ($Name -like "*_REQUIRED_ROLES") {
+        return ($normalized -replace '^[''"]+', '' -replace '[''"]+$', '')
+    }
+    return $normalized
+}
+
 function Test-TruthyValue {
     param([AllowNull()][string]$Value)
     if ($null -eq $Value) { return $false }
