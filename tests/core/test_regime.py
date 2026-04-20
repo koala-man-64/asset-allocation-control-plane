@@ -54,28 +54,6 @@ def test_classify_regime_row_can_use_noncanonical_transition_band_override() -> 
     )
     assert cold_start["regime_code"] == "unclassified"
     assert cold_start["regime_status"] == "unclassified"
-    assert cold_start["matched_rule_id"] is None
-
-
-def test_classify_regime_row_can_use_noncanonical_transition_band_override() -> None:
-    config = {
-        "highVolEnterThreshold": 28.0,
-        "highVolExitThreshold": 25.0,
-    }
-
-    cold_start = shared_regime.classify_regime_row(
-        {
-            "inputs_complete_flag": True,
-            "return_20d": 0.0,
-            "vix_slope": 0.0,
-            "rvol_10d_ann": 26.5,
-            "vix_spot_close": 24.0,
-            "vix_gt_32_streak": 0,
-        },
-        config=config,
-    )
-    assert cold_start["regime_code"] == "unclassified"
-    assert cold_start["regime_status"] == "unclassified"
     assert cold_start["matched_rule_id"] == "transition_band"
 
     follow_on = shared_regime.classify_regime_row(
