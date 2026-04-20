@@ -150,7 +150,12 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
     assert 'expect_status 401 "https://${fqdn}/api/docs"' in text
     assert 'az account get-access-token \\' in text
-    assert '--scope "api://${API_OIDC_AUDIENCE}/.default" \\' in text
+    assert 'raw_api_oidc_audience="${API_OIDC_AUDIENCE}"' in text
+    assert 'deploy_smoke_scope="${api_oidc_audience}"' in text
+    assert 'deploy_smoke_scope="api://${deploy_smoke_scope}"' in text
+    assert 'deploy_smoke_scope="${deploy_smoke_scope}/.default"' in text
+    assert '--scope "${deploy_smoke_scope}" \\' in text
+    assert 'Normalized quoted API_OIDC_AUDIENCE before deploy smoke token minting.' in text
     assert 'expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/docs"' in text
     assert 'expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/openapi.json"' in text
     assert '-H "Authorization: Bearer ${deploy_smoke_token}" \\' in text

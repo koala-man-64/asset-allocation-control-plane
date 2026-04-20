@@ -266,10 +266,38 @@ jobs:
           else
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/healthz" > /dev/null
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused "https://${fqdn}/readyz" > /dev/null
-            : "${API_OIDC_AUDIENCE:?API_OIDC_AUDIENCE is required for protected endpoint smoke tests.}"
+            raw_api_oidc_audience="${API_OIDC_AUDIENCE}"
+            api_oidc_audience="${raw_api_oidc_audience}"
+            if [ "${api_oidc_audience#\"}" != "${api_oidc_audience}" ] && [ "${api_oidc_audience%\"}" != "${api_oidc_audience}" ]; then
+              api_oidc_audience="${api_oidc_audience#\"}"
+              api_oidc_audience="${api_oidc_audience%\"}"
+            fi
+            if [ "${api_oidc_audience#\'}" != "${api_oidc_audience}" ] && [ "${api_oidc_audience%\'}" != "${api_oidc_audience}" ]; then
+              api_oidc_audience="${api_oidc_audience#\'}"
+              api_oidc_audience="${api_oidc_audience%\'}"
+            fi
+            : "${api_oidc_audience:?API_OIDC_AUDIENCE is required for protected endpoint smoke tests.}"
+            deploy_smoke_scope="${api_oidc_audience}"
+            case "${deploy_smoke_scope}" in
+              api://*)
+                ;;
+              *)
+                deploy_smoke_scope="api://${deploy_smoke_scope}"
+                ;;
+            esac
+            case "${deploy_smoke_scope}" in
+              */.default)
+                ;;
+              *)
+                deploy_smoke_scope="${deploy_smoke_scope}/.default"
+                ;;
+            esac
+            if [ "${raw_api_oidc_audience}" != "${api_oidc_audience}" ]; then
+              echo "Normalized quoted API_OIDC_AUDIENCE before deploy smoke token minting." >&2
+            fi
             deploy_smoke_token="$(
               az account get-access-token \
-                --scope "api://${API_OIDC_AUDIENCE}/.default" \
+                --scope "${deploy_smoke_scope}" \
                 --query accessToken \
                 -o tsv \
                 --only-show-errors
