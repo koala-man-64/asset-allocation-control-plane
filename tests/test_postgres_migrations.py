@@ -39,6 +39,23 @@ def test_move_public_tables_to_core_handles_prior_public_symbols_shape() -> None
     )
 
 
+def test_regime_monitor_seed_uses_canonical_v2_semantics() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0026_regime_monitor.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert '"highVolEnterThreshold": 28.0' in text
+    assert '"highVolExitThreshold": 28.0' in text
+    assert '"highVolExitThreshold": 25.0' not in text
+
+
 def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "data" / "apply_postgres_migrations.ps1"

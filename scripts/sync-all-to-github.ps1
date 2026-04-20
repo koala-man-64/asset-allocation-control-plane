@@ -40,8 +40,43 @@ function Test-TruthyValue {
 function Normalize-EnvValue {
     param([AllowNull()][string]$Value)
     if ($null -eq $Value) { return "" }
-    $candidate = $Value.Trim()
-    return ($candidate -replace '^[''"]+', '' -replace '[''"]+$', '').Trim()
+    return $Value.Trim()
+}
+
+function Register-NormalizedQuotedScalarValue {
+    param([Parameter(Mandatory = $true)][string]$Key)
+    if ([string]::IsNullOrWhiteSpace($Key)) { return }
+    if (-not $script:NormalizedQuotedScalarValues.ContainsKey($Key)) {
+        $script:NormalizedQuotedScalarValues[$Key] = $true
+    }
+}
+
+function Normalize-QuotedScalarValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [AllowNull()][string]$Value
+    )
+    $candidate = Normalize-EnvValue -Value $Value
+    if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate.Length -lt 2) { return $candidate }
+
+    $quote = $candidate.Substring(0, 1)
+    if (($quote -ne '"' -and $quote -ne "'") -or $candidate.Substring($candidate.Length - 1, 1) -ne $quote) {
+        return $candidate
+    }
+
+    $inner = $candidate.Substring(1, $candidate.Length - 2).Trim()
+    if ([string]::IsNullOrWhiteSpace($inner)) { return $candidate }
+    if ($inner.Contains("\n")) { return $candidate }
+    if ($inner.StartsWith("{") -or $inner.StartsWith("[")) { return $candidate }
+
+    Register-NormalizedQuotedScalarValue -Key $Key
+    return $inner
+}
+
+function Write-NormalizedQuotedScalarWarnings {
+    foreach ($key in ($script:NormalizedQuotedScalarValues.Keys | Sort-Object)) {
+        Write-Warning ("Normalized quoted scalar value for {0} from .env.web before GitHub sync." -f $key)
+    }
 }
 
 function Resolve-ManagedIdentityClientId {
@@ -117,10 +152,18 @@ function Get-RequirementLevel {
 if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scripts/setup-env.ps1 first." }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) is required to sync vars and secrets." }
 
+$script:NormalizedQuotedScalarValues = @{}
 $envMap = Parse-EnvFile -Path $envPath
+$normalizedEnvMap = @{}
+foreach ($key in $envMap.Keys) {
+    $normalizedEnvMap[$key] = Normalize-QuotedScalarValue -Key $key -Value $envMap[$key]
+}
+$envMap = $normalizedEnvMap
 $contractMap = Load-EnvContract -Path $contractPath
 $undocumented = @($envMap.Keys | Where-Object { -not $contractMap.ContainsKey($_) } | Sort-Object -Unique)
 if ($undocumented.Count -gt 0) { throw ".env.web contains undocumented keys: $($undocumented -join ', ')" }
+
+Write-NormalizedQuotedScalarWarnings
 
 $aiRelayEnabled = $false
 if ($envMap.ContainsKey("AI_RELAY_ENABLED")) {

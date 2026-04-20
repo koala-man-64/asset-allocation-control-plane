@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import importlib.util
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 
 def _load_dependency_governance_module():
@@ -62,3 +65,65 @@ def test_validate_shared_dependency_compatibility_accepts_matching_versions() ->
     )
 
     assert incompatibility is None
+
+
+def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None:
+    dependency_governance = _load_dependency_governance_module()
+    pyproject_path = tmp_path / "pyproject.toml"
+    pyproject_path.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "asset-allocation-control-plane"',
+                'version = "0.1.0"',
+                "dependencies = [",
+                '    "asset-allocation-contracts==2.4.0",',
+                '    "asset-allocation-runtime-common==2.0.9",',
+                '    "fastapi==0.133.1",',
+                "]",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    version_matrix = dependency_governance.read_shared_version_matrix(pyproject_path)
+
+    assert version_matrix == {
+        "contracts_version": "2.4.0",
+        "runtime_common_version": "2.0.9",
+        "control_plane_version": "0.1.0",
+    }
+
+
+def test_command_emit_shared_versions_writes_env_lines(tmp_path: Path) -> None:
+    dependency_governance = _load_dependency_governance_module()
+    pyproject_path = tmp_path / "pyproject.toml"
+    pyproject_path.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "asset-allocation-control-plane"',
+                'version = "0.2.0"',
+                "dependencies = [",
+                '    "asset-allocation-contracts==9.9.9",',
+                '    "asset-allocation-runtime-common==8.8.8",',
+                "]",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    stdout = io.StringIO()
+    with contextlib.redirect_stdout(stdout):
+        exit_code = dependency_governance.command_emit_shared_versions(
+            SimpleNamespace(pyproject=pyproject_path, format="env")
+        )
+
+    assert exit_code == 0
+    assert stdout.getvalue().strip().splitlines() == [
+        "contracts_version=9.9.9",
+        "runtime_common_version=8.8.8",
+        "control_plane_version=0.2.0",
+    ]
