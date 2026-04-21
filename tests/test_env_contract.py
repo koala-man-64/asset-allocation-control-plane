@@ -412,6 +412,56 @@ else:
     assert values["ALPHA_VANTAGE_API_KEY"] == ""
 
 
+def test_setup_env_treats_existing_placeholder_values_as_unset(tmp_path: Path) -> None:
+    env_file = tmp_path / "placeholder.env.web"
+    write_env_file(
+        env_file,
+        build_contract_env_values(
+            {
+                "API_PUBLIC_BASE_URL": "${API_PUBLIC_BASE_URL}",
+                "ETRADE_CALLBACK_URL": "${ETRADE_CALLBACK_URL}",
+                "SYMBOL_ENRICHMENT_ALLOWED_JOBS": "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}",
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+    write_stub_command(stub_dir, "az", 'print("[]")')
+
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-DryRun",
+            "-EnvFilePath",
+            str(env_file),
+        ],
+        cwd=repo_root(),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    combined_output = completed.stdout + completed.stderr
+    assert "${API_PUBLIC_BASE_URL}" not in combined_output
+    assert "${ETRADE_CALLBACK_URL}" not in combined_output
+    assert "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}" not in combined_output
+    assert "API_PUBLIC_BASE_URL=" in completed.stdout
+    assert "ETRADE_CALLBACK_URL=" in completed.stdout
+    assert "SYMBOL_ENRICHMENT_ALLOWED_JOBS=" in completed.stdout
+    assert "Ignored unresolved placeholder value for API_PUBLIC_BASE_URL from placeholder.env.web." in combined_output
+    assert "Ignored unresolved placeholder value for ETRADE_CALLBACK_URL from placeholder.env.web." in combined_output
+    assert "Ignored unresolved placeholder value for SYMBOL_ENRICHMENT_ALLOWED_JOBS from placeholder.env.web." in combined_output
+
+
 def test_ai_relay_smoke_tokens_are_documented_as_secrets() -> None:
     contract = contract_map()
     assert contract["AI_RELAY_SMOKE_BEARER_TOKEN"]["github_storage"] == "secret"
@@ -507,6 +557,98 @@ else:
     assert "Normalized quoted scalar value for AI_RELAY_REQUIRED_ROLES from .env.web before GitHub sync." in combined_output
     assert "Normalized quoted scalar value for UI_OIDC_CLIENT_ID from .env.web before GitHub sync." in combined_output
     assert "Normalized quoted scalar value for AZURE_CLIENT_ID from .env.web before GitHub sync." in combined_output
+
+
+def test_sync_script_treats_unresolved_placeholders_as_blank_values(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values(
+            {
+                "API_PUBLIC_BASE_URL": "${API_PUBLIC_BASE_URL}",
+                "ETRADE_CALLBACK_URL": "${ETRADE_CALLBACK_URL}",
+                "SYMBOL_ENRICHMENT_ALLOWED_JOBS": "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}",
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    gh_log_path = tmp_path / "gh-placeholder-log.jsonl"
+    write_stub_command(
+        stub_dir,
+        "gh",
+        f"""
+from pathlib import Path
+
+log_path = Path(r\"\"\"{gh_log_path}\"\"\")
+payload = sys.stdin.read().rstrip("\\r\\n")
+if args[:2] == ["variable", "set"] or args[:2] == ["secret", "set"]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({{"kind": args[0], "name": args[2], "value": payload}}) + "\\n")
+elif args[:2] == ["variable", "list"] or args[:2] == ["secret", "list"]:
+    print("")
+else:
+    print("")
+""".strip(),
+    )
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("other-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    combined_output = completed.stdout + completed.stderr
+    records = []
+    if gh_log_path.exists():
+        records = [
+            json.loads(line)
+            for line in gh_log_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    assert all(record["name"] != "API_PUBLIC_BASE_URL" for record in records)
+    assert all(record["name"] != "ETRADE_CALLBACK_URL" for record in records)
+    assert all(record["name"] != "SYMBOL_ENRICHMENT_ALLOWED_JOBS" for record in records)
+    assert "Skipping empty var: API_PUBLIC_BASE_URL" in combined_output
+    assert "Skipping empty var: ETRADE_CALLBACK_URL" in combined_output
+    assert "Skipping empty var: SYMBOL_ENRICHMENT_ALLOWED_JOBS" in combined_output
+    assert "Ignored unresolved placeholder value for API_PUBLIC_BASE_URL from .env.web before GitHub sync." in combined_output
+    assert "Ignored unresolved placeholder value for ETRADE_CALLBACK_URL from .env.web before GitHub sync." in combined_output
+    assert "Ignored unresolved placeholder value for SYMBOL_ENRICHMENT_ALLOWED_JOBS from .env.web before GitHub sync." in combined_output
 
 
 def test_sync_script_deletes_blank_placeholder_variables(tmp_path: Path) -> None:
