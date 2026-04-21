@@ -234,6 +234,26 @@ jobs:
           private-key: ${{ secrets.DISPATCH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
+      - name: Dispatch released API image to control-plane prod deploy
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.image_digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/dispatches" \
+            --method POST \
+            --input - <<EOF
+          {
+            "event_type": "deploy_runtime",
+            "client_payload": {
+              "image_digest": "${IMAGE_DIGEST}",
+              "contracts_version": "${{ steps.shared.outputs.contracts_version }}",
+              "reason": "release workflow ${GITHUB_RUN_ID} deploying ${GITHUB_SHA}"
+            }
+          }
+          EOF
+
       - name: Dispatch control-plane release to jobs
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -270,5 +290,6 @@ jobs:
             echo "- Contracts: \`${{ steps.shared.outputs.contracts_version }}\`"
             echo "- Runtime common: \`${{ steps.shared.outputs.runtime_common_version }}\`"
             echo "- Manifest: \`artifacts/release-manifest.json\`"
+            echo "- Downstream dispatch: \`deploy_runtime\` to control-plane prod deploy"
             echo "- Downstream dispatch: \`control_plane_released\` to jobs"
           } >> "${GITHUB_STEP_SUMMARY}"

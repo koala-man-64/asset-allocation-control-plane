@@ -132,6 +132,21 @@ def test_release_workflow_runs_preflight_before_export_and_build() -> None:
     assert "-Scenario Release" in text
 
 
+def test_release_workflow_dispatches_control_plane_prod_before_jobs() -> None:
+    text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "- name: Dispatch released API image to control-plane prod deploy" in text
+    assert 'gh api "repos/${GITHUB_REPOSITORY}/dispatches" \\' in text
+    assert '"event_type": "deploy_runtime",' in text
+    assert '"image_digest": "${IMAGE_DIGEST}"' in text
+    assert '"contracts_version": "${{ steps.shared.outputs.contracts_version }}"' in text
+    assert '"reason": "release workflow ${GITHUB_RUN_ID} deploying ${GITHUB_SHA}"' in text
+    assert text.index("- name: Dispatch released API image to control-plane prod deploy") < text.index(
+        "- name: Dispatch control-plane release to jobs"
+    )
+    assert 'echo "- Downstream dispatch: \\`deploy_runtime\\` to control-plane prod deploy"' in text
+    assert 'echo "- Downstream dispatch: \\`control_plane_released\\` to jobs"' in text
+
+
 def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
     assert "workflow_dispatch:\n  repository_dispatch:" in text
