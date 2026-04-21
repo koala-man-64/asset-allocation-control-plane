@@ -3,6 +3,7 @@ from typing import Any, Dict
 from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
 
+from api.service.alpaca_gateway import AlpacaGateway
 from api.service.auth import AuthContext, AuthManager, summarize_auth_claims_for_logs
 from api.service.etrade_gateway import ETradeGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
@@ -27,6 +28,10 @@ def get_ai_relay_gateway(request: Request) -> OpenAIResponsesGateway:
 
 def get_etrade_gateway(request: Request) -> ETradeGateway:
     return request.app.state.etrade_gateway
+
+
+def get_alpaca_gateway(request: Request) -> AlpacaGateway:
+    return request.app.state.alpaca_gateway
 
 
 def get_system_health_cache(request: Request) -> TtlCache[Dict[str, Any]]:
@@ -193,6 +198,30 @@ def require_etrade_trade_access(request: Request) -> AuthContext:
         auth_context=auth_context,
         required_roles=settings.trading_required_roles,
         log_prefix="E*TRADE trade",
+    )
+    return auth_context
+
+
+def require_alpaca_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).alpaca
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Alpaca",
+    )
+    return auth_context
+
+
+def require_alpaca_trade_access(request: Request) -> AuthContext:
+    auth_context = require_alpaca_access(request)
+    settings = get_settings(request).alpaca
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.trading_required_roles,
+        log_prefix="Alpaca trade",
     )
     return auth_context
 

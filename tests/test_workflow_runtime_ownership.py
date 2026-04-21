@@ -183,6 +183,21 @@ def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> Non
     assert "AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN" in text
 
 
+def test_deploy_workflow_includes_alpaca_runtime_env_and_secrets() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "ALPACA_TIMEOUT_SECONDS: ${{ vars.ALPACA_TIMEOUT_SECONDS || '10' }}" in text
+    assert "ALPACA_MAX_RETRIES: ${{ vars.ALPACA_MAX_RETRIES || '2' }}" in text
+    assert "ALPACA_BACKOFF_BASE_SECONDS: ${{ vars.ALPACA_BACKOFF_BASE_SECONDS || '0.25' }}" in text
+    assert "ALPACA_REQUIRED_ROLES: ${{ vars.ALPACA_REQUIRED_ROLES }}" in text
+    assert "ALPACA_TRADING_REQUIRED_ROLES: ${{ vars.ALPACA_TRADING_REQUIRED_ROLES || 'AssetAllocation.Alpaca.Trade' }}" in text
+    assert "ALPACA_PAPER_TRADING_BASE_URL: ${{ vars.ALPACA_PAPER_TRADING_BASE_URL || 'https://paper-api.alpaca.markets' }}" in text
+    assert "ALPACA_LIVE_TRADING_BASE_URL: ${{ vars.ALPACA_LIVE_TRADING_BASE_URL || 'https://api.alpaca.markets' }}" in text
+    assert "ALPACA_PAPER_API_KEY_ID: ${{ secrets.ALPACA_PAPER_API_KEY_ID }}" in text
+    assert "ALPACA_PAPER_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}" in text
+    assert "ALPACA_LIVE_API_KEY_ID: ${{ secrets.ALPACA_LIVE_API_KEY_ID }}" in text
+    assert "ALPACA_LIVE_SECRET_KEY: ${{ secrets.ALPACA_LIVE_SECRET_KEY }}" in text
+
+
 def test_deploy_workflow_exports_manifest_runtime_env_surface() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
     assert "API_PUBLIC_BASE_URL: ${{ vars.API_PUBLIC_BASE_URL }}" in text

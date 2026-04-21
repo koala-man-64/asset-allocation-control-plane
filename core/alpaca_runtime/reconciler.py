@@ -3,8 +3,8 @@ import logging
 import os
 
 from alpaca.config import AlpacaConfig
-from alpaca.state import StateManager
 from alpaca.trading_rest import AlpacaTradingClient
+from core.alpaca_runtime.state import StateManager
 
 logger = logging.getLogger(__name__)
 

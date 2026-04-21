@@ -58,6 +58,17 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         return {entry["name"] for entry in env}
 
     expected_envs = {
+        "ALPACA_TIMEOUT_SECONDS",
+        "ALPACA_MAX_RETRIES",
+        "ALPACA_BACKOFF_BASE_SECONDS",
+        "ALPACA_REQUIRED_ROLES",
+        "ALPACA_TRADING_REQUIRED_ROLES",
+        "ALPACA_PAPER_TRADING_BASE_URL",
+        "ALPACA_PAPER_API_KEY_ID",
+        "ALPACA_PAPER_SECRET_KEY",
+        "ALPACA_LIVE_TRADING_BASE_URL",
+        "ALPACA_LIVE_API_KEY_ID",
+        "ALPACA_LIVE_SECRET_KEY",
         "AI_RELAY_ENABLED",
         "AI_RELAY_MODEL",
         "AI_RELAY_REASONING_EFFORT",
@@ -76,6 +87,14 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "SYMBOL_ENRICHMENT_ALLOWED_JOBS",
     }
 
+    assert "alpaca-paper-api-key-id" in _secret_names(public_doc)
+    assert "alpaca-paper-secret-key" in _secret_names(public_doc)
+    assert "alpaca-live-api-key-id" in _secret_names(public_doc)
+    assert "alpaca-live-secret-key" in _secret_names(public_doc)
+    assert "alpaca-paper-api-key-id" in _secret_names(private_doc)
+    assert "alpaca-paper-secret-key" in _secret_names(private_doc)
+    assert "alpaca-live-api-key-id" in _secret_names(private_doc)
+    assert "alpaca-live-secret-key" in _secret_names(private_doc)
     assert "ai-relay-api-key" in _secret_names(public_doc)
     assert "ai-relay-api-key" in _secret_names(private_doc)
     assert expected_envs <= _env_names(public_doc)

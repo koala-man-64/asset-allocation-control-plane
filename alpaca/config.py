@@ -73,6 +73,40 @@ class HttpConfig:
 
 
 @dataclass(frozen=True)
+class AlpacaEnvironmentConfig:
+    environment: Literal["paper", "live"]
+    api_key: str
+    api_secret: str
+    trading_base_url: Optional[str] = None
+    trading_ws_url: Optional[str] = None
+    http: HttpConfig = field(default_factory=HttpConfig)
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.api_secret)
+
+    def get_api_key(self) -> str:
+        return self.api_key
+
+    def get_api_secret(self) -> str:
+        return self.api_secret
+
+    def get_trading_base_url(self) -> str:
+        if self.trading_base_url:
+            return str(self.trading_base_url).rstrip("/")
+        return "https://paper-api.alpaca.markets" if self.environment == "paper" else "https://api.alpaca.markets"
+
+    def get_trading_ws_url(self) -> str:
+        if self.trading_ws_url:
+            return str(self.trading_ws_url).rstrip("/")
+        return (
+            "wss://paper-api.alpaca.markets/stream"
+            if self.environment == "paper"
+            else "wss://api.alpaca.markets/stream"
+        )
+
+
+@dataclass(frozen=True)
 class ReconcileConfig:
     poll_interval_s: float = 30.0
     full_resync_interval_s: float = 300.0
@@ -133,12 +167,12 @@ class AlpacaConfig:
 
     def get_trading_base_url(self) -> str:
         if self.trading_base_url:
-            return self.trading_base_url
+            return str(self.trading_base_url).rstrip("/")
         return "https://paper-api.alpaca.markets" if self.env == "paper" else "https://api.alpaca.markets"
 
     def get_trading_ws_url(self) -> str:
         if self.trading_ws_url:
-            return self.trading_ws_url
+            return str(self.trading_ws_url).rstrip("/")
         return "wss://paper-api.alpaca.markets/stream" if self.env == "paper" else "wss://api.alpaca.markets/stream"
 
 
@@ -164,6 +198,8 @@ class ExecutionConfig:
             raise ValueError("execution.default_order_type must be market or limit.")
 
         time_in_force = data.get("time_in_force", "day")
+        if time_in_force not in {"day", "gtc", "opg"}:
+            raise ValueError("execution.time_in_force must be day, gtc, or opg.")
 
         return ExecutionConfig(
             allow_fractional_shares=bool(data.get("allow_fractional_shares", True)),

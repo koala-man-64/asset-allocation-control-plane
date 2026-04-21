@@ -26,6 +26,14 @@ properties:
       value: "${MASSIVE_API_KEY}"
     - name: backtest-pg-dsn
       value: "${POSTGRES_DSN}"
+    - name: alpaca-paper-api-key-id
+      value: "${ALPACA_PAPER_API_KEY_ID}"
+    - name: alpaca-paper-secret-key
+      value: "${ALPACA_PAPER_SECRET_KEY}"
+    - name: alpaca-live-api-key-id
+      value: "${ALPACA_LIVE_API_KEY_ID}"
+    - name: alpaca-live-secret-key
+      value: "${ALPACA_LIVE_SECRET_KEY}"
     - name: ai-relay-api-key
       value: "${AI_RELAY_API_KEY}"
   template:
@@ -75,6 +83,28 @@ properties:
         value: "${MASSIVE_BASE_URL}"
       - name: MASSIVE_TIMEOUT_SECONDS
         value: "${MASSIVE_TIMEOUT_SECONDS}"
+      - name: ALPACA_TIMEOUT_SECONDS
+        value: "${ALPACA_TIMEOUT_SECONDS}"
+      - name: ALPACA_MAX_RETRIES
+        value: "${ALPACA_MAX_RETRIES}"
+      - name: ALPACA_BACKOFF_BASE_SECONDS
+        value: "${ALPACA_BACKOFF_BASE_SECONDS}"
+      - name: ALPACA_REQUIRED_ROLES
+        value: "${ALPACA_REQUIRED_ROLES}"
+      - name: ALPACA_TRADING_REQUIRED_ROLES
+        value: "${ALPACA_TRADING_REQUIRED_ROLES}"
+      - name: ALPACA_PAPER_TRADING_BASE_URL
+        value: "${ALPACA_PAPER_TRADING_BASE_URL}"
+      - name: ALPACA_PAPER_API_KEY_ID
+        secretRef: alpaca-paper-api-key-id
+      - name: ALPACA_PAPER_SECRET_KEY
+        secretRef: alpaca-paper-secret-key
+      - name: ALPACA_LIVE_TRADING_BASE_URL
+        value: "${ALPACA_LIVE_TRADING_BASE_URL}"
+      - name: ALPACA_LIVE_API_KEY_ID
+        secretRef: alpaca-live-api-key-id
+      - name: ALPACA_LIVE_SECRET_KEY
+        secretRef: alpaca-live-secret-key
       - name: POSTGRES_DSN
         secretRef: backtest-pg-dsn
       - name: API_ROOT_PREFIX

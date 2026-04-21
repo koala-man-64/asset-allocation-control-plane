@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from alpaca.reconciler import Reconciler
+from core.alpaca_runtime.reconciler import Reconciler
 
 @pytest.mark.asyncio
 async def test_reconciler_bootstrap():

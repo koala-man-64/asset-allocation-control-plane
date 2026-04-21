@@ -98,10 +98,15 @@ jobs:
           set -euo pipefail
           cd asset-allocation-control-plane
           python -m pytest \
+            tests/api/test_alpaca_endpoints.py \
+            tests/api/test_alpaca_gateway.py \
             tests/api/test_ai_chat_stream.py \
             tests/api/test_ai_gateway_service.py \
             tests/api/test_config_js_contract.py \
+            tests/api/test_etrade_endpoints.py \
             tests/api/test_internal_endpoints.py \
+            tests/api/test_service_settings_oidc.py \
+            tests/alpaca \
             -q
 
       - name: Run startup smoke
@@ -115,6 +120,43 @@ jobs:
           assert app.openapi()
           print("control-plane startup smoke passed")
           PY
+
+      - name: Run packaging smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          python -m pip install build
+          python -m pip install -e . --no-deps
+          rm -rf build dist
+          python -m build --wheel --sdist
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel_path = next(Path("dist").glob("*.whl"))
+          legacy_entries = {
+              "alpaca/price_cache.py",
+              "alpaca/reconciler.py",
+              "alpaca/state.py",
+              "alpaca/execution/__init__.py",
+              "alpaca/execution/execution_service.py",
+              "alpaca/execution/order_factory.py",
+              "alpaca/execution/rebalance_planner.py",
+          }
+          with ZipFile(wheel_path) as wheel:
+              names = set(wheel.namelist())
+          leaking = sorted(legacy_entries & names)
+          if leaking:
+              raise SystemExit(f"legacy Alpaca runtime modules leaked into wheel: {leaking}")
+          print(f"packaging smoke passed: {wheel_path.name}")
+          PY
+
+      - name: Run container build smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -f asset-allocation-control-plane/Dockerfile.asset_allocation_api .
 
       - name: Check contract artifacts are current
         shell: bash

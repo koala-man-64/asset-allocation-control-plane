@@ -2,7 +2,7 @@ import hashlib
 from typing import Any
 
 from alpaca.config import ExecutionConfig
-from alpaca.execution.rebalance_planner import PlannedOrder
+from core.alpaca_runtime.execution.rebalance_planner import PlannedOrder
 
 
 class OrderFactory:

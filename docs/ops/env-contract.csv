@@ -71,6 +71,13 @@ ETRADE_IDLE_RENEW_SECONDS,deploy_var,var,deploy_config,true,Idle threshold in se
 ETRADE_SESSION_EXPIRY_GUARD_SECONDS,deploy_var,var,deploy_config,true,Safety guard window in seconds before Eastern-midnight token expiry where preview or trade requests are blocked.
 ETRADE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific roles required for E*TRADE read access.
 ETRADE_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for E*TRADE preview, place, and cancel access.
+ALPACA_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound Alpaca Trading API requests.
+ALPACA_MAX_RETRIES,deploy_var,var,deploy_config,true,Maximum retry attempts for retryable Alpaca GET requests.
+ALPACA_BACKOFF_BASE_SECONDS,deploy_var,var,deploy_config,true,Base backoff in seconds between retryable Alpaca GET requests.
+ALPACA_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific roles required for Alpaca read access.
+ALPACA_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Alpaca submit, replace, and cancel access.
+ALPACA_PAPER_TRADING_BASE_URL,deploy_var,var,deploy_config,true,Optional paper Alpaca Trading API base URL override.
+ALPACA_LIVE_TRADING_BASE_URL,deploy_var,var,deploy_config,true,Optional live Alpaca Trading API base URL override.
 SYMBOL_ENRICHMENT_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the symbol cleanup and AI enrichment workflow.
 SYMBOL_ENRICHMENT_MODEL,deploy_var,var,deploy_config,true,Deploy-time fixed OpenAI model used by symbol enrichment resolve.
 SYMBOL_ENRICHMENT_CONFIDENCE_MIN,deploy_var,var,deploy_config,true,Minimum AI confidence accepted by internal symbol enrichment resolve.
@@ -125,6 +132,10 @@ ETRADE_SANDBOX_CONSUMER_KEY,secret,secret,secret_store,true,E*TRADE sandbox cons
 ETRADE_SANDBOX_CONSUMER_SECRET,secret,secret,secret_store,true,E*TRADE sandbox consumer secret for OAuth 1.0a login and sandbox API calls.
 ETRADE_LIVE_CONSUMER_KEY,secret,secret,secret_store,true,E*TRADE live consumer key for OAuth 1.0a login and live API calls.
 ETRADE_LIVE_CONSUMER_SECRET,secret,secret,secret_store,true,E*TRADE live consumer secret for OAuth 1.0a login and live API calls.
+ALPACA_PAPER_API_KEY_ID,secret,secret,secret_store,true,Alpaca paper Trading API key id for simulated trading requests.
+ALPACA_PAPER_SECRET_KEY,secret,secret,secret_store,true,Alpaca paper Trading API secret key for simulated trading requests.
+ALPACA_LIVE_API_KEY_ID,secret,secret,secret_store,true,Alpaca live Trading API key id for live brokerage requests.
+ALPACA_LIVE_SECRET_KEY,secret,secret,secret_store,true,Alpaca live Trading API secret key for live brokerage requests.
 AZURE_STORAGE_CONNECTION_STRING,secret,secret,secret_store,true,Storage connection string. Never auto-discovered.
 DISPATCH_APP_PRIVATE_KEY,secret,secret,secret_store,true,GitHub App private key with literal newline escapes or base64 encoding.
 RUN_LIVE_MASSIVE_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in for live Massive integration tests. Keep false unless intentionally exercising live Massive APIs.

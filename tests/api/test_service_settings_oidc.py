@@ -175,6 +175,55 @@ def test_etrade_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.etrade.live_consumer_secret == "live-secret"
 
 
+def test_alpaca_settings_allow_unconfigured_environments(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ALPACA_PAPER_API_KEY_ID", raising=False)
+    monkeypatch.delenv("ALPACA_PAPER_SECRET_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_LIVE_API_KEY_ID", raising=False)
+    monkeypatch.delenv("ALPACA_LIVE_SECRET_KEY", raising=False)
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.alpaca.paper_configured is False
+    assert settings.alpaca.live_configured is False
+
+
+def test_alpaca_settings_require_paper_credentials_together(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY_ID", "paper-key")
+    monkeypatch.delenv("ALPACA_PAPER_SECRET_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="ALPACA_PAPER_API_KEY_ID and ALPACA_PAPER_SECRET_KEY are required together."):
+        ServiceSettings.from_env()
+
+
+def test_alpaca_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ALPACA_TIMEOUT_SECONDS", "12")
+    monkeypatch.setenv("ALPACA_MAX_RETRIES", "3")
+    monkeypatch.setenv("ALPACA_BACKOFF_BASE_SECONDS", "0.5")
+    monkeypatch.setenv("ALPACA_REQUIRED_ROLES", "AssetAllocation.Alpaca.Read")
+    monkeypatch.setenv("ALPACA_TRADING_REQUIRED_ROLES", "AssetAllocation.Alpaca.Trade,AssetAllocation.Admin")
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY_ID", "paper-key")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_PAPER_TRADING_BASE_URL", "https://paper-api.alpaca.markets")
+    monkeypatch.setenv("ALPACA_LIVE_API_KEY_ID", "live-key")
+    monkeypatch.setenv("ALPACA_LIVE_SECRET_KEY", "live-secret")
+    monkeypatch.setenv("ALPACA_LIVE_TRADING_BASE_URL", "https://api.alpaca.markets")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.alpaca.timeout_seconds == pytest.approx(12.0)
+    assert settings.alpaca.max_retries == 3
+    assert settings.alpaca.backoff_base_seconds == pytest.approx(0.5)
+    assert settings.alpaca.required_roles == ["AssetAllocation.Alpaca.Read"]
+    assert settings.alpaca.trading_required_roles == [
+        "AssetAllocation.Alpaca.Trade",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.alpaca.paper_configured is True
+    assert settings.alpaca.live_configured is True
+    assert settings.alpaca.paper_trading_base_url == "https://paper-api.alpaca.markets"
+    assert settings.alpaca.live_trading_base_url == "https://api.alpaca.markets"
+
+
 def test_api_public_base_url_accepts_origin_without_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
 

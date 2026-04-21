@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 
 from api.endpoints import (
     ai,
+    alpaca,
     auth,
     alpha_vantage,
     backtests,
@@ -38,6 +39,7 @@ from api.endpoints import (
     universes,
 )
 from api.service.auth import AuthManager
+from api.service.alpaca_gateway import AlpacaGateway
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
 from api.service.dependencies import validate_auth
 from api.service.etrade_gateway import ETradeGateway
@@ -189,6 +191,8 @@ def create_app() -> FastAPI:
             app.state.quiver_gateway = QuiverGateway(settings.quiver)
         if not hasattr(app.state, "etrade_gateway"):
             app.state.etrade_gateway = ETradeGateway(settings.etrade)
+        if not hasattr(app.state, "alpaca_gateway"):
+            app.state.alpaca_gateway = AlpacaGateway(settings.alpaca)
         if not hasattr(app.state, "ai_relay_gateway"):
             app.state.ai_relay_gateway = OpenAIResponsesGateway(settings.ai_relay)
         if not hasattr(app.state, "log_stream_manager"):
@@ -338,6 +342,11 @@ def create_app() -> FastAPI:
 
         try:
             app.state.etrade_gateway.close()
+        except Exception:
+            pass
+
+        try:
+            app.state.alpaca_gateway.close()
         except Exception:
             pass
 
@@ -542,6 +551,11 @@ def create_app() -> FastAPI:
             quiver.router,
             prefix=f"{api_prefix}/providers/quiver",
             tags=["Quiver"],
+        )
+        app.include_router(
+            alpaca.router,
+            prefix=f"{api_prefix}/providers/alpaca",
+            tags=["Alpaca"],
         )
         app.include_router(
             etrade.router,

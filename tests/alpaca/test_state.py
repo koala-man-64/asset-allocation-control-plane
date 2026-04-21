@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from alpaca.models import (
     BrokerageState, AlpacaAccount, AlpacaOrder, TradeUpdateEvent
 )
-from alpaca.state import StateManager
+from core.alpaca_runtime.state import StateManager
 
 @pytest.fixture
 def empty_state():

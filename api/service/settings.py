@@ -452,6 +452,88 @@ class ETradeSettings:
 
 
 @dataclass(frozen=True)
+class AlpacaSettings:
+    timeout_seconds: float = 10.0
+    max_retries: int = 2
+    backoff_base_seconds: float = 0.25
+    required_roles: list[str] = field(default_factory=list)
+    trading_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Alpaca.Trade"])
+    paper_api_key_id: Optional[str] = None
+    paper_secret_key: Optional[str] = None
+    paper_trading_base_url: str = "https://paper-api.alpaca.markets"
+    live_api_key_id: Optional[str] = None
+    live_secret_key: Optional[str] = None
+    live_trading_base_url: str = "https://api.alpaca.markets"
+
+    @property
+    def paper_configured(self) -> bool:
+        return bool(self.paper_api_key_id and self.paper_secret_key)
+
+    @property
+    def live_configured(self) -> bool:
+        return bool(self.live_api_key_id and self.live_secret_key)
+
+    @staticmethod
+    def from_env() -> "AlpacaSettings":
+        settings = AlpacaSettings(
+            timeout_seconds=_get_optional_float(
+                "ALPACA_TIMEOUT_SECONDS",
+                default=10.0,
+                minimum=1.0,
+                maximum=300.0,
+            ),
+            max_retries=_get_optional_int(
+                "ALPACA_MAX_RETRIES",
+                default=2,
+                minimum=0,
+                maximum=10,
+            ),
+            backoff_base_seconds=_get_optional_float(
+                "ALPACA_BACKOFF_BASE_SECONDS",
+                default=0.25,
+                minimum=0.0,
+                maximum=30.0,
+            ),
+            required_roles=_split_csv(_get_optional_str("ALPACA_REQUIRED_ROLES")),
+            trading_required_roles=_split_csv(_get_optional_str("ALPACA_TRADING_REQUIRED_ROLES"))
+            or ["AssetAllocation.Alpaca.Trade"],
+            paper_api_key_id=_get_optional_str("ALPACA_PAPER_API_KEY_ID"),
+            paper_secret_key=_get_optional_str("ALPACA_PAPER_SECRET_KEY"),
+            paper_trading_base_url=_get_optional_str("ALPACA_PAPER_TRADING_BASE_URL")
+            or "https://paper-api.alpaca.markets",
+            live_api_key_id=_get_optional_str("ALPACA_LIVE_API_KEY_ID"),
+            live_secret_key=_get_optional_str("ALPACA_LIVE_SECRET_KEY"),
+            live_trading_base_url=_get_optional_str("ALPACA_LIVE_TRADING_BASE_URL")
+            or "https://api.alpaca.markets",
+        )
+
+        if bool(settings.paper_api_key_id) != bool(settings.paper_secret_key):
+            raise ValueError("ALPACA_PAPER_API_KEY_ID and ALPACA_PAPER_SECRET_KEY are required together.")
+        if bool(settings.live_api_key_id) != bool(settings.live_secret_key):
+            raise ValueError("ALPACA_LIVE_API_KEY_ID and ALPACA_LIVE_SECRET_KEY are required together.")
+
+        return AlpacaSettings(
+            timeout_seconds=settings.timeout_seconds,
+            max_retries=settings.max_retries,
+            backoff_base_seconds=settings.backoff_base_seconds,
+            required_roles=settings.required_roles,
+            trading_required_roles=settings.trading_required_roles,
+            paper_api_key_id=settings.paper_api_key_id,
+            paper_secret_key=settings.paper_secret_key,
+            paper_trading_base_url=_validate_absolute_http_url(
+                settings.paper_trading_base_url,
+                env_name="ALPACA_PAPER_TRADING_BASE_URL",
+            ),
+            live_api_key_id=settings.live_api_key_id,
+            live_secret_key=settings.live_secret_key,
+            live_trading_base_url=_validate_absolute_http_url(
+                settings.live_trading_base_url,
+                env_name="ALPACA_LIVE_TRADING_BASE_URL",
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class IntradayMonitorSettings:
     enabled: bool = False
     allowed_jobs: list[str] = field(default_factory=list)
@@ -488,6 +570,7 @@ class ServiceSettings:
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
     quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
+    alpaca: AlpacaSettings = field(default_factory=AlpacaSettings)
     schwab_callback_url: Optional[str] = None
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
@@ -565,6 +648,8 @@ class ServiceSettings:
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
         quiver = QuiverSettings.from_env()
+        etrade = ETradeSettings.from_env()
+        alpaca = AlpacaSettings.from_env()
         etrade = ETradeSettings.from_env(
             api_root_prefix=api_root_prefix,
             api_public_base_url=api_public_base_url,
@@ -604,6 +689,7 @@ class ServiceSettings:
             ai_relay=ai_relay,
             quiver=quiver,
             etrade=etrade,
+            alpaca=alpaca,
             schwab_callback_url=schwab_callback_url,
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,

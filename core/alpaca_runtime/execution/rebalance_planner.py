@@ -5,7 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from alpaca.config import ExecutionConfig
 from alpaca.models import AlpacaPosition
-from alpaca.price_cache import PriceCache
+from core.alpaca_runtime.price_cache import PriceCache
 
 logger = logging.getLogger(__name__)
 
