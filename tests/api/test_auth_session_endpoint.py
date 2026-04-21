@@ -38,7 +38,7 @@ async def test_auth_session_endpoint_returns_oidc_claim_summary(monkeypatch: pyt
         monkeypatch.setattr(
             app.state.auth,
             "authenticate_headers",
-            lambda _headers: AuthContext(
+            lambda _headers, **_kwargs: AuthContext(
                 mode="oidc",
                 subject="user-123",
                 claims={
@@ -73,7 +73,9 @@ async def test_auth_session_endpoint_propagates_forbidden(monkeypatch: pytest.Mo
         monkeypatch.setattr(
             app.state.auth,
             "authenticate_headers",
-            lambda _headers: (_ for _ in ()).throw(AuthError(status_code=403, detail="Missing required roles: AssetAllocation.Access.")),
+            lambda _headers, **_kwargs: (_ for _ in ()).throw(
+                AuthError(status_code=403, detail="Missing required roles: AssetAllocation.Access.")
+            ),
         )
         resp = await client.get("/api/auth/session", headers={"Authorization": "Bearer token"})
 

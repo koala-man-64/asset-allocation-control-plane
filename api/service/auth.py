@@ -62,6 +62,69 @@ def _claim_text(claims: Dict[str, Any], *names: str) -> str:
     return "-"
 
 
+def _claim_text_list(claims: Dict[str, Any], name: str) -> list[str]:
+    value = claims.get(name)
+    if isinstance(value, str):
+        return [item for item in value.split(" ") if item]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def summarize_auth_claims_for_logs(claims: Dict[str, Any] | None) -> Dict[str, Any]:
+    normalized = claims if isinstance(claims, dict) else {}
+    roles = sorted(set(_claim_text_list(normalized, "roles")))
+    scopes = _claim_text_list(normalized, "scp")
+    return {
+        "iss": normalized.get("iss"),
+        "aud": normalized.get("aud"),
+        "azp": normalized.get("azp") or normalized.get("appid"),
+        "tid": normalized.get("tid"),
+        "oid": normalized.get("oid"),
+        "sub": normalized.get("sub"),
+        "scp": " ".join(scopes) if scopes else None,
+        "roles": roles,
+        "exp": normalized.get("exp"),
+        "nbf": normalized.get("nbf"),
+    }
+
+
+def _summarize_unverified_token_for_logs(token: str) -> Dict[str, Any]:
+    summary: Dict[str, Any] = {
+        "header": None,
+        "claims": None,
+    }
+
+    try:
+        header = jwt.get_unverified_header(token)
+    except Exception as exc:
+        summary["header_error"] = f"{type(exc).__name__}: {exc}"
+    else:
+        summary["header"] = {
+            "alg": header.get("alg"),
+            "kid": header.get("kid"),
+            "typ": header.get("typ"),
+        }
+
+    try:
+        claims = jwt.decode(
+            token,
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_nbf": False,
+                "verify_iss": False,
+                "verify_aud": False,
+            },
+        )
+    except Exception as exc:
+        summary["claims_error"] = f"{type(exc).__name__}: {exc}"
+    else:
+        summary["claims"] = summarize_auth_claims_for_logs(claims if isinstance(claims, dict) else {})
+
+    return summary
+
+
 class AuthManager:
     def __init__(self, settings: ServiceSettings):
         self._settings = settings
@@ -136,11 +199,27 @@ class AuthManager:
 
         return RSAAlgorithm.from_jwk(json.dumps(jwk))
 
-    def _verify_bearer_token(self, token: str) -> AuthContext:
+    def _verify_bearer_token(
+        self,
+        token: str,
+        *,
+        request_context: Optional[Dict[str, Any]] = None,
+    ) -> AuthContext:
         issuer = self._settings.oidc_issuer or ""
         audience = list(self._settings.oidc_audience or [])
         if not issuer or not audience:
             raise AuthError(status_code=500, detail="OIDC is not configured.")
+
+        context = dict(request_context or {})
+        unverified_token_summary = _summarize_unverified_token_for_logs(token)
+        logger.info(
+            "OIDC bearer verification started: request_id=%s method=%s path=%s host=%s token=%s",
+            context.get("request_id", "-"),
+            context.get("method", "-"),
+            context.get("path", "-"),
+            context.get("host", "-"),
+            unverified_token_summary,
+        )
 
         try:
             signing_key = self._get_public_key_for_token(token)
@@ -152,9 +231,23 @@ class AuthManager:
                 audience=audience,
             )
         except InvalidTokenError as exc:
+            logger.warning(
+                "OIDC bearer verification rejected: request_id=%s method=%s path=%s reason=%s token=%s",
+                context.get("request_id", "-"),
+                context.get("method", "-"),
+                context.get("path", "-"),
+                type(exc).__name__,
+                unverified_token_summary,
+            )
             raise AuthError(status_code=401, detail="Invalid bearer token.", www_authenticate="Bearer") from exc
         except Exception as exc:
-            logger.exception("OIDC verification failed.")
+            logger.exception(
+                "OIDC verification failed: request_id=%s method=%s path=%s token=%s",
+                context.get("request_id", "-"),
+                context.get("method", "-"),
+                context.get("path", "-"),
+                unverified_token_summary,
+            )
             raise AuthError(status_code=502, detail="Failed to verify bearer token.", www_authenticate="Bearer") from exc
 
         required_scopes = set(self._settings.oidc_required_scopes or [])
@@ -162,6 +255,14 @@ class AuthManager:
             raw_scopes = str(claims.get("scp") or "").strip()
             token_scopes = {s for s in raw_scopes.split(" ") if s}
             missing = sorted(required_scopes - token_scopes)
+            logger.info(
+                "OIDC scope check: request_id=%s path=%s required=%s token=%s missing=%s",
+                context.get("request_id", "-"),
+                context.get("path", "-"),
+                sorted(required_scopes),
+                sorted(token_scopes),
+                missing,
+            )
             if missing:
                 raise AuthError(status_code=403, detail=f"Missing required scopes: {', '.join(missing)}.")
 
@@ -172,29 +273,68 @@ class AuthManager:
                 roles_claim = []
             token_roles = {str(r) for r in roles_claim if str(r).strip()}
             missing = sorted(required_roles - token_roles)
+            logger.info(
+                "OIDC role check: request_id=%s path=%s required=%s token=%s missing=%s",
+                context.get("request_id", "-"),
+                context.get("path", "-"),
+                sorted(required_roles),
+                sorted(token_roles),
+                missing,
+            )
             if missing:
                 raise AuthError(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
 
         subject = str(claims.get("sub") or claims.get("oid") or "") or None
+        logger.info(
+            "OIDC bearer verification accepted: request_id=%s method=%s path=%s subject=%s claims=%s",
+            context.get("request_id", "-"),
+            context.get("method", "-"),
+            context.get("path", "-"),
+            subject or "-",
+            summarize_auth_claims_for_logs(claims),
+        )
         return AuthContext(mode="oidc", subject=subject, claims=dict(claims))
 
-    def authenticate_headers(self, headers: Dict[str, str]) -> AuthContext:
+    def authenticate_headers(
+        self,
+        headers: Dict[str, str],
+        *,
+        request_context: Optional[Dict[str, Any]] = None,
+    ) -> AuthContext:
         normalized = {str(k).lower(): str(v) for k, v in headers.items()}
+        context = dict(request_context or {})
         if self._settings.oidc_auth_enabled:
             authorization = (normalized.get("authorization") or "").strip()
             if authorization and _is_bearer_auth(authorization):
                 token = _extract_bearer_token(authorization)
-                ctx = self._verify_bearer_token(token)
+                ctx = self._verify_bearer_token(token, request_context=context)
                 logger.info(
-                    "Auth success via oidc: subject=%s oid=%s tid=%s azp=%s",
+                    "Auth success via oidc: request_id=%s path=%s subject=%s oid=%s tid=%s azp=%s roles=%s scp=%s",
+                    context.get("request_id", "-"),
+                    context.get("path", "-"),
                     ctx.subject or "-",
                     _claim_text(ctx.claims, "oid"),
                     _claim_text(ctx.claims, "tid"),
                     _claim_text(ctx.claims, "azp", "appid"),
+                    summarize_auth_claims_for_logs(ctx.claims).get("roles"),
+                    summarize_auth_claims_for_logs(ctx.claims).get("scp"),
                 )
                 return ctx
 
         if self._settings.anonymous_local_auth_enabled:
+            logger.info(
+                "Auth success via anonymous mode: request_id=%s path=%s",
+                context.get("request_id", "-"),
+                context.get("path", "-"),
+            )
             return AuthContext(mode="anonymous", subject=None, claims={})
 
+        logger.warning(
+            "Auth rejected before token verification: request_id=%s method=%s path=%s auth_present=%s anonymous_enabled=%s",
+            context.get("request_id", "-"),
+            context.get("method", "-"),
+            context.get("path", "-"),
+            bool((normalized.get("authorization") or "").strip()),
+            self._settings.anonymous_local_auth_enabled,
+        )
         raise AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer")
