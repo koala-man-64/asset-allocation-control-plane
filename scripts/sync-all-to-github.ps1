@@ -12,10 +12,12 @@ $contractPath = Join-Path $repoRoot "docs\ops\env-contract.csv"
 function Parse-EnvFile {
     param([Parameter(Mandatory = $true)][string]$Path)
     $map = @{}
+    $source = Split-Path -Leaf $Path
     foreach ($rawLine in (Get-Content $Path)) {
         $line = $rawLine.Trim()
         if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#") -or $line -notmatch "^([^=]+)=(.*)$") { continue }
-        $map[$matches[1].Trim()] = $matches[2]
+        $key = $matches[1].Trim()
+        $map[$key] = Resolve-UnresolvedPlaceholderValue -Key $key -Value $matches[2] -Source $source
     }
     return $map
 }
@@ -41,6 +43,35 @@ function Normalize-EnvValue {
     param([AllowNull()][string]$Value)
     if ($null -eq $Value) { return "" }
     return $Value.Trim()
+}
+
+function Register-IgnoredPlaceholderValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    if ([string]::IsNullOrWhiteSpace($Key) -or [string]::IsNullOrWhiteSpace($Source)) { return }
+    if (-not $script:IgnoredPlaceholderValues.ContainsKey($Key)) {
+        $script:IgnoredPlaceholderValues[$Key] = [pscustomobject]@{
+            Key    = $Key
+            Source = $Source
+        }
+    }
+}
+
+function Resolve-UnresolvedPlaceholderValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [AllowNull()][string]$Value,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    $candidate = Normalize-EnvValue -Value $Value
+    if ([string]::IsNullOrWhiteSpace($candidate)) { return "" }
+    if ($candidate -match '^(["'']?)\$\{([A-Z][A-Z0-9_]*)\}\1$') {
+        Register-IgnoredPlaceholderValue -Key $Key -Source $Source
+        return ""
+    }
+    return $candidate
 }
 
 function Register-NormalizedQuotedScalarValue {
@@ -76,6 +107,13 @@ function Normalize-QuotedScalarValue {
 function Write-NormalizedQuotedScalarWarnings {
     foreach ($key in ($script:NormalizedQuotedScalarValues.Keys | Sort-Object)) {
         Write-Warning ("Normalized quoted scalar value for {0} from .env.web before GitHub sync." -f $key)
+    }
+}
+
+function Write-IgnoredPlaceholderWarnings {
+    foreach ($key in ($script:IgnoredPlaceholderValues.Keys | Sort-Object)) {
+        $entry = $script:IgnoredPlaceholderValues[$key]
+        Write-Warning ("Ignored unresolved placeholder value for {0} from {1} before GitHub sync." -f $entry.Key, $entry.Source)
     }
 }
 
@@ -178,6 +216,7 @@ if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scri
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) is required to sync vars and secrets." }
 
 $script:NormalizedQuotedScalarValues = @{}
+$script:IgnoredPlaceholderValues = @{}
 $script:GitHubSecretNames = $null
 $envMap = Parse-EnvFile -Path $envPath
 $normalizedEnvMap = @{}
@@ -190,6 +229,7 @@ $undocumented = @($envMap.Keys | Where-Object { -not $contractMap.ContainsKey($_
 if ($undocumented.Count -gt 0) { throw ".env.web contains undocumented keys: $($undocumented -join ', ')" }
 
 Write-NormalizedQuotedScalarWarnings
+Write-IgnoredPlaceholderWarnings
 
 $aiRelayEnabled = $false
 if ($envMap.ContainsKey("AI_RELAY_ENABLED")) {

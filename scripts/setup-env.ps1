@@ -43,10 +43,12 @@ function Parse-EnvFile {
     param([Parameter(Mandatory = $true)][string]$Path)
     $map = @{}
     if (-not (Test-Path $Path)) { return $map }
+    $source = Split-Path -Leaf $Path
     foreach ($rawLine in (Get-Content $Path)) {
         $line = $rawLine.Trim()
         if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#") -or $line -notmatch "^([^=]+)=(.*)$") { continue }
-        $map[$matches[1].Trim()] = $matches[2]
+        $key = $matches[1].Trim()
+        $map[$key] = Resolve-UnresolvedPlaceholderValue -Key $key -Value $matches[2] -Source $source
     }
     return $map
 }
@@ -67,6 +69,39 @@ function Normalize-EnvValue {
     param([AllowNull()][string]$Value)
     if ($null -eq $Value) { return "" }
     return $Value.Replace("`r", "").Replace("`n", "\n")
+}
+
+function Register-IgnoredPlaceholderValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    if ([string]::IsNullOrWhiteSpace($Key) -or [string]::IsNullOrWhiteSpace($Source)) { return }
+    if ($null -eq $script:IgnoredPlaceholderValues) {
+        $script:IgnoredPlaceholderValues = @{}
+    }
+    $entryKey = "$Source::$Key"
+    if (-not $script:IgnoredPlaceholderValues.ContainsKey($entryKey)) {
+        $script:IgnoredPlaceholderValues[$entryKey] = [pscustomobject]@{
+            Key    = $Key
+            Source = $Source
+        }
+    }
+}
+
+function Resolve-UnresolvedPlaceholderValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [AllowNull()][string]$Value,
+        [Parameter(Mandatory = $true)][string]$Source
+    )
+    $candidate = (Normalize-EnvValue -Value $Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) { return "" }
+    if ($candidate -match '^(["'']?)\$\{([A-Z][A-Z0-9_]*)\}\1$') {
+        Register-IgnoredPlaceholderValue -Key $Key -Source $Source
+        return ""
+    }
+    return $candidate
 }
 
 function Register-NormalizedQuotedScalarValue {
@@ -114,12 +149,21 @@ function Write-NormalizedQuotedScalarWarnings {
     }
 }
 
+function Write-IgnoredPlaceholderWarnings {
+    if ($null -eq $script:IgnoredPlaceholderValues) { return }
+    foreach ($entryKey in ($script:IgnoredPlaceholderValues.Keys | Sort-Object)) {
+        $entry = $script:IgnoredPlaceholderValues[$entryKey]
+        Write-Warning ("Ignored unresolved placeholder value for {0} from {1}." -f $entry.Key, $entry.Source)
+    }
+}
+
 function Normalize-EnvValueForKey {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
-        [AllowNull()][string]$Value
+        [AllowNull()][string]$Value,
+        [string]$Source = "value"
     )
-    $normalized = Normalize-EnvValue -Value $Value
+    $normalized = Resolve-UnresolvedPlaceholderValue -Key $Name -Value $Value -Source $Source
     if ($Name -like "*_REQUIRED_ROLES") {
         return ($normalized -replace '^[''"]+', '' -replace '[''"]+$', '')
     }
@@ -209,6 +253,7 @@ if (-not [string]::IsNullOrWhiteSpace($DispatchAppPrivateKeyFilePath)) {
     $secretFileOverrideMap["DISPATCH_APP_PRIVATE_KEY"] = Read-SecretFileValue -Path $DispatchAppPrivateKeyFilePath
 }
 
+$script:IgnoredPlaceholderValues = @{}
 $existingMap = Parse-EnvFile -Path $EnvFilePath
 $templateMap = Parse-EnvFile -Path $templatePath
 $contractRows = Load-ContractRows -Path $contractPath
@@ -354,7 +399,7 @@ function Get-GitHubVariableValue {
     param([Parameter(Mandatory = $true)][string]$Name)
     $map = Get-GitHubVariables
     if ($map.ContainsKey($Name) -and -not [string]::IsNullOrWhiteSpace($map[$Name])) {
-        return (Normalize-EnvValueForKey -Name $Name -Value $map[$Name])
+        return (Normalize-EnvValueForKey -Name $Name -Value $map[$Name] -Source "github")
     }
     return ""
 }
@@ -383,18 +428,18 @@ function Get-ConfiguredValue {
     param([Parameter(Mandatory = $true)][string[]]$Keys, [string]$Fallback = "")
     foreach ($key in $Keys) {
         if ($overrideMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key])
+            return (Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key] -Source "override")
         }
         if ($existingMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($existingMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $existingMap[$key])
+            return (Normalize-EnvValueForKey -Name $key -Value $existingMap[$key] -Source (Split-Path -Leaf $EnvFilePath))
         }
         $githubValue = Get-GitHubVariableValue -Name $key
         if (-not [string]::IsNullOrWhiteSpace($githubValue)) { return $githubValue }
         if ($templateMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($templateMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $templateMap[$key])
+            return (Normalize-EnvValueForKey -Name $key -Value $templateMap[$key] -Source (Split-Path -Leaf $templatePath))
         }
     }
-    return (Normalize-EnvValueForKey -Name $Keys[0] -Value $Fallback)
+    return (Normalize-EnvValueForKey -Name $Keys[0] -Value $Fallback -Source "fallback")
 }
 
 function Get-AzureAccount {
@@ -858,7 +903,9 @@ function Get-ContainerAppRuntimeEnvMap {
 function Get-RuntimeEnvValue {
     param([Parameter(Mandatory = $true)][string]$Key)
     $map = Get-ContainerAppRuntimeEnvMap
-    if ($map.ContainsKey($Key) -and -not [string]::IsNullOrWhiteSpace($map[$Key])) { return $map[$Key] }
+    if ($map.ContainsKey($Key) -and -not [string]::IsNullOrWhiteSpace($map[$Key])) {
+        return (Normalize-EnvValueForKey -Name $Key -Value $map[$Key] -Source "azure-runtime")
+    }
     return ""
 }
 
@@ -912,6 +959,7 @@ function New-Resolution {
     $normalizedValue = Normalize-EnvValue -Value $Value
     if (-not [string]::IsNullOrWhiteSpace($Key) -and $Source -in @("github", "azure", "azure-runtime")) {
         $normalizedValue = Normalize-QuotedScalarValue -Key $Key -Value $normalizedValue -Source $Source
+        $normalizedValue = Normalize-EnvValueForKey -Name $Key -Value $normalizedValue -Source $Source
     }
     return @{ Value = $normalizedValue; Source = $Source; PromptRequired = $PromptRequired }
 }
@@ -1188,6 +1236,7 @@ foreach ($result in $results) {
     Write-Host ("{0}={1} [requirement={2}; suggested={3}; source={4}; prompt_required={5}]" -f $result.Name, $displayValue, $result.Requirement, $suggestedDisplay, $result.Source, $result.PromptRequired.ToString().ToLowerInvariant())
 }
 Write-NormalizedQuotedScalarWarnings
+Write-IgnoredPlaceholderWarnings
 if ($DryRun) {
     $requiredPending = @($results | Where-Object { $_.PromptRequired -and $_.Requirement -eq "required" })
     $optionalPending = @($results | Where-Object { $_.PromptRequired -and $_.Requirement -eq "optional" })
