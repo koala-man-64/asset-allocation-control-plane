@@ -69,6 +69,16 @@ function Normalize-EnvValue {
     return $Value.Replace("`r", "").Replace("`n", "\n")
 }
 
+function Normalize-SelfPlaceholderValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [AllowNull()][string]$Value
+    )
+    $normalized = Normalize-EnvValue -Value $Value
+    if ($normalized -eq ('${' + $Name + '}')) { return "" }
+    return $normalized
+}
+
 function Register-NormalizedQuotedScalarValue {
     param(
         [Parameter(Mandatory = $true)][string]$Key,
@@ -119,7 +129,7 @@ function Normalize-EnvValueForKey {
         [Parameter(Mandatory = $true)][string]$Name,
         [AllowNull()][string]$Value
     )
-    $normalized = Normalize-EnvValue -Value $Value
+    $normalized = Normalize-SelfPlaceholderValue -Name $Name -Value $Value
     if ($Name -like "*_REQUIRED_ROLES") {
         return ($normalized -replace '^[''"]+', '' -replace '[''"]+$', '')
     }
@@ -266,11 +276,20 @@ foreach ($requiredKey in @(
 
 function Get-ResolvedAiRelayEnabled {
     $candidates = @()
-    if ($overrideMap.ContainsKey("AI_RELAY_ENABLED")) { $candidates += $overrideMap["AI_RELAY_ENABLED"] }
-    if ($existingMap.ContainsKey("AI_RELAY_ENABLED")) { $candidates += $existingMap["AI_RELAY_ENABLED"] }
+    if ($overrideMap.ContainsKey("AI_RELAY_ENABLED")) {
+        $candidate = Normalize-EnvValueForKey -Name "AI_RELAY_ENABLED" -Value $overrideMap["AI_RELAY_ENABLED"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
+    if ($existingMap.ContainsKey("AI_RELAY_ENABLED")) {
+        $candidate = Normalize-EnvValueForKey -Name "AI_RELAY_ENABLED" -Value $existingMap["AI_RELAY_ENABLED"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
     $githubValue = Get-GitHubVariableValue -Name "AI_RELAY_ENABLED"
     if (-not [string]::IsNullOrWhiteSpace($githubValue)) { $candidates += $githubValue }
-    if ($templateMap.ContainsKey("AI_RELAY_ENABLED")) { $candidates += $templateMap["AI_RELAY_ENABLED"] }
+    if ($templateMap.ContainsKey("AI_RELAY_ENABLED")) {
+        $candidate = Normalize-EnvValueForKey -Name "AI_RELAY_ENABLED" -Value $templateMap["AI_RELAY_ENABLED"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
 
     foreach ($candidate in $candidates) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
@@ -302,6 +321,17 @@ function Format-SuggestedDisplayValue {
     }
     if ($Requirement -eq "required") { return "<set manually>" }
     return "<blank>"
+}
+
+function Test-ResolvedValuePresent {
+    param(
+        [AllowNull()][string]$Value,
+        [string]$Source = "",
+        [bool]$PromptRequired = $false
+    )
+    if ($Source -eq "github-secret") { return $true }
+    if ($PromptRequired) { return $false }
+    return (-not [string]::IsNullOrWhiteSpace((Normalize-EnvValue -Value $Value)))
 }
 
 function Get-GitHubRepoInfo {
@@ -382,16 +412,19 @@ function Test-GitHubSecretExists {
 function Get-ConfiguredValue {
     param([Parameter(Mandatory = $true)][string[]]$Keys, [string]$Fallback = "")
     foreach ($key in $Keys) {
-        if ($overrideMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key])
+        if ($overrideMap.ContainsKey($key)) {
+            $overrideValue = Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key]
+            if (-not [string]::IsNullOrWhiteSpace($overrideValue)) { return $overrideValue }
         }
-        if ($existingMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($existingMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $existingMap[$key])
+        if ($existingMap.ContainsKey($key)) {
+            $existingValue = Normalize-EnvValueForKey -Name $key -Value $existingMap[$key]
+            if (-not [string]::IsNullOrWhiteSpace($existingValue)) { return $existingValue }
         }
         $githubValue = Get-GitHubVariableValue -Name $key
         if (-not [string]::IsNullOrWhiteSpace($githubValue)) { return $githubValue }
-        if ($templateMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($templateMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $templateMap[$key])
+        if ($templateMap.ContainsKey($key)) {
+            $templateValue = Normalize-EnvValueForKey -Name $key -Value $templateMap[$key]
+            if (-not [string]::IsNullOrWhiteSpace($templateValue)) { return $templateValue }
         }
     }
     return (Normalize-EnvValueForKey -Name $Keys[0] -Value $Fallback)
@@ -836,6 +869,7 @@ function Get-ContainerAppRuntimeEnvMap {
                     $name = Get-ObjectStringProperty -Object $entry -PropertyName "name"
                     if ([string]::IsNullOrWhiteSpace($name)) { continue }
                     $value = Normalize-QuotedScalarValue -Key $name -Value (Get-ObjectStringProperty -Object $entry -PropertyName "value") -Source "azure-runtime"
+                    $value = Normalize-EnvValueForKey -Name $name -Value $value
                     if ([string]::IsNullOrWhiteSpace($value)) { continue }
                     if (-not $map.ContainsKey($name)) { $map[$name] = $value }
                 }
@@ -1125,13 +1159,15 @@ foreach ($row in $contractRows) {
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "file"; IsSecret = $isSecret; PromptRequired = $false })
         continue
     }
-    if ($existingMap.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace($existingMap[$name])) {
-        $value = Normalize-EnvValueForKey -Name $name -Value $existingMap[$name]
+    $existingValue = if ($existingMap.ContainsKey($name)) { Normalize-EnvValueForKey -Name $name -Value $existingMap[$name] } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($existingValue)) {
+        $value = $existingValue
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "existing"; IsSecret = $isSecret; PromptRequired = $false })
         continue
     }
-    if ($overrideMap.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$name])) {
-        $value = Normalize-EnvValueForKey -Name $name -Value $overrideMap[$name]
+    $overrideValue = if ($overrideMap.ContainsKey($name)) { Normalize-EnvValueForKey -Name $name -Value $overrideMap[$name] } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($overrideValue)) {
+        $value = $overrideValue
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "prompted"; IsSecret = $isSecret; PromptRequired = $false })
         continue
     }
@@ -1185,7 +1221,8 @@ Write-Host "Target env file: $EnvFilePath" -ForegroundColor Cyan
 foreach ($result in $results) {
     $displayValue = if ($result.IsSecret) { "<redacted>" } else { $result.Value }
     $suggestedDisplay = Format-SuggestedDisplayValue -Value $result.SuggestedValue -Requirement $result.Requirement -IsSecret $result.IsSecret
-    Write-Host ("{0}={1} [requirement={2}; suggested={3}; source={4}; prompt_required={5}]" -f $result.Name, $displayValue, $result.Requirement, $suggestedDisplay, $result.Source, $result.PromptRequired.ToString().ToLowerInvariant())
+    $valuePresent = Test-ResolvedValuePresent -Value $result.Value -Source $result.Source -PromptRequired $result.PromptRequired
+    Write-Host ("{0}={1} [requirement={2}; suggested={3}; source={4}; prompt_required={5}; value_present={6}]" -f $result.Name, $displayValue, $result.Requirement, $suggestedDisplay, $result.Source, $result.PromptRequired.ToString().ToLowerInvariant(), $valuePresent.ToString().ToLowerInvariant())
 }
 Write-NormalizedQuotedScalarWarnings
 if ($DryRun) {

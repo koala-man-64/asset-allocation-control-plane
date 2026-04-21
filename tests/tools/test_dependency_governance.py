@@ -23,7 +23,7 @@ def test_get_exact_requires_dist_version_returns_exact_pin() -> None:
     metadata_text = "\n".join(
         [
             "Metadata-Version: 2.4",
-            "Requires-Dist: asset-allocation-contracts==2.4.0",
+            "Requires-Dist: asset-allocation-contracts==3.0.0",
             "Requires-Dist: pytest==8.4.2; extra == 'test'",
         ]
     )
@@ -33,7 +33,7 @@ def test_get_exact_requires_dist_version_returns_exact_pin() -> None:
         "asset-allocation-contracts",
     )
 
-    assert version == "2.4.0"
+    assert version == "3.0.0"
 
 
 def test_validate_shared_dependency_compatibility_reports_version_skew() -> None:
@@ -41,15 +41,15 @@ def test_validate_shared_dependency_compatibility_reports_version_skew() -> None
 
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
-            "asset-allocation-contracts": "2.4.0",
-            "asset-allocation-runtime-common": "2.1.0",
+            "asset-allocation-contracts": "3.0.0",
+            "asset-allocation-runtime-common": "3.0.0",
         },
         "Requires-Dist: asset-allocation-contracts==0.0.0\n",
     )
 
     assert incompatibility is not None
-    assert "asset-allocation-contracts==2.4.0" in incompatibility
-    assert "asset-allocation-runtime-common==2.1.0" in incompatibility
+    assert "asset-allocation-contracts==3.0.0" in incompatibility
+    assert "asset-allocation-runtime-common==3.0.0" in incompatibility
     assert "asset-allocation-contracts==0.0.0" in incompatibility
 
 
@@ -58,10 +58,10 @@ def test_validate_shared_dependency_compatibility_accepts_matching_versions() ->
 
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
-            "asset-allocation-contracts": "2.4.0",
-            "asset-allocation-runtime-common": "2.1.0",
+            "asset-allocation-contracts": "3.0.0",
+            "asset-allocation-runtime-common": "3.0.0",
         },
-        "Requires-Dist: asset-allocation-contracts==2.4.0\n",
+        "Requires-Dist: asset-allocation-contracts==3.0.0\n",
     )
 
     assert incompatibility is None
@@ -77,8 +77,8 @@ def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None
                 'name = "asset-allocation-control-plane"',
                 'version = "0.1.0"',
                 "dependencies = [",
-                '    "asset-allocation-contracts==2.4.0",',
-                '    "asset-allocation-runtime-common==2.1.0",',
+                '    "asset-allocation-contracts==3.0.0",',
+                '    "asset-allocation-runtime-common==3.0.0",',
                 '    "fastapi==0.133.1",',
                 "]",
             ]
@@ -90,8 +90,8 @@ def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None
     version_matrix = dependency_governance.read_shared_version_matrix(pyproject_path)
 
     assert version_matrix == {
-        "contracts_version": "2.4.0",
-        "runtime_common_version": "2.1.0",
+        "contracts_version": "3.0.0",
+        "runtime_common_version": "3.0.0",
         "control_plane_version": "0.1.0",
     }
 

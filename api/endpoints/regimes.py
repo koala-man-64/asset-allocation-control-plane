@@ -59,7 +59,7 @@ def _validate_regime_config(*, model_name: str, config: dict[str, Any]) -> dict[
     if errors:
         raise HTTPException(
             status_code=422,
-            detail="default-regime must use canonical v2 semantics: " + "; ".join(errors),
+            detail="default-regime must use canonical v3 semantics: " + "; ".join(errors),
         )
     return validated.model_dump(mode="json")
 
@@ -75,7 +75,7 @@ def _require_activatable_regime_revision(*, model_name: str, revision: dict[str,
     if errors:
         raise HTTPException(
             status_code=409,
-            detail="default-regime revision cannot be activated because it does not use canonical v2 semantics: "
+            detail="default-regime revision cannot be activated because it does not use canonical v3 semantics: "
             + "; ".join(errors),
         )
 

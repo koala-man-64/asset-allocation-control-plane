@@ -145,6 +145,32 @@ def test_renderer_serializes_env_values_as_yaml_safe_strings(tmp_path: Path) -> 
     assert _manifest_env_value(rendered, "SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON") == freshness_json
 
 
+def test_renderer_treats_optional_self_placeholders_as_blank(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api_public.yaml"
+    output = tmp_path / "rendered.yaml"
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env=_template_env(
+            template,
+            overrides={
+                "AI_RELAY_ENABLED": "false",
+                "AI_RELAY_API_KEY": "",
+                "API_PUBLIC_BASE_URL": "${API_PUBLIC_BASE_URL}",
+                "ETRADE_CALLBACK_URL": "${ETRADE_CALLBACK_URL}",
+                "SYMBOL_ENRICHMENT_ALLOWED_JOBS": "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}",
+            },
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output.read_text(encoding="utf-8")
+    assert _manifest_env_value(rendered, "API_PUBLIC_BASE_URL") == ""
+    assert _manifest_env_value(rendered, "ETRADE_CALLBACK_URL") == ""
+    assert _manifest_env_value(rendered, "SYMBOL_ENRICHMENT_ALLOWED_JOBS") == ""
+
+
 def test_renderer_fails_fast_when_manifest_placeholders_remain_unresolved(tmp_path: Path) -> None:
     template = _repo_root() / "deploy" / "app_api_public.yaml"
     output = tmp_path / "rendered.yaml"

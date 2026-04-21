@@ -190,6 +190,7 @@ def test_setup_env_dry_run_reports_sources_without_prompting() -> None:
     assert "suggested=" in stdout
     assert "source=" in stdout
     assert "prompt_required=" in stdout
+    assert "value_present=" in stdout
 
 
 def test_setup_env_uses_github_and_runtime_discovery_paths() -> None:
@@ -407,6 +408,7 @@ else:
     assert "ALPHA_VANTAGE_API_KEY=<redacted> [requirement=required;" in stdout
     assert "source=github-secret" in stdout
     assert "prompt_required=false" in stdout
+    assert "value_present=true" in stdout
     assert values["ALPHA_VANTAGE_API_KEY"] == ""
 
 
@@ -505,6 +507,104 @@ else:
     assert "Normalized quoted scalar value for AI_RELAY_REQUIRED_ROLES from .env.web before GitHub sync." in combined_output
     assert "Normalized quoted scalar value for UI_OIDC_CLIENT_ID from .env.web before GitHub sync." in combined_output
     assert "Normalized quoted scalar value for AZURE_CLIENT_ID from .env.web before GitHub sync." in combined_output
+
+
+def test_sync_script_deletes_blank_placeholder_variables(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values(
+            {
+                "API_PUBLIC_BASE_URL": "${API_PUBLIC_BASE_URL}",
+                "ETRADE_CALLBACK_URL": "${ETRADE_CALLBACK_URL}",
+                "SYMBOL_ENRICHMENT_ALLOWED_JOBS": "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}",
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    gh_log_path = tmp_path / "gh-delete-log.jsonl"
+    write_stub_command(
+        stub_dir,
+        "gh",
+        f"""
+from pathlib import Path
+
+log_path = Path(r\"\"\"{gh_log_path}\"\"\")
+payload = sys.stdin.read().rstrip("\\r\\n")
+if args[:2] == ["variable", "list"]:
+    names = ["API_PUBLIC_BASE_URL", "ETRADE_CALLBACK_URL", "SYMBOL_ENRICHMENT_ALLOWED_JOBS"]
+    if "--jq" in args:
+        print("\\n".join(names))
+    else:
+        print(json.dumps([{{"name": name}} for name in names]))
+elif args[:2] == ["secret", "list"]:
+    print("")
+elif args[:2] == ["variable", "delete"] or args[:2] == ["variable", "set"] or args[:2] == ["secret", "set"]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({{"kind": args[0], "action": args[1], "name": args[2], "value": payload}}) + "\\n")
+else:
+    print("")
+""".strip(),
+    )
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("other-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    records = [
+        json.loads(line)
+        for line in gh_log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    deleted_names = {record["name"] for record in records if record["action"] == "delete"}
+    assert deleted_names >= {
+        "API_PUBLIC_BASE_URL",
+        "ETRADE_CALLBACK_URL",
+        "SYMBOL_ENRICHMENT_ALLOWED_JOBS",
+    }
+    assert all(
+        not (
+            record["action"] == "set"
+            and record["name"] in {"API_PUBLIC_BASE_URL", "ETRADE_CALLBACK_URL", "SYMBOL_ENRICHMENT_ALLOWED_JOBS"}
+        )
+        for record in records
+    )
 
 
 def test_setup_env_prompt_functions_reject_blank_required_values() -> None:
@@ -806,3 +906,4 @@ else:
     assert "UI_OIDC_CLIENT_ID=" in stdout
     assert "LOG_ANALYTICS_WORKSPACE_NAME=" in stdout
     assert "UI_OIDC_REDIRECT_URI=" in stdout
+    assert "API_OIDC_JWKS_URL= [requirement=optional; suggested=<blank>; source=default; prompt_required=true; value_present=false]" in stdout

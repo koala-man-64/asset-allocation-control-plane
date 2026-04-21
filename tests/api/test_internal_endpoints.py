@@ -60,8 +60,19 @@ async def test_internal_regime_current_uses_query_params(monkeypatch: pytest.Mon
             "effective_from_date": "2026-03-10",
             "model_name": model_name,
             "model_version": model_version or 1,
-            "regime_code": "trending_bull",
-            "regime_status": "confirmed",
+            "active_regimes": ["trending_up"],
+            "signals": [
+                {
+                    "regime_code": "trending_up",
+                    "display_name": "Trending (Up)",
+                    "signal_state": "active",
+                    "score": 0.9,
+                    "activation_threshold": 0.6,
+                    "is_active": True,
+                    "matched_rule_id": "trending_up",
+                    "evidence": {},
+                }
+            ],
             "halt_flag": False,
         }
 

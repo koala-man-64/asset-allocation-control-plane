@@ -55,17 +55,7 @@ def _sample_definition() -> ResolvedBacktestDefinition:
                 "intrabarConflictPolicy": "stop_first",
                 "regimePolicy": {
                     "modelName": "default-regime",
-                    "targetGrossExposureByRegime": {
-                        "trending_bull": 1.0,
-                        "trending_bear": 0.5,
-                        "choppy_mean_reversion": 0.75,
-                        "high_vol": 0.0,
-                        "unclassified": 0.0,
-                    },
-                    "blockOnTransition": True,
-                    "blockOnUnclassified": True,
-                    "honorHaltFlag": True,
-                    "onBlocked": "skip_entries",
+                    "mode": "observe_only",
                 },
                 "exits": [],
             }
@@ -82,17 +72,7 @@ def _sample_definition() -> ResolvedBacktestDefinition:
             "intrabarConflictPolicy": "stop_first",
             "regimePolicy": {
                 "modelName": "default-regime",
-                "targetGrossExposureByRegime": {
-                    "trending_bull": 1.0,
-                    "trending_bear": 0.5,
-                    "choppy_mean_reversion": 0.75,
-                    "high_vol": 0.0,
-                    "unclassified": 0.0,
-                },
-                "blockOnTransition": True,
-                "blockOnUnclassified": True,
-                "honorHaltFlag": True,
-                "onBlocked": "skip_entries",
+                "mode": "observe_only",
             },
             "exits": [],
         },

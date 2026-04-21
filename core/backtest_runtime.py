@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import math
 from collections import defaultdict
@@ -600,6 +601,8 @@ def _resolve_regime_revision(
     resolved_name = str(regime_model_name or policy.modelName or DEFAULT_REGIME_MODEL_NAME).strip()
     if not resolved_name:
         resolved_name = DEFAULT_REGIME_MODEL_NAME
+    if resolved_name == DEFAULT_REGIME_MODEL_NAME and getattr(policy, "mode", None) != "observe_only":
+        raise ValueError("default-regime requires regimePolicy.mode='observe_only'.")
 
     repo = RegimeRepository(dsn)
     revision = (
@@ -628,24 +631,21 @@ def _load_regime_history_frame(
             model_name,
             model_version,
             regime_code,
-            regime_status,
+            display_name,
+            signal_state,
+            score,
+            activation_threshold,
+            is_active,
             matched_rule_id,
             halt_flag,
             halt_reason,
-            spy_return_20d,
-            rvol_10d_ann,
-            vix_spot_close,
-            vix3m_close,
-            vix_slope,
-            trend_state,
-            curve_state,
-            vix_gt_32_streak,
+            evidence_json,
             computed_at
         FROM gold.regime_history
         WHERE model_name = %s
           AND model_version = %s
           AND effective_from_date <= %s
-        ORDER BY effective_from_date ASC, as_of_date ASC
+        ORDER BY effective_from_date ASC, as_of_date ASC, regime_code ASC
     """
     with connect(dsn) as conn:
         frame = pd.read_sql_query(
@@ -661,6 +661,66 @@ def _load_regime_history_frame(
     return frame
 
 
+def _snapshot_records_from_regime_history(regime_history: pd.DataFrame) -> pd.DataFrame:
+    if regime_history.empty:
+        return pd.DataFrame(
+            columns=[
+                "as_of_date",
+                "effective_from_date",
+                "model_name",
+                "model_version",
+                "signals",
+                "active_regimes",
+                "halt_flag",
+                "halt_reason",
+                "computed_at",
+            ]
+        )
+
+    snapshot_rows: list[dict[str, Any]] = []
+    group_columns = ["as_of_date", "effective_from_date", "model_name", "model_version"]
+    for group_key, group in regime_history.groupby(group_columns, sort=True, dropna=False):
+        ordered_group = group.sort_values("regime_code").reset_index(drop=True)
+        signals: list[dict[str, Any]] = []
+        active_regimes: list[str] = []
+        for row in ordered_group.to_dict("records"):
+            evidence = row.get("evidence_json")
+            if isinstance(evidence, str):
+                try:
+                    evidence = json.loads(evidence)
+                except json.JSONDecodeError:
+                    evidence = {"raw": evidence}
+            signal = {
+                "regime_code": row.get("regime_code"),
+                "display_name": row.get("display_name"),
+                "signal_state": row.get("signal_state"),
+                "score": row.get("score"),
+                "activation_threshold": row.get("activation_threshold"),
+                "is_active": bool(row.get("is_active")),
+                "matched_rule_id": row.get("matched_rule_id"),
+                "evidence": evidence or {},
+            }
+            signals.append(signal)
+            if bool(row.get("is_active")):
+                active_regimes.append(str(row.get("regime_code")))
+        first = ordered_group.iloc[0].to_dict()
+        as_of_date, effective_from_date, model_name, model_version = group_key
+        snapshot_rows.append(
+            {
+                "as_of_date": as_of_date,
+                "effective_from_date": effective_from_date,
+                "model_name": model_name,
+                "model_version": model_version,
+                "signals": signals,
+                "active_regimes": active_regimes,
+                "halt_flag": bool(first.get("halt_flag")),
+                "halt_reason": first.get("halt_reason"),
+                "computed_at": first.get("computed_at"),
+            }
+        )
+    return pd.DataFrame(snapshot_rows)
+
+
 def _materialize_regime_schedule(
     regime_history: pd.DataFrame,
     *,
@@ -674,7 +734,7 @@ def _materialize_regime_schedule(
         schedule_frame["effective_from_date"] = pd.NaT
         return schedule_frame
 
-    history = regime_history.copy()
+    history = _snapshot_records_from_regime_history(regime_history)
     history["effective_from_date"] = pd.to_datetime(history["effective_from_date"], errors="coerce")
     history = history.dropna(subset=["effective_from_date"]).sort_values(["effective_from_date", "as_of_date"])
     schedule_frame = schedule_frame.dropna(subset=["session_date"]).sort_values("session_date")
@@ -750,49 +810,28 @@ def _regime_context_for_session(
 ) -> dict[str, Any]:
     if policy is None or not regime_row:
         return {
-            "blocked": False,
-            "blocked_reason": None,
-            "blocked_action": None,
-            "exposure_multiplier": 1.0,
-            "regime_code": None,
-            "regime_status": None,
+            "primary_regime_code": None,
             "halt_flag": False,
             "halt_reason": None,
-            "matched_rule_id": None,
             "as_of_date": None,
             "effective_from_date": None,
+            "active_regimes": [],
+            "signals": [],
         }
-
-    regime_code = str(regime_row.get("regime_code") or "").strip() or None
-    regime_status = str(regime_row.get("regime_status") or "").strip() or None
+    active_regimes = [str(value) for value in (regime_row.get("active_regimes") or []) if str(value or "").strip()]
+    primary_regime = active_regimes[0] if active_regimes else None
+    signals = list(regime_row.get("signals") or [])
     halt_flag = bool(regime_row.get("halt_flag"))
     halt_reason = regime_row.get("halt_reason")
-    blocked_reason: str | None = None
-
-    if halt_flag and policy.honorHaltFlag:
-        blocked_reason = "halt_flag"
-    elif regime_status == "transition" and policy.blockOnTransition:
-        blocked_reason = "transition"
-    elif regime_code == "unclassified" and policy.blockOnUnclassified:
-        blocked_reason = "unclassified"
-
-    exposure_targets = policy.targetGrossExposureByRegime.model_dump(mode="python")
-    exposure_multiplier = 1.0
-    if blocked_reason is None and regime_code:
-        exposure_multiplier = float(exposure_targets.get(regime_code, 1.0))
 
     return {
-        "blocked": blocked_reason is not None,
-        "blocked_reason": blocked_reason,
-        "blocked_action": policy.onBlocked if blocked_reason is not None else None,
-        "exposure_multiplier": exposure_multiplier,
-        "regime_code": regime_code,
-        "regime_status": regime_status,
+        "primary_regime_code": primary_regime,
         "halt_flag": halt_flag,
         "halt_reason": halt_reason,
-        "matched_rule_id": regime_row.get("matched_rule_id"),
         "as_of_date": regime_row.get("as_of_date"),
         "effective_from_date": regime_row.get("effective_from_date"),
+        "active_regimes": active_regimes,
+        "signals": signals,
     }
 
 
@@ -1055,15 +1094,11 @@ def execute_backtest_run(
                         if isinstance(regime_context["effective_from_date"], date)
                         else regime_context["effective_from_date"]
                     ),
-                    "regime_code": regime_context["regime_code"],
-                    "regime_status": regime_context["regime_status"],
-                    "matched_rule_id": regime_context["matched_rule_id"],
+                    "primary_regime_code": regime_context["primary_regime_code"],
                     "halt_flag": bool(regime_context["halt_flag"]),
                     "halt_reason": regime_context["halt_reason"],
-                    "blocked": bool(regime_context["blocked"]),
-                    "blocked_reason": regime_context["blocked_reason"],
-                    "blocked_action": regime_context["blocked_action"],
-                    "exposure_multiplier": float(regime_context["exposure_multiplier"]),
+                    "active_regimes": list(regime_context["active_regimes"]),
+                    "signals": list(regime_context["signals"]),
                 }
             )
             if not first_signal_computed:
@@ -1071,17 +1106,15 @@ def execute_backtest_run(
                     snapshot,
                     definition=definition,
                     rebalance_ts=current_ts,
-                    target_weight_multiplier=float(regime_context["exposure_multiplier"]),
+                    target_weight_multiplier=1.0,
                 )
-                selection_trace_rows.extend(initial_ranking.to_dict("records"))
-                if regime_context["blocked"] and regime_context["blocked_action"] == "skip_rebalance":
-                    pending_target_weights = {}
-                else:
-                    pending_target_weights = {
-                        str(row["symbol"]): float(row["target_weight"])
-                        for row in initial_ranking.to_dict("records")
-                        if bool(row["selected"])
-                    }
+                initial_ranking_records = initial_ranking.to_dict("records")
+                selection_trace_rows.extend(initial_ranking_records)
+                pending_target_weights = {
+                    str(row["symbol"]): float(row["target_weight"])
+                    for row in initial_ranking_records
+                    if bool(row["selected"])
+                }
                 first_signal_computed = True
                 continue
 
@@ -1098,22 +1131,9 @@ def execute_backtest_run(
                 open_price = _maybe_float(row.get(f"{_PRICE_TABLE}__open")) or _maybe_float(row.get(f"{_PRICE_TABLE}__close")) or position.entry_price
                 market_equity_open += position.quantity * open_price
 
-            if not (regime_context["blocked"] and regime_context["blocked_action"] == "skip_rebalance"):
-                target_qty_by_symbol: dict[str, float] = {}
-                if pending_target_weights:
-                    for symbol, target_weight in pending_target_weights.items():
-                        row = _market_row(snapshot, symbol)
-                        if row is None:
-                            continue
-                        open_price = _maybe_float(row.get(f"{_PRICE_TABLE}__open")) or _maybe_float(
-                            row.get(f"{_PRICE_TABLE}__close")
-                        )
-                        if open_price is None or open_price <= 0:
-                            continue
-                        target_qty_by_symbol[symbol] = (market_equity_open * target_weight) / open_price
-
-                all_symbols = sorted(set(positions.keys()) | set(target_qty_by_symbol.keys()))
-                for symbol in all_symbols:
+            target_qty_by_symbol: dict[str, float] = {}
+            if pending_target_weights:
+                for symbol, target_weight in pending_target_weights.items():
                     row = _market_row(snapshot, symbol)
                     if row is None:
                         continue
@@ -1122,36 +1142,46 @@ def execute_backtest_run(
                     )
                     if open_price is None or open_price <= 0:
                         continue
-                    current_qty = positions[symbol].quantity if symbol in positions else 0.0
-                    target_qty = target_qty_by_symbol.get(symbol, 0.0)
-                    if regime_context["blocked"] and regime_context["blocked_action"] == "skip_entries":
-                        target_qty = min(target_qty, current_qty)
-                    delta_qty = target_qty - current_qty
-                    if math.isclose(delta_qty, 0.0, abs_tol=1e-9):
-                        continue
-                    cash, commission, slippage = _execute_trade(
-                        trades=trade_rows,
-                        ts=current_ts,
+                    target_qty_by_symbol[symbol] = (market_equity_open * target_weight) / open_price
+
+            all_symbols = sorted(set(positions.keys()) | set(target_qty_by_symbol.keys()))
+            for symbol in all_symbols:
+                row = _market_row(snapshot, symbol)
+                if row is None:
+                    continue
+                open_price = _maybe_float(row.get(f"{_PRICE_TABLE}__open")) or _maybe_float(
+                    row.get(f"{_PRICE_TABLE}__close")
+                )
+                if open_price is None or open_price <= 0:
+                    continue
+                current_qty = positions[symbol].quantity if symbol in positions else 0.0
+                target_qty = target_qty_by_symbol.get(symbol, 0.0)
+                delta_qty = target_qty - current_qty
+                if math.isclose(delta_qty, 0.0, abs_tol=1e-9):
+                    continue
+                cash, commission, slippage = _execute_trade(
+                    trades=trade_rows,
+                    ts=current_ts,
+                    symbol=symbol,
+                    quantity_delta=delta_qty,
+                    price=open_price,
+                    cash=cash,
+                    commission_bps=commission_bps,
+                    slippage_bps=slippage_bps,
+                )
+                total_commission += commission
+                total_slippage += slippage
+                trade_count += 1
+                if target_qty <= 1e-9:
+                    positions.pop(symbol, None)
+                    previous_close_by_symbol.pop(symbol, None)
+                else:
+                    positions[symbol] = PositionState(
                         symbol=symbol,
-                        quantity_delta=delta_qty,
-                        price=open_price,
-                        cash=cash,
-                        commission_bps=commission_bps,
-                        slippage_bps=slippage_bps,
+                        entry_date=current_ts,
+                        entry_price=open_price,
+                        quantity=float(target_qty),
                     )
-                    total_commission += commission
-                    total_slippage += slippage
-                    trade_count += 1
-                    if target_qty <= 1e-9:
-                        positions.pop(symbol, None)
-                        previous_close_by_symbol.pop(symbol, None)
-                    else:
-                        positions[symbol] = PositionState(
-                            symbol=symbol,
-                            entry_date=current_ts,
-                            entry_price=open_price,
-                            quantity=float(target_qty),
-                        )
 
             pending_target_weights = {}
 
@@ -1223,17 +1253,15 @@ def execute_backtest_run(
                     snapshot,
                     definition=definition,
                     rebalance_ts=current_ts,
-                    target_weight_multiplier=float(regime_context["exposure_multiplier"]),
+                    target_weight_multiplier=1.0,
                 )
-                selection_trace_rows.extend(ranking.to_dict("records"))
-                if regime_context["blocked"] and regime_context["blocked_action"] == "skip_rebalance":
-                    pending_target_weights = {}
-                else:
-                    pending_target_weights = {
-                        str(row["symbol"]): float(row["target_weight"])
-                        for row in ranking.to_dict("records")
-                        if bool(row["selected"])
-                    }
+                ranking_records = ranking.to_dict("records")
+                selection_trace_rows.extend(ranking_records)
+                pending_target_weights = {
+                    str(row["symbol"]): float(row["target_weight"])
+                    for row in ranking_records
+                    if bool(row["selected"])
+                }
 
     timeseries = pd.DataFrame(timeseries_rows)
     trades = pd.DataFrame(trade_rows)

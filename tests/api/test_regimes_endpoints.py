@@ -37,8 +37,19 @@ async def test_get_current_regime_returns_snapshot(monkeypatch) -> None:
             "effective_from_date": "2026-03-10",
             "model_name": kwargs["model_name"],
             "model_version": kwargs.get("model_version") or 1,
-            "regime_code": "trending_bull",
-            "regime_status": "confirmed",
+            "active_regimes": ["trending_up", "low_volatility"],
+            "signals": [
+                {
+                    "regime_code": "trending_up",
+                    "display_name": "Trending (Up)",
+                    "signal_state": "active",
+                    "score": 0.9,
+                    "activation_threshold": 0.6,
+                    "is_active": True,
+                    "matched_rule_id": "trending_up",
+                    "evidence": {},
+                }
+            ],
             "halt_flag": False,
         },
     )
@@ -48,7 +59,8 @@ async def test_get_current_regime_returns_snapshot(monkeypatch) -> None:
         payload = await _get_json(client, "/api/regimes/current")
 
     assert payload["model_name"] == "default-regime"
-    assert payload["regime_code"] == "trending_bull"
+    assert payload["active_regimes"] == ["trending_up", "low_volatility"]
+    assert payload["signals"][0]["regime_code"] == "trending_up"
 
 
 async def test_create_regime_model_returns_saved_revision(monkeypatch) -> None:
@@ -87,7 +99,7 @@ async def test_create_regime_model_returns_saved_revision(monkeypatch) -> None:
     assert payload["activeRevision"]["version"] == 1
 
 
-async def test_create_regime_model_rejects_noncanonical_default_regime_transition_band(monkeypatch) -> None:
+async def test_create_regime_model_rejects_noncanonical_default_regime_signal_config(monkeypatch) -> None:
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     called = {"save": 0}
     monkeypatch.setattr(
@@ -103,12 +115,12 @@ async def test_create_regime_model_rejects_noncanonical_default_regime_transitio
             json={
                 "name": "default-regime",
                 "description": "Invalid",
-                "config": {"highVolExitThreshold": 25.0},
+                "config": {"activationThreshold": 0.7},
             },
         )
 
     assert response.status_code == 422
-    assert "canonical v2 semantics" in response.json()["detail"]
+    assert "canonical v3 semantics" in response.json()["detail"]
     assert called["save"] == 0
 
 
@@ -154,7 +166,7 @@ async def test_activate_regime_model_rejects_noncanonical_default_regime_revisio
         lambda self, name, version=None: {
             "name": name,
             "version": version or 1,
-            "config": {"highVolExitThreshold": 25.0},
+            "config": {"activationThreshold": 0.7},
         },
     )
     monkeypatch.setattr(
@@ -168,5 +180,5 @@ async def test_activate_regime_model_rejects_noncanonical_default_regime_revisio
         response = await client.post("/api/regimes/models/default-regime/activate", json={"version": 1})
 
     assert response.status_code == 409
-    assert "canonical v2 semantics" in response.json()["detail"]
+    assert "canonical v3 semantics" in response.json()["detail"]
     assert called["activate"] == 0

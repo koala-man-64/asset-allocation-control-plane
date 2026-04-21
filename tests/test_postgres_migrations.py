@@ -340,6 +340,36 @@ def test_symbol_enrichment_migration_creates_profile_tables_and_current_view() -
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE core.symbol_profiles TO backtest_service;" in text
 
 
+def test_default_regime_multilabel_cutover_migration_rewrites_schema_and_strategy_policy() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0041_default_regime_multilabel_cutover.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS gold.regime_macro_inputs_daily" in text
+    assert "ADD COLUMN IF NOT EXISTS qqq_close DOUBLE PRECISION" in text
+    assert "ADD COLUMN IF NOT EXISTS rsi_14d DOUBLE PRECISION" in text
+    assert "ADD COLUMN IF NOT EXISTS display_name TEXT" in text
+    assert "ADD COLUMN IF NOT EXISTS signal_state TEXT" in text
+    assert "ADD PRIMARY KEY (as_of_date, model_name, model_version, regime_code)" in text
+    assert "ADD PRIMARY KEY (model_name, model_version, regime_code)" in text
+    assert "ADD COLUMN IF NOT EXISTS transition_type TEXT" in text
+    assert "ADD PRIMARY KEY (model_name, model_version, effective_from_date, regime_code, transition_type)" in text
+    assert "RENAME COLUMN regime_code TO primary_regime_code" in text
+    assert "ADD COLUMN IF NOT EXISTS active_regimes_json JSONB" in text
+    assert "ADD COLUMN IF NOT EXISTS signals_json JSONB" in text
+    assert "jsonb_build_object(" in text
+    assert "'mode', 'observe_only'" in text
+    assert '"activationThreshold": 0.6' in text
+    assert "'5edb792d2703cf163163b133fa2ccbca'" in text
+
+
 def test_government_signals_migration_creates_serving_tables_and_mapping_state() -> None:
     repo_root = _repo_root()
     migration = (

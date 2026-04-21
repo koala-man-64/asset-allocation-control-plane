@@ -212,7 +212,7 @@ def test_validate_backtest_submission_rejects_regime_coverage_gaps(monkeypatch: 
     assert "Regime history coverage gap" in str(exc.value)
 
 
-def test_regime_context_blocks_and_scales_exposure() -> None:
+def test_regime_context_attaches_multilabel_metadata_without_blocking() -> None:
     policy = StrategyConfig.model_validate(
         {
             "universeConfigName": "large-cap-quality",
@@ -225,44 +225,34 @@ def test_regime_context_blocks_and_scales_exposure() -> None:
             "rankingSchemaName": "quality",
             "intrabarConflictPolicy": "stop_first",
             "regimePolicy": {
-                "enabled": True,
                 "modelName": "default-regime",
-                "targetGrossExposureByRegime": {
-                    "trending_bull": 1.0,
-                    "trending_bear": 0.5,
-                    "choppy_mean_reversion": 0.75,
-                    "high_vol": 0.0,
-                    "unclassified": 0.0,
-                },
-                "blockOnTransition": True,
-                "blockOnUnclassified": True,
-                "honorHaltFlag": True,
-                "onBlocked": "skip_entries",
+                "mode": "observe_only",
             },
             "exits": [],
         }
     ).regimePolicy
 
-    confirmed = _regime_context_for_session(
+    context = _regime_context_for_session(
         policy,
         {
-            "regime_code": "trending_bear",
-            "regime_status": "confirmed",
+            "active_regimes": ["trending_down", "high_volatility"],
+            "signals": [
+                {
+                    "regime_code": "trending_down",
+                    "display_name": "Trending (Down)",
+                    "signal_state": "active",
+                    "score": 0.92,
+                    "activation_threshold": 0.6,
+                    "is_active": True,
+                    "matched_rule_id": "trending_down",
+                    "evidence": {},
+                }
+            ],
             "halt_flag": False,
-            "matched_rule_id": "trending_bear",
+            "halt_reason": None,
         },
     )
-    assert confirmed["blocked"] is False
-    assert confirmed["exposure_multiplier"] == 0.5
-
-    transition = _regime_context_for_session(
-        policy,
-        {
-            "regime_code": "trending_bear",
-            "regime_status": "transition",
-            "halt_flag": False,
-        },
-    )
-    assert transition["blocked"] is True
-    assert transition["blocked_reason"] == "transition"
-    assert transition["blocked_action"] == "skip_entries"
+    assert context["primary_regime_code"] == "trending_down"
+    assert context["active_regimes"] == ["trending_down", "high_volatility"]
+    assert context["signals"][0]["regime_code"] == "trending_down"
+    assert context["halt_flag"] is False

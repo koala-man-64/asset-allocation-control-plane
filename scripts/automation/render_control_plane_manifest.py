@@ -13,6 +13,11 @@ import yaml
 
 _PLACEHOLDER_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)\}")
 _QUOTED_PLACEHOLDER_PATTERN = re.compile(r'(["\'])\$\{([A-Z0-9_]+)\}\1')
+_OPTIONAL_EMPTY_PLACEHOLDER_NAMES = {
+    "API_PUBLIC_BASE_URL",
+    "ETRADE_CALLBACK_URL",
+    "SYMBOL_ENRICHMENT_ALLOWED_JOBS",
+}
 _AI_RELAY_SECRET_BLOCK = (
     "    - name: ai-relay-api-key",
     '      value: "${AI_RELAY_API_KEY}"',
@@ -63,10 +68,18 @@ def _normalize_quoted_scalar_env_value(value: str) -> str:
     return inner
 
 
+def _normalize_optional_placeholder_env_value(name: str, value: str) -> str:
+    candidate = value.strip()
+    if name in _OPTIONAL_EMPTY_PLACEHOLDER_NAMES and candidate == f"${{{name}}}":
+        return ""
+    return value
+
+
 def _render_yaml_scalar(name: str, env: dict[str, str], *, fallback: str) -> str:
     if name not in env:
         return fallback
-    return json.dumps(_normalize_quoted_scalar_env_value(env[name]))
+    value = _normalize_optional_placeholder_env_value(name, env[name])
+    return json.dumps(_normalize_quoted_scalar_env_value(value))
 
 
 def _validate_rendered_manifest(rendered: str) -> None:

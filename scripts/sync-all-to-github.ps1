@@ -43,6 +43,16 @@ function Normalize-EnvValue {
     return $Value.Trim()
 }
 
+function Normalize-SelfPlaceholderValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [AllowNull()][string]$Value
+    )
+    $normalized = Normalize-EnvValue -Value $Value
+    if ($normalized -eq ('${' + $Key + '}')) { return "" }
+    return $normalized
+}
+
 function Register-NormalizedQuotedScalarValue {
     param([Parameter(Mandatory = $true)][string]$Key)
     if ([string]::IsNullOrWhiteSpace($Key)) { return }
@@ -99,9 +109,21 @@ function Get-GitHubSecretNames {
     return ,$script:GitHubSecretNames
 }
 
+function Get-GitHubVariableNames {
+    if ($null -eq $script:GitHubVariableNames) {
+        $script:GitHubVariableNames = Get-RemoteGitHubItemNames -Kind "variable"
+    }
+    return ,$script:GitHubVariableNames
+}
+
 function Test-GitHubSecretExists {
     param([Parameter(Mandatory = $true)][string]$Name)
     return (Get-GitHubSecretNames).Contains($Name)
+}
+
+function Test-GitHubVariableExists {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    return (Get-GitHubVariableNames).Contains($Name)
 }
 
 function Resolve-ManagedIdentityClientId {
@@ -179,10 +201,12 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh
 
 $script:NormalizedQuotedScalarValues = @{}
 $script:GitHubSecretNames = $null
+$script:GitHubVariableNames = $null
 $envMap = Parse-EnvFile -Path $envPath
 $normalizedEnvMap = @{}
 foreach ($key in $envMap.Keys) {
-    $normalizedEnvMap[$key] = Normalize-QuotedScalarValue -Key $key -Value $envMap[$key]
+    $normalizedValue = Normalize-QuotedScalarValue -Key $key -Value $envMap[$key]
+    $normalizedEnvMap[$key] = Normalize-SelfPlaceholderValue -Key $key -Value $normalizedValue
 }
 $envMap = $normalizedEnvMap
 $contractMap = Load-EnvContract -Path $contractPath
@@ -223,6 +247,15 @@ foreach ($key in ($contractMap.Keys | Sort-Object)) {
     $value = if ($envMap.ContainsKey($key)) { $envMap[$key] } else { "" }
     if ($storage -eq "var") { $expectedVars.Add($key) } else { $expectedSecrets.Add($key) }
     if ([string]::IsNullOrWhiteSpace($value)) {
+        if ($storage -eq "var" -and (Test-GitHubVariableExists -Name $key)) {
+            if ($DryRun) {
+                Write-Host ("[DRY RUN] Would delete empty {0}: {1}" -f $storage, $key)
+            } else {
+                gh variable delete $key
+                Write-Host ("Deleted empty {0}: {1}" -f $storage, $key) -ForegroundColor Yellow
+            }
+            continue
+        }
         if ($storage -eq "secret" -and (Test-GitHubSecretExists -Name $key)) {
             Write-Host ("Preserving existing GitHub secret: {0}" -f $key) -ForegroundColor Cyan
             continue

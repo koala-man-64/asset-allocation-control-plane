@@ -362,14 +362,54 @@ class RegimeRepository:
                 ]
                 return [dict(zip(columns, row)) for row in cur.fetchall()]
 
+    def _resolve_model_version(self, *, model_name: str, model_version: int | None) -> int | None:
+        resolved_version = int(model_version) if model_version is not None else None
+        if resolved_version is not None:
+            return resolved_version
+        active = self.get_active_regime_model_revision(model_name)
+        if not active:
+            return None
+        return int(active["version"])
+
+    def _build_snapshot_from_rows(self, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not rows:
+            return None
+
+        first = rows[0]
+        signals = [
+            {
+                "regime_code": row.get("regime_code"),
+                "display_name": row.get("display_name"),
+                "signal_state": row.get("signal_state"),
+                "score": row.get("score"),
+                "activation_threshold": row.get("activation_threshold"),
+                "is_active": row.get("is_active"),
+                "matched_rule_id": row.get("matched_rule_id"),
+                "evidence": row.get("evidence_json"),
+            }
+            for row in rows
+        ]
+        return {
+            "as_of_date": first.get("as_of_date"),
+            "effective_from_date": first.get("effective_from_date"),
+            "model_name": first.get("model_name"),
+            "model_version": first.get("model_version"),
+            "signals": signals,
+            "active_regimes": [
+                row.get("regime_code")
+                for row in rows
+                if bool(row.get("is_active"))
+            ],
+            "halt_flag": bool(first.get("halt_flag")),
+            "halt_reason": first.get("halt_reason"),
+            "computed_at": first.get("computed_at"),
+        }
+
     def get_regime_latest(self, *, model_name: str, model_version: int | None = None) -> Optional[dict[str, Any]]:
         dsn = self._require_dsn()
-        resolved_version = int(model_version) if model_version is not None else None
+        resolved_version = self._resolve_model_version(model_name=model_name, model_version=model_version)
         if resolved_version is None:
-            active = self.get_active_regime_model_revision(model_name)
-            if not active:
-                return None
-            resolved_version = int(active["version"])
+            return None
         with connect(dsn) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -380,26 +420,24 @@ class RegimeRepository:
                         model_name,
                         model_version,
                         regime_code,
-                        regime_status,
+                        display_name,
+                        signal_state,
+                        score,
+                        activation_threshold,
+                        is_active,
                         matched_rule_id,
                         halt_flag,
                         halt_reason,
-                        spy_return_20d,
-                        rvol_10d_ann,
-                        vix_spot_close,
-                        vix3m_close,
-                        vix_slope,
-                        trend_state,
-                        curve_state,
-                        vix_gt_32_streak,
+                        evidence_json,
                         computed_at
                     FROM gold.regime_latest
                     WHERE model_name = %s AND model_version = %s
+                    ORDER BY regime_code ASC
                     """,
                     (model_name, resolved_version),
                 )
-                row = cur.fetchone()
-                if not row:
+                rows = cur.fetchall()
+                if not rows:
                     return None
                 columns = [
                     "as_of_date",
@@ -407,21 +445,18 @@ class RegimeRepository:
                     "model_name",
                     "model_version",
                     "regime_code",
-                    "regime_status",
+                    "display_name",
+                    "signal_state",
+                    "score",
+                    "activation_threshold",
+                    "is_active",
                     "matched_rule_id",
                     "halt_flag",
                     "halt_reason",
-                    "spy_return_20d",
-                    "rvol_10d_ann",
-                    "vix_spot_close",
-                    "vix3m_close",
-                    "vix_slope",
-                    "trend_state",
-                    "curve_state",
-                    "vix_gt_32_streak",
+                    "evidence_json",
                     "computed_at",
                 ]
-                return dict(zip(columns, row))
+                return self._build_snapshot_from_rows([dict(zip(columns, row)) for row in rows])
 
     def list_regime_inputs(
         self,
@@ -446,15 +481,30 @@ class RegimeRepository:
             SELECT
                 as_of_date,
                 spy_close,
-                return_1d,
-                return_20d,
-                rvol_10d_ann,
+                qqq_close,
+                iwm_close,
+                acwi_close,
+                spy_return_20d,
+                qqq_return_20d,
+                iwm_return_20d,
+                acwi_return_20d,
+                sma_20d,
+                sma_50d,
+                sma_200d,
+                rsi_14d,
+                bb_width_20d,
+                atr_14d,
+                atr_14d_pct_of_close,
+                gap_atr,
+                volume_pct_rank_252d,
                 vix_spot_close,
                 vix3m_close,
-                vix_slope,
-                trend_state,
-                curve_state,
-                vix_gt_32_streak,
+                rate_2y,
+                rate_10y,
+                curve_2s10s,
+                hy_oas,
+                hy_oas_z_20d,
+                rates_event_flag,
                 inputs_complete_flag,
                 computed_at
             FROM gold.regime_inputs_daily
@@ -469,15 +519,30 @@ class RegimeRepository:
         columns = [
             "as_of_date",
             "spy_close",
-            "return_1d",
-            "return_20d",
-            "rvol_10d_ann",
+            "qqq_close",
+            "iwm_close",
+            "acwi_close",
+            "spy_return_20d",
+            "qqq_return_20d",
+            "iwm_return_20d",
+            "acwi_return_20d",
+            "sma_20d",
+            "sma_50d",
+            "sma_200d",
+            "rsi_14d",
+            "bb_width_20d",
+            "atr_14d",
+            "atr_14d_pct_of_close",
+            "gap_atr",
+            "volume_pct_rank_252d",
             "vix_spot_close",
             "vix3m_close",
-            "vix_slope",
-            "trend_state",
-            "curve_state",
-            "vix_gt_32_streak",
+            "rate_2y",
+            "rate_10y",
+            "curve_2s10s",
+            "hy_oas",
+            "hy_oas_z_20d",
+            "rates_event_flag",
             "inputs_complete_flag",
             "computed_at",
         ]
@@ -493,12 +558,9 @@ class RegimeRepository:
         limit: int = 500,
     ) -> list[dict[str, Any]]:
         dsn = self._require_dsn()
-        resolved_version = int(model_version) if model_version is not None else None
+        resolved_version = self._resolve_model_version(model_name=model_name, model_version=model_version)
         if resolved_version is None:
-            active = self.get_active_regime_model_revision(model_name)
-            if not active:
-                return []
-            resolved_version = int(active["version"])
+            return []
 
         predicates = ["model_name = %s", "model_version = %s"]
         params: list[Any] = [model_name, resolved_version]
@@ -517,22 +579,19 @@ class RegimeRepository:
                 model_name,
                 model_version,
                 regime_code,
-                regime_status,
+                display_name,
+                signal_state,
+                score,
+                activation_threshold,
+                is_active,
                 matched_rule_id,
                 halt_flag,
                 halt_reason,
-                spy_return_20d,
-                rvol_10d_ann,
-                vix_spot_close,
-                vix3m_close,
-                vix_slope,
-                trend_state,
-                curve_state,
-                vix_gt_32_streak,
+                evidence_json,
                 computed_at
             FROM gold.regime_history
             WHERE {" AND ".join(predicates)}
-            ORDER BY as_of_date DESC
+            ORDER BY as_of_date DESC, regime_code ASC
             LIMIT %s
         """
         with connect(dsn) as conn:
@@ -545,18 +604,15 @@ class RegimeRepository:
             "model_name",
             "model_version",
             "regime_code",
-            "regime_status",
+            "display_name",
+            "signal_state",
+            "score",
+            "activation_threshold",
+            "is_active",
             "matched_rule_id",
             "halt_flag",
             "halt_reason",
-            "spy_return_20d",
-            "rvol_10d_ann",
-            "vix_spot_close",
-            "vix3m_close",
-            "vix_slope",
-            "trend_state",
-            "curve_state",
-            "vix_gt_32_streak",
+            "evidence_json",
             "computed_at",
         ]
         return [dict(zip(columns, row)) for row in rows]
@@ -571,12 +627,9 @@ class RegimeRepository:
         limit: int = 200,
     ) -> list[dict[str, Any]]:
         dsn = self._require_dsn()
-        resolved_version = int(model_version) if model_version is not None else None
+        resolved_version = self._resolve_model_version(model_name=model_name, model_version=model_version)
         if resolved_version is None:
-            active = self.get_active_regime_model_revision(model_name)
-            if not active:
-                return []
-            resolved_version = int(active["version"])
+            return []
 
         predicates = ["model_name = %s", "model_version = %s"]
         params: list[Any] = [model_name, resolved_version]
@@ -593,13 +646,16 @@ class RegimeRepository:
                 model_name,
                 model_version,
                 effective_from_date,
-                prior_regime_code,
-                new_regime_code,
+                regime_code,
+                transition_type,
+                prior_score,
+                new_score,
+                activation_threshold,
                 trigger_rule_id,
                 computed_at
             FROM gold.regime_transitions
             WHERE {" AND ".join(predicates)}
-            ORDER BY effective_from_date DESC
+            ORDER BY effective_from_date DESC, regime_code ASC, transition_type ASC
             LIMIT %s
         """
         with connect(dsn) as conn:
@@ -610,8 +666,11 @@ class RegimeRepository:
             "model_name",
             "model_version",
             "effective_from_date",
-            "prior_regime_code",
-            "new_regime_code",
+            "regime_code",
+            "transition_type",
+            "prior_score",
+            "new_score",
+            "activation_threshold",
             "trigger_rule_id",
             "computed_at",
         ]
