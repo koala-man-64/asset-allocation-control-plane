@@ -459,24 +459,21 @@ function Get-ConfiguredValue {
     param([Parameter(Mandatory = $true)][string[]]$Keys, [string]$Fallback = "")
     foreach ($key in $Keys) {
         if ($overrideMap.ContainsKey($key)) {
-            $overrideValue = Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key]
+            $overrideValue = Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key] -Source "override"
             if (-not [string]::IsNullOrWhiteSpace($overrideValue)) { return $overrideValue }
-        if ($overrideMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($overrideMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $overrideMap[$key] -Source "override")
         }
+
         if ($existingMap.ContainsKey($key)) {
-            $existingValue = Normalize-EnvValueForKey -Name $key -Value $existingMap[$key]
+            $existingValue = Normalize-EnvValueForKey -Name $key -Value $existingMap[$key] -Source (Split-Path -Leaf $EnvFilePath)
             if (-not [string]::IsNullOrWhiteSpace($existingValue)) { return $existingValue }
-        if ($existingMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($existingMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $existingMap[$key] -Source (Split-Path -Leaf $EnvFilePath))
         }
+
         $githubValue = Get-GitHubVariableValue -Name $key
         if (-not [string]::IsNullOrWhiteSpace($githubValue)) { return $githubValue }
+
         if ($templateMap.ContainsKey($key)) {
-            $templateValue = Normalize-EnvValueForKey -Name $key -Value $templateMap[$key]
+            $templateValue = Normalize-EnvValueForKey -Name $key -Value $templateMap[$key] -Source (Split-Path -Leaf $templatePath)
             if (-not [string]::IsNullOrWhiteSpace($templateValue)) { return $templateValue }
-        if ($templateMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($templateMap[$key])) {
-            return (Normalize-EnvValueForKey -Name $key -Value $templateMap[$key] -Source (Split-Path -Leaf $templatePath))
         }
     }
     return (Normalize-EnvValueForKey -Name $Keys[0] -Value $Fallback -Source "fallback")
