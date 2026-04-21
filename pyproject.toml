@@ -21,7 +21,7 @@ dependencies = [
     "azure-storage-blob==12.28.0",
     "azure-identity==1.25.2",
     "deltalake==1.4.2",
-    "python-dotenv==1.2.1",
+    "python-dotenv==1.2.2",
     "python-dateutil==2.9.0.post0",
     "psycopg==3.3.3",
     "psycopg-binary==3.3.3",
@@ -40,7 +40,7 @@ dependencies = [
     "PyYAML==6.0.3",
     "pydantic==2.12.5",
     "asset-allocation-contracts==3.0.0",
-    "asset-allocation-runtime-common==3.0.0",
+    "asset-allocation-runtime-common==3.1.0",
 ]
 
 [project.optional-dependencies]

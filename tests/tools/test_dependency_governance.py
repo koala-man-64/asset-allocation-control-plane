@@ -42,14 +42,14 @@ def test_validate_shared_dependency_compatibility_reports_version_skew() -> None
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
             "asset-allocation-contracts": "3.0.0",
-            "asset-allocation-runtime-common": "3.0.0",
+            "asset-allocation-runtime-common": "3.1.0",
         },
         "Requires-Dist: asset-allocation-contracts==0.0.0\n",
     )
 
     assert incompatibility is not None
     assert "asset-allocation-contracts==3.0.0" in incompatibility
-    assert "asset-allocation-runtime-common==3.0.0" in incompatibility
+    assert "asset-allocation-runtime-common==3.1.0" in incompatibility
     assert "asset-allocation-contracts==0.0.0" in incompatibility
 
 
@@ -59,12 +59,38 @@ def test_validate_shared_dependency_compatibility_accepts_matching_versions() ->
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
             "asset-allocation-contracts": "3.0.0",
-            "asset-allocation-runtime-common": "3.0.0",
+            "asset-allocation-runtime-common": "3.1.0",
         },
         "Requires-Dist: asset-allocation-contracts==3.0.0\n",
     )
 
     assert incompatibility is None
+
+
+def test_validate_shared_dependency_compatibility_reports_runtime_pin_skew() -> None:
+    dependency_governance = _load_dependency_governance_module()
+
+    incompatibility = dependency_governance.validate_shared_dependency_compatibility(
+        {
+            "asset-allocation-contracts": "3.0.0",
+            "asset-allocation-runtime-common": "3.1.0",
+        },
+        "\n".join(
+            [
+                "Requires-Dist: asset-allocation-contracts==3.0.0",
+                "Requires-Dist: python-dotenv==1.2.2",
+                "Requires-Dist: pytest==9.0.3; extra == 'test'",
+            ]
+        ),
+        runtime_pins={
+            "python-dotenv": "1.2.1",
+        },
+    )
+
+    assert incompatibility is not None
+    assert "python-dotenv==1.2.1" in incompatibility
+    assert "asset-allocation-runtime-common==3.1.0" in incompatibility
+    assert "python-dotenv==1.2.2" in incompatibility
 
 
 def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None:
@@ -78,7 +104,7 @@ def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None
                 'version = "0.1.0"',
                 "dependencies = [",
                 '    "asset-allocation-contracts==3.0.0",',
-                '    "asset-allocation-runtime-common==3.0.0",',
+                '    "asset-allocation-runtime-common==3.1.0",',
                 '    "fastapi==0.133.1",',
                 "]",
             ]
@@ -91,7 +117,7 @@ def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None
 
     assert version_matrix == {
         "contracts_version": "3.0.0",
-        "runtime_common_version": "3.0.0",
+        "runtime_common_version": "3.1.0",
         "control_plane_version": "0.1.0",
     }
 

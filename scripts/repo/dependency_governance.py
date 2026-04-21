@@ -274,7 +274,37 @@ def get_exact_requires_dist_version(metadata_text: str, package_name: str) -> st
     return None
 
 
-def validate_shared_dependency_compatibility(shared_pins: Dict[str, str], runtime_common_metadata: str) -> str | None:
+def get_unconditional_exact_requires_dist_versions(metadata_text: str) -> Dict[str, str]:
+    requirements: Dict[str, str] = {}
+
+    for line in metadata_text.splitlines():
+        if not line.startswith("Requires-Dist: "):
+            continue
+
+        requirement = line[len("Requires-Dist: ") :].strip()
+        if ";" in requirement:
+            requirement, marker = requirement.split(";", 1)
+            if "extra ==" in marker:
+                continue
+            requirement = requirement.strip()
+
+        if "==" not in requirement:
+            continue
+
+        package_name, version = requirement.split("==", 1)
+        normalized_name = normalize_name(package_name)
+        if normalized_name in requirements:
+            continue
+        requirements[normalized_name] = version.strip()
+
+    return requirements
+
+
+def validate_shared_dependency_compatibility(
+    shared_pins: Dict[str, str],
+    runtime_common_metadata: str,
+    runtime_pins: Dict[str, str] | None = None,
+) -> str | None:
     contracts_version = shared_pins.get("asset-allocation-contracts")
     runtime_common_version = shared_pins.get("asset-allocation-runtime-common")
 
@@ -292,14 +322,37 @@ def validate_shared_dependency_compatibility(shared_pins: Dict[str, str], runtim
             "asset-allocation-contracts requirement in its wheel metadata."
         )
 
+    findings: List[str] = []
+
     if required_contracts_version != contracts_version:
-        return (
+        findings.append(
             "Shared package compatibility check failed: "
             f"pyproject pins asset-allocation-contracts=={contracts_version}, "
             f"but asset-allocation-runtime-common=={runtime_common_version} requires "
             f"asset-allocation-contracts=={required_contracts_version}. "
             "Publish or adopt a compatible runtime-common version before installing both packages together."
         )
+
+    if runtime_pins:
+        runtime_common_requirements = get_unconditional_exact_requires_dist_versions(runtime_common_metadata)
+        for package_name, required_version in sorted(runtime_common_requirements.items()):
+            if package_name.startswith(FIRST_PARTY_SHARED_PREFIX):
+                continue
+
+            pinned_version = runtime_pins.get(package_name)
+            if pinned_version is None or pinned_version == required_version:
+                continue
+
+            findings.append(
+                "Shared package compatibility check failed: "
+                f"pyproject pins {package_name}=={pinned_version}, "
+                f"but asset-allocation-runtime-common=={runtime_common_version} requires "
+                f"{package_name}=={required_version}. "
+                "Update the local runtime dependency pin or adopt a compatible runtime-common release."
+            )
+
+    if findings:
+        return "\n".join(findings)
 
     return None
 
@@ -335,8 +388,11 @@ def download_exact_wheel_metadata(requirement: str) -> str:
 
 def command_check_shared_compat(args: argparse.Namespace) -> int:
     shared_pins, duplicates, malformed, unpinned = parse_requirements_file(args.requirements)
+    _, pyproject_pinned, pyproject_duplicates, pyproject_malformed = parse_pyproject_runtime_dependencies(args.pyproject)
 
     findings: List[str] = []
+    findings.extend(pyproject_duplicates)
+    findings.extend(pyproject_malformed)
     findings.extend(duplicates)
     findings.extend(malformed)
     findings.extend(unpinned)
@@ -360,7 +416,11 @@ def command_check_shared_compat(args: argparse.Namespace) -> int:
         print(str(exc))
         return 1
 
-    incompatibility = validate_shared_dependency_compatibility(shared_pins, runtime_common_metadata)
+    incompatibility = validate_shared_dependency_compatibility(
+        shared_pins,
+        runtime_common_metadata,
+        runtime_pins=pyproject_pinned,
+    )
     if incompatibility:
         print(incompatibility)
         return 1
@@ -545,6 +605,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("shared-python-deps.txt"),
         help="Path to the generated shared package requirements file",
+    )
+    shared_compat.add_argument(
+        "--pyproject",
+        type=Path,
+        default=Path("pyproject.toml"),
+        help="Path to pyproject.toml containing the repo runtime pins to validate against runtime-common metadata",
     )
     shared_compat.set_defaults(func=command_check_shared_compat)
 
