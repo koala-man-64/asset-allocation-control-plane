@@ -3,7 +3,7 @@ from typing import Any, Dict
 from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
 
-from api.service.auth import AuthContext, AuthManager
+from api.service.auth import AuthContext, AuthManager, summarize_auth_claims_for_logs
 from api.service.etrade_gateway import ETradeGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
@@ -40,22 +40,45 @@ def get_websocket_ticket_store(request: Request) -> WebSocketTicketStore:
 from api.service.auth import AuthError
 
 
+def _request_id(request: Request) -> str:
+    return str(
+        getattr(getattr(request, "state", object()), "request_id", "")
+        or request.headers.get("x-request-id", "")
+        or "-"
+    )
+
+
+def _request_context(request: Request) -> Dict[str, str]:
+    return {
+        "request_id": _request_id(request),
+        "method": request.method,
+        "path": request.url.path,
+        "host": request.headers.get("host", ""),
+        "origin": request.headers.get("origin", ""),
+        "referer": request.headers.get("referer", ""),
+    }
+
+
 def validate_auth(request: Request) -> AuthContext:
     auth = get_auth_manager(request)
+    request_context = _request_context(request)
 
     try:
-        ctx = auth.authenticate_headers(dict(request.headers))
+        ctx = auth.authenticate_headers(dict(request.headers), request_context=request_context)
         if ctx.mode == "anonymous":
             logger.info(
-                "Auth bypassed for local/test runtime: path=%s host=%s",
-                request.url.path,
-                request.headers.get("host", ""),
+                "Auth bypassed for local/test runtime: request_id=%s path=%s host=%s",
+                request_context["request_id"],
+                request_context["path"],
+                request_context["host"],
             )
         logger.info(
-            "Auth ok: mode=%s subject=%s path=%s",
+            "Auth ok: request_id=%s mode=%s subject=%s path=%s claims=%s",
+            request_context["request_id"],
             ctx.mode,
             ctx.subject or "-",
-            request.url.path,
+            request_context["path"],
+            summarize_auth_claims_for_logs(ctx.claims if isinstance(ctx.claims, dict) else {}),
         )
         return ctx
     except AuthError as exc:
@@ -63,10 +86,11 @@ def validate_auth(request: Request) -> AuthContext:
         if exc.www_authenticate:
             headers["WWW-Authenticate"] = exc.www_authenticate
         logger.warning(
-            "Auth failed: status=%s detail=%s path=%s",
+            "Auth failed: request_id=%s status=%s detail=%s path=%s",
+            request_context["request_id"],
             exc.status_code,
             exc.detail,
-            request.url.path,
+            request_context["path"],
         )
         raise HTTPException(status_code=exc.status_code, detail=exc.detail, headers=headers) from exc
 
@@ -87,17 +111,30 @@ def _require_configured_roles(
 ) -> None:
     if auth_context.mode == "anonymous":
         return
+    granted_roles = sorted(_claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {}))
+    configured_roles = sorted({role.strip() for role in required_roles if role.strip()})
+    logger.info(
+        "%s authz check: request_id=%s subject=%s required_roles=%s granted_roles=%s path=%s",
+        log_prefix,
+        _request_id(request),
+        auth_context.subject or "-",
+        configured_roles,
+        granted_roles,
+        request.url.path,
+    )
     missing = sorted(
         role
-        for role in {role.strip() for role in required_roles if role.strip()}
-        if role not in _claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {})
+        for role in configured_roles
+        if role not in granted_roles
     )
     if missing:
         logger.warning(
-            "%s authz failed: subject=%s missing_roles=%s path=%s",
+            "%s authz failed: request_id=%s subject=%s missing_roles=%s granted_roles=%s path=%s",
             log_prefix,
+            _request_id(request),
             auth_context.subject or "-",
             missing,
+            granted_roles,
             request.url.path,
         )
         raise HTTPException(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
@@ -173,7 +210,8 @@ def require_symbol_enrichment_job_access(request: Request, *, require_enabled: b
     allowed_jobs = {job.strip() for job in settings.allowed_jobs if job.strip()}
     if caller_job not in allowed_jobs:
         logger.warning(
-            "Symbol enrichment authz failed: subject=%s caller_job=%s path=%s",
+            "Symbol enrichment authz failed: request_id=%s subject=%s caller_job=%s path=%s",
+            _request_id(request),
             auth_context.subject or "-",
             caller_job,
             request.url.path,
@@ -216,7 +254,8 @@ def require_intraday_monitor_job_access(request: Request, *, require_enabled: bo
     allowed_jobs = {job.strip() for job in settings.allowed_jobs if job.strip()}
     if caller_job not in allowed_jobs:
         logger.warning(
-            "Intraday job authz failed: subject=%s caller_job=%s path=%s",
+            "Intraday job authz failed: request_id=%s subject=%s caller_job=%s path=%s",
+            _request_id(request),
             auth_context.subject or "-",
             caller_job,
             request.url.path,

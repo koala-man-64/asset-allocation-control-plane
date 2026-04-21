@@ -3,6 +3,7 @@ import logging
 import os
 import time
 import asyncio
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -360,23 +361,54 @@ def create_app() -> FastAPI:
         try:
             start = time.monotonic()
             path = request.url.path or ""
+            request_id = str(request.headers.get("x-request-id") or "").strip() or str(uuid.uuid4())
+            request.state.request_id = request_id
+            auth_header = str(request.headers.get("authorization") or "").strip()
+
+            logger.info(
+                "HTTP request: request_id=%s method=%s path=%s query=%s host=%s origin=%s referer=%s forwarded_for=%s auth_present=%s",
+                request_id,
+                request.method,
+                path,
+                request.url.query,
+                request.headers.get("host", ""),
+                request.headers.get("origin", ""),
+                request.headers.get("referer", ""),
+                request.headers.get("x-forwarded-for", ""),
+                auth_header.lower().startswith("bearer "),
+            )
 
             response = await call_next(request)
-            _ = (time.monotonic() - start) * 1000.0
+            elapsed_ms = (time.monotonic() - start) * 1000.0
 
             # Safe logic for headers
             if path.startswith("/assets/") and response.status_code == 200:
                 response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
 
+            response.headers.setdefault("X-Request-ID", request_id)
             response.headers.setdefault("X-Content-Type-Options", "nosniff")
             response.headers.setdefault("X-Frame-Options", "DENY")
             if content_security_policy:
                 response.headers.setdefault("Content-Security-Policy", content_security_policy)
 
+            logger.info(
+                "HTTP response: request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+                request_id,
+                request.method,
+                path,
+                response.status_code,
+                elapsed_ms,
+            )
+
             return response
 
         except Exception:
-            # Let Starlette's ServerErrorMiddleware handle it, but log it first if needed
+            logger.exception(
+                "HTTP middleware unhandled error: request_id=%s method=%s path=%s",
+                getattr(request.state, "request_id", "-"),
+                request.method,
+                request.url.path,
+            )
             raise
 
     # CORS Configuration

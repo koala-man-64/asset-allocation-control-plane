@@ -547,9 +547,25 @@ def build_router(
     def system_status_view(request: Request, refresh: bool = Query(False)) -> JSONResponse:
         validate_auth = _runtime_attr(runtime, "validate_auth")
         build_system_status_view = _runtime_attr(runtime, "build_system_status_view")
+        route_logger = _runtime_attr(runtime, "logger")
+        request_id = request.headers.get("x-request-id", "") or getattr(request.state, "request_id", "")
 
+        route_logger.info(
+            "System status-view route entered: refresh=%s path=%s host=%s request_id=%s",
+            refresh,
+            request.url.path,
+            request.headers.get("host", ""),
+            request_id,
+        )
         validate_auth(request)
         payload = build_system_status_view(request, refresh=bool(refresh))
+        route_logger.info(
+            "System status-view route completed: refresh=%s request_id=%s system_health_source=%s domain_metadata_source=%s",
+            refresh,
+            request_id,
+            payload.get("sources", {}).get("systemHealth"),
+            payload.get("sources", {}).get("domainMetadata"),
+        )
         return JSONResponse(
             payload,
             headers={

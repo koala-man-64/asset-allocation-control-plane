@@ -12,6 +12,8 @@ from api.service.settings import ServiceSettings
 
 def _settings(*, required_roles: str = "AssetAllocation.Access") -> ServiceSettings:
     return ServiceSettings(
+        api_root_prefix="",
+        api_public_base_url=None,
         oidc_auth_enabled=True,
         anonymous_local_auth_enabled=False,
         oidc_issuer="https://issuer.example.com",
