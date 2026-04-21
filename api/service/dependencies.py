@@ -1,4 +1,5 @@
 import logging
+from inspect import Parameter, signature
 from typing import Any, Dict
 from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
@@ -64,12 +65,34 @@ def _request_context(request: Request) -> Dict[str, str]:
     }
 
 
+def _authenticate_headers(
+    auth: AuthManager,
+    headers: Dict[str, str],
+    *,
+    request_context: Dict[str, str],
+) -> AuthContext:
+    try:
+        parameters = signature(auth.authenticate_headers).parameters.values()
+    except (TypeError, ValueError):
+        parameters = ()
+
+    supports_request_context = any(
+        parameter.kind == Parameter.VAR_KEYWORD or parameter.name == "request_context"
+        for parameter in parameters
+    )
+
+    if supports_request_context:
+        return auth.authenticate_headers(headers, request_context=request_context)
+
+    return auth.authenticate_headers(headers)
+
+
 def validate_auth(request: Request) -> AuthContext:
     auth = get_auth_manager(request)
     request_context = _request_context(request)
 
     try:
-        ctx = auth.authenticate_headers(dict(request.headers), request_context=request_context)
+        ctx = _authenticate_headers(auth, dict(request.headers), request_context=request_context)
         if ctx.mode == "anonymous":
             logger.info(
                 "Auth bypassed for local/test runtime: request_id=%s path=%s host=%s",
