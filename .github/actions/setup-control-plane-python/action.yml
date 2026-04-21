@@ -94,7 +94,8 @@ runs:
         if [ -s "${repo_path}/shared-python-deps.txt" ]; then
           python "${repo_path}/scripts/repo/dependency_governance.py" \
             check-shared-compat \
-            --requirements "${repo_path}/shared-python-deps.txt"
+            --requirements "${repo_path}/shared-python-deps.txt" \
+            --pyproject "${repo_path}/pyproject.toml"
           python -m pip install -r "${repo_path}/shared-python-deps.txt"
         fi
 
