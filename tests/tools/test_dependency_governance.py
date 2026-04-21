@@ -42,14 +42,14 @@ def test_validate_shared_dependency_compatibility_reports_version_skew() -> None
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
             "asset-allocation-contracts": "2.4.0",
-            "asset-allocation-runtime-common": "2.0.9",
+            "asset-allocation-runtime-common": "2.1.0",
         },
         "Requires-Dist: asset-allocation-contracts==0.0.0\n",
     )
 
     assert incompatibility is not None
     assert "asset-allocation-contracts==2.4.0" in incompatibility
-    assert "asset-allocation-runtime-common==2.0.9" in incompatibility
+    assert "asset-allocation-runtime-common==2.1.0" in incompatibility
     assert "asset-allocation-contracts==0.0.0" in incompatibility
 
 
@@ -59,7 +59,7 @@ def test_validate_shared_dependency_compatibility_accepts_matching_versions() ->
     incompatibility = dependency_governance.validate_shared_dependency_compatibility(
         {
             "asset-allocation-contracts": "2.4.0",
-            "asset-allocation-runtime-common": "2.0.9",
+            "asset-allocation-runtime-common": "2.1.0",
         },
         "Requires-Dist: asset-allocation-contracts==2.4.0\n",
     )
@@ -78,7 +78,7 @@ def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None
                 'version = "0.1.0"',
                 "dependencies = [",
                 '    "asset-allocation-contracts==2.4.0",',
-                '    "asset-allocation-runtime-common==2.0.9",',
+                '    "asset-allocation-runtime-common==2.1.0",',
                 '    "fastapi==0.133.1",',
                 "]",
             ]
@@ -91,7 +91,7 @@ def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None
 
     assert version_matrix == {
         "contracts_version": "2.4.0",
-        "runtime_common_version": "2.0.9",
+        "runtime_common_version": "2.1.0",
         "control_plane_version": "0.1.0",
     }
 
