@@ -23,6 +23,8 @@ COPY asset-allocation-control-plane/core/ core/
 COPY asset-allocation-control-plane/etrade_provider/ etrade_provider/
 COPY asset-allocation-control-plane/massive_provider/ massive_provider/
 COPY asset-allocation-control-plane/monitoring/ monitoring/
+COPY asset-allocation-control-plane/quiver_provider/ quiver_provider/
+COPY asset-allocation-control-plane/schwab/ schwab/
 COPY asset-allocation-control-plane/api/ api/
 RUN pip install --no-cache-dir .
 

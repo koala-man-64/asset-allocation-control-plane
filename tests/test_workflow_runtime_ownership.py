@@ -181,3 +181,24 @@ def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> Non
     assert "/api/ai/chat/stream" in text
     assert "AI_RELAY_SMOKE_BEARER_TOKEN" in text
     assert "AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN" in text
+
+
+def test_deploy_workflow_exports_manifest_runtime_env_surface() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "API_PUBLIC_BASE_URL: ${{ vars.API_PUBLIC_BASE_URL }}" in text
+    assert "ETRADE_CALLBACK_URL: ${{ vars.ETRADE_CALLBACK_URL }}" in text
+    assert "SCHWAB_APP_CALLBACK_URL: ${{ vars.SCHWAB_APP_CALLBACK_URL }}" in text
+    assert "SYMBOL_ENRICHMENT_ENABLED: ${{ vars.SYMBOL_ENRICHMENT_ENABLED || 'false' }}" in text
+    assert "SYMBOL_ENRICHMENT_MODEL: ${{ vars.SYMBOL_ENRICHMENT_MODEL }}" in text
+    assert "SYMBOL_ENRICHMENT_CONFIDENCE_MIN: ${{ vars.SYMBOL_ENRICHMENT_CONFIDENCE_MIN }}" in text
+    assert "SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN: ${{ vars.SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN }}" in text
+    assert "SYMBOL_ENRICHMENT_ALLOWED_JOBS: ${{ vars.SYMBOL_ENRICHMENT_ALLOWED_JOBS }}" in text
+
+
+def test_release_workflow_smoke_tests_built_image_before_push() -> None:
+    text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "DOCKER_BUILDKIT=1 docker build" in text
+    assert 'python -c "import api.service.app; import quiver_provider; import schwab"' in text
+    assert text.index('python -c "import api.service.app; import quiver_provider; import schwab"') < text.index(
+        'docker push "${image_ref}"'
+    )

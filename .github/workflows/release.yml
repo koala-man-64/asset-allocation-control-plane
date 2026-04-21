@@ -169,6 +169,15 @@ jobs:
             build_args+=(--secret "id=pipconfig,src=${{ steps.pipconfig.outputs.path }}")
           fi
           DOCKER_BUILDKIT=1 docker build "${build_args[@]}" .
+          docker run --rm \
+            -e TEST_MODE="${TEST_MODE}" \
+            -e LOG_FORMAT="${LOG_FORMAT}" \
+            -e LOG_LEVEL="${LOG_LEVEL}" \
+            -e AZURE_STORAGE_ACCOUNT_NAME="${AZURE_STORAGE_ACCOUNT_NAME}" \
+            -e AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \
+            -e AZURE_CONTAINER_COMMON="${AZURE_CONTAINER_COMMON}" \
+            "${image_ref}" \
+            python -c "import api.service.app; import quiver_provider; import schwab"
           docker push "${image_ref}"
           image_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "${image_ref}")"
           echo "image_ref=${image_ref}" >> "$GITHUB_OUTPUT"

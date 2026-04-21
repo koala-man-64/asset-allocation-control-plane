@@ -61,6 +61,8 @@ def test_api_dockerfile_copies_first_party_packages_needed_at_boot() -> None:
         "COPY asset-allocation-control-plane/etrade_provider/ etrade_provider/",
         "COPY asset-allocation-control-plane/massive_provider/ massive_provider/",
         "COPY asset-allocation-control-plane/monitoring/ monitoring/",
+        "COPY asset-allocation-control-plane/quiver_provider/ quiver_provider/",
+        "COPY asset-allocation-control-plane/schwab/ schwab/",
         "COPY asset-allocation-control-plane/api/ api/",
     )
     for copy_line in required_copy_lines:

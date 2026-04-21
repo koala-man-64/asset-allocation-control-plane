@@ -70,6 +70,10 @@ def _render_yaml_scalar(name: str, env: dict[str, str], *, fallback: str) -> str
 
 
 def _validate_rendered_manifest(rendered: str) -> None:
+    unresolved = sorted(set(_PLACEHOLDER_PATTERN.findall(rendered)))
+    if unresolved:
+        joined = ", ".join(unresolved)
+        raise ValueError(f"Rendered manifest contains unresolved placeholders: {joined}")
     try:
         loaded = yaml.safe_load(rendered)
     except yaml.YAMLError as exc:
