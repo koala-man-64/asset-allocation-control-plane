@@ -180,6 +180,30 @@ def require_ai_relay_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_data_discovery_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).data_discovery
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Data discovery read",
+    )
+    return auth_context
+
+
+def require_data_discovery_write_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).data_discovery
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.write_required_roles,
+        log_prefix="Data discovery write",
+    )
+    return auth_context
+
+
 def require_quiver_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
     auth_context = validate_auth(request)
     settings = get_settings(request).quiver
