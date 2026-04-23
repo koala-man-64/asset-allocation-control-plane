@@ -1915,6 +1915,443 @@
         "title": "CreateRegimeModelRequest",
         "type": "object"
       },
+      "DataDiscoveryCatalogResponse": {
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DataDiscoveryDatasetSummary"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "DataDiscoveryCatalogResponse",
+        "type": "object"
+      },
+      "DataDiscoveryDatasetDetailResponse": {
+        "properties": {
+          "asOfColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asofcolumn"
+          },
+          "defaultSort": {
+            "items": {
+              "$ref": "#/components/schemas/DataDiscoverySortField"
+            },
+            "title": "Defaultsort",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/DataDiscoveryField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataDiscoveryFreshness"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "primaryKey": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Primarykey",
+            "type": "array"
+          },
+          "schemaName": {
+            "title": "Schemaname",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "gold",
+              "control_plane"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "tableName": {
+            "title": "Tablename",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scope",
+          "schemaName",
+          "tableName",
+          "label",
+          "description"
+        ],
+        "title": "DataDiscoveryDatasetDetailResponse",
+        "type": "object"
+      },
+      "DataDiscoveryDatasetSummary": {
+        "properties": {
+          "asOfColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asofcolumn"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "fieldCount": {
+            "title": "Fieldcount",
+            "type": "integer"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataDiscoveryFreshness"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "primaryKey": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Primarykey",
+            "type": "array"
+          },
+          "sampleSupported": {
+            "title": "Samplesupported",
+            "type": "boolean"
+          },
+          "schemaName": {
+            "title": "Schemaname",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "gold",
+              "control_plane"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "tableName": {
+            "title": "Tablename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "schemaName",
+          "tableName",
+          "label",
+          "description",
+          "fieldCount",
+          "sampleSupported"
+        ],
+        "title": "DataDiscoveryDatasetSummary",
+        "type": "object"
+      },
+      "DataDiscoveryDateRange": {
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "title": "DataDiscoveryDateRange",
+        "type": "object"
+      },
+      "DataDiscoveryField": {
+        "properties": {
+          "calculationDependencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Calculationdependencies",
+            "type": "array"
+          },
+          "calculationNotes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculationnotes"
+          },
+          "calculationType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculationtype"
+          },
+          "dataType": {
+            "title": "Datatype",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "logicalFieldId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logicalfieldid"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nullable": {
+            "title": "Nullable",
+            "type": "boolean"
+          },
+          "primaryKey": {
+            "title": "Primarykey",
+            "type": "boolean"
+          },
+          "valueKind": {
+            "title": "Valuekind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "dataType",
+          "nullable",
+          "primaryKey",
+          "valueKind"
+        ],
+        "title": "DataDiscoveryField",
+        "type": "object"
+      },
+      "DataDiscoveryFreshness": {
+        "properties": {
+          "cacheSource": {
+            "anyOf": [
+              {
+                "enum": [
+                  "snapshot",
+                  "live-refresh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cachesource"
+          },
+          "cachedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cachedat"
+          },
+          "computedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computedat"
+          },
+          "dateRange": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataDiscoveryDateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalRows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalrows"
+          }
+        },
+        "title": "DataDiscoveryFreshness",
+        "type": "object"
+      },
+      "DataDiscoverySampleResponse": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "schemaName": {
+            "title": "Schemaname",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "gold",
+              "control_plane"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "sortApplied": {
+            "items": {
+              "$ref": "#/components/schemas/DataDiscoverySortField"
+            },
+            "title": "Sortapplied",
+            "type": "array"
+          },
+          "tableName": {
+            "title": "Tablename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "schemaName",
+          "tableName",
+          "limit"
+        ],
+        "title": "DataDiscoverySampleResponse",
+        "type": "object"
+      },
+      "DataDiscoverySortField": {
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Direction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "direction"
+        ],
+        "title": "DataDiscoverySortField",
+        "type": "object"
+      },
       "DebugSymbolsUpdateRequest": {
         "properties": {
           "symbols": {
@@ -25151,6 +25588,140 @@
         ]
       }
     },
+    "/api/system/discovery/catalog": {
+      "get": {
+        "operationId": "get_discovery_catalog_api_system_discovery_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDiscoveryCatalogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Discovery Catalog",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/discovery/datasets/{schema_name}/{table_name}": {
+      "get": {
+        "operationId": "get_discovery_dataset_detail_api_system_discovery_datasets__schema_name___table_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schema_name",
+            "required": true,
+            "schema": {
+              "title": "Schema Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table_name",
+            "required": true,
+            "schema": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDiscoveryDatasetDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Discovery Dataset Detail",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/system/discovery/datasets/{schema_name}/{table_name}/sample": {
+      "get": {
+        "operationId": "get_discovery_dataset_sample_api_system_discovery_datasets__schema_name___table_name__sample_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schema_name",
+            "required": true,
+            "schema": {
+              "title": "Schema Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table_name",
+            "required": true,
+            "schema": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDiscoverySampleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Discovery Dataset Sample",
+        "tags": [
+          "System"
+        ]
+      }
+    },
     "/api/system/domain-checkpoints/reset": {
       "post": {
         "operationId": "reset_domain_checkpoints_api_system_domain_checkpoints_reset_post",
@@ -25876,7 +26447,6 @@
     },
     "/api/system/postgres/gold-column-lookup": {
       "get": {
-        "description": "Query the gold column lookup catalog with optional filters and pagination.",
         "operationId": "list_gold_column_lookup_api_system_postgres_gold_column_lookup_get",
         "parameters": [
           {
@@ -25986,7 +26556,6 @@
     },
     "/api/system/postgres/gold-column-lookup/tables": {
       "get": {
-        "description": "List distinct gold table names represented in the column lookup catalog.",
         "operationId": "list_gold_lookup_tables_api_system_postgres_gold_column_lookup_tables_get",
         "responses": {
           "200": {
@@ -26012,7 +26581,6 @@
     },
     "/api/system/postgres/purge": {
       "post": {
-        "description": "Delete all rows from a specific table after schema/table validation.",
         "operationId": "purge_table_api_system_postgres_purge_post",
         "requestBody": {
           "content": {
@@ -26056,7 +26624,6 @@
     },
     "/api/system/postgres/query": {
       "post": {
-        "description": "Executes a safe SELECT query on a specific table.",
         "operationId": "query_table_api_system_postgres_query_post",
         "requestBody": {
           "content": {
@@ -26103,7 +26670,6 @@
     },
     "/api/system/postgres/schemas": {
       "get": {
-        "description": "List all available schemas in the database.",
         "operationId": "list_schemas_api_system_postgres_schemas_get",
         "responses": {
           "200": {
@@ -26129,7 +26695,6 @@
     },
     "/api/system/postgres/schemas/{schema_name}/tables": {
       "get": {
-        "description": "List all tables in a specific schema.",
         "operationId": "list_tables_api_system_postgres_schemas__schema_name__tables_get",
         "parameters": [
           {
@@ -26176,7 +26741,6 @@
     },
     "/api/system/postgres/schemas/{schema_name}/tables/{table_name}/metadata": {
       "get": {
-        "description": "Return column metadata and editing capability for a specific table.",
         "operationId": "get_table_metadata_api_system_postgres_schemas__schema_name__tables__table_name__metadata_get",
         "parameters": [
           {
@@ -26228,7 +26792,6 @@
     },
     "/api/system/postgres/update": {
       "post": {
-        "description": "Update a single row using primary-key match values.",
         "operationId": "update_row_api_system_postgres_update_post",
         "requestBody": {
           "content": {
