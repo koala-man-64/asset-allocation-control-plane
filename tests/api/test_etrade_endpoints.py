@@ -4,6 +4,7 @@ import pytest
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -59,10 +60,14 @@ async def test_etrade_preview_route_requires_trade_role(monkeypatch: pytest.Monk
     monkeypatch.setenv("ETRADE_TRADING_REQUIRED_ROLES", "AssetAllocation.ETrade.Trade")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     async with get_test_client(app) as client:
@@ -115,10 +120,14 @@ async def test_etrade_callback_url_route_returns_resolved_url_when_disabled(monk
     monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     async with get_test_client(app) as client:
@@ -136,10 +145,14 @@ async def test_etrade_callback_url_route_returns_503_when_unresolved(monkeypatch
     _configure_oidc(monkeypatch)
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     async with get_test_client(app) as client:
@@ -162,10 +175,14 @@ async def test_etrade_preview_route_calls_gateway_when_role_present(monkeypatch:
     monkeypatch.setenv("ETRADE_TRADING_REQUIRED_ROLES", "AssetAllocation.ETrade.Trade")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access", "AssetAllocation.ETrade.Trade"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access", "AssetAllocation.ETrade.Trade"]},
+        ),
     )
     app.state.etrade_gateway.preview_order = lambda **kwargs: {  # type: ignore[method-assign]
         "environment": kwargs["environment"],
@@ -201,10 +218,14 @@ async def test_etrade_accounts_route_returns_204(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("ETRADE_ENABLED", "true")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
     app.state.etrade_gateway.list_accounts = lambda **kwargs: None  # type: ignore[method-assign]
 
@@ -225,10 +246,14 @@ async def test_etrade_balance_route_defaults_real_time_nav_to_false(monkeypatch:
     monkeypatch.setenv("ETRADE_ENABLED", "true")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
     captured: dict[str, object] = {}
 
@@ -256,10 +281,14 @@ async def test_etrade_balance_route_allows_real_time_nav_opt_in(monkeypatch: pyt
     monkeypatch.setenv("ETRADE_ENABLED", "true")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
     captured: dict[str, object] = {}
 
@@ -286,10 +315,14 @@ async def test_etrade_portfolio_route_returns_204(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("ETRADE_ENABLED", "true")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
     app.state.etrade_gateway.get_portfolio = lambda **kwargs: None  # type: ignore[method-assign]
 
@@ -312,10 +345,14 @@ async def test_etrade_transactions_route_uses_read_access_only(monkeypatch: pyte
     monkeypatch.setenv("ETRADE_TRADING_REQUIRED_ROLES", "AssetAllocation.ETrade.Trade")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     captured: dict[str, object] = {}
@@ -362,10 +399,14 @@ async def test_etrade_transaction_details_route_returns_204(monkeypatch: pytest.
     monkeypatch.setenv("ETRADE_ENABLED", "true")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     captured: dict[str, object] = {}
