@@ -12,6 +12,15 @@
       "title": "Authrequired",
       "type": "boolean"
     },
+    "authSessionMode": {
+      "default": "bearer",
+      "enum": [
+        "bearer",
+        "cookie"
+      ],
+      "title": "Authsessionmode",
+      "type": "string"
+    },
     "oidcAudience": {
       "items": {
         "type": "string"

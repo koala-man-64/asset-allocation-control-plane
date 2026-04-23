@@ -9380,20 +9380,11 @@
       "RegimePolicy": {
         "additionalProperties": false,
         "properties": {
-          "blockOnTransition": {
-            "default": true,
-            "title": "Blockontransition",
-            "type": "boolean"
-          },
-          "blockOnUnclassified": {
-            "default": true,
-            "title": "Blockonunclassified",
-            "type": "boolean"
-          },
-          "honorHaltFlag": {
-            "default": true,
-            "title": "Honorhaltflag",
-            "type": "boolean"
+          "mode": {
+            "const": "observe_only",
+            "default": "observe_only",
+            "title": "Mode",
+            "type": "string"
           },
           "modelName": {
             "default": "default-regime",
@@ -9401,18 +9392,6 @@
             "minLength": 1,
             "title": "Modelname",
             "type": "string"
-          },
-          "onBlocked": {
-            "default": "skip_entries",
-            "enum": [
-              "skip_entries",
-              "skip_rebalance"
-            ],
-            "title": "Onblocked",
-            "type": "string"
-          },
-          "targetGrossExposureByRegime": {
-            "$ref": "#/components/schemas/TargetGrossExposureByRegime"
           }
         },
         "title": "RegimePolicy",
@@ -12610,43 +12589,6 @@
           "table_name"
         ],
         "title": "TableRequest",
-        "type": "object"
-      },
-      "TargetGrossExposureByRegime": {
-        "additionalProperties": false,
-        "properties": {
-          "choppy_mean_reversion": {
-            "default": 0.75,
-            "minimum": 0.0,
-            "title": "Choppy Mean Reversion",
-            "type": "number"
-          },
-          "high_vol": {
-            "default": 0.0,
-            "minimum": 0.0,
-            "title": "High Vol",
-            "type": "number"
-          },
-          "trending_bear": {
-            "default": 0.5,
-            "minimum": 0.0,
-            "title": "Trending Bear",
-            "type": "number"
-          },
-          "trending_bull": {
-            "default": 1.0,
-            "minimum": 0.0,
-            "title": "Trending Bull",
-            "type": "number"
-          },
-          "unclassified": {
-            "default": 0.0,
-            "minimum": 0.0,
-            "title": "Unclassified",
-            "type": "number"
-          }
-        },
-        "title": "TargetGrossExposureByRegime",
         "type": "object"
       },
       "TimeseriesPointResponse": {
