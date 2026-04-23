@@ -41,6 +41,10 @@ API_OIDC_AUDIENCE,deploy_var,var,deploy_config,true,OIDC audience or API app id 
 API_OIDC_JWKS_URL,deploy_var,var,deploy_config,true,Explicit JWKS url when discovery is not enough.
 API_OIDC_REQUIRED_SCOPES,deploy_var,var,deploy_config,true,Optional required scopes for API access.
 API_OIDC_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional required roles for API access.
+API_AUTH_SESSION_MODE,deploy_var,var,deploy_config,true,Auth session transport mode. Use bearer by default; set cookie for browser session cookies.
+API_AUTH_SESSION_IDLE_TTL_SECONDS,deploy_var,var,deploy_config,true,Sliding idle lifetime in seconds for API auth session cookies.
+API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS,deploy_var,var,deploy_config,true,Absolute maximum lifetime in seconds for API auth session cookies.
+API_AUTH_SESSION_SECRET_KEYS,secret,secret,secret_store,true,Comma-separated auth session signing/encryption secrets; first key signs new cookies and later keys support rotation.
 DATA_DISCOVERY_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for data discovery catalog and raw Postgres read access.
 DATA_DISCOVERY_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for raw Postgres update and purge access.
 DATA_DISCOVERY_VISIBLE_SCHEMAS,deploy_var,var,deploy_config,true,Comma-separated schema allowlist exposed by the data discovery surface and raw Postgres explorer.

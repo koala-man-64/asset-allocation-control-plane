@@ -389,6 +389,9 @@ def create_app() -> FastAPI:
 
             response = await call_next(request)
             elapsed_ms = (time.monotonic() - start) * 1000.0
+            auth_session_renewal = getattr(request.state, "auth_session_renewal", None)
+            if auth_session_renewal is not None:
+                request.app.state.auth.set_session_cookies(response, auth_session_renewal)
 
             # Safe logic for headers
             if path.startswith("/assets/") and response.status_code == 200:
@@ -583,6 +586,7 @@ def create_app() -> FastAPI:
         cfg = UiRuntimeConfig.model_validate(
             {
                 "apiBaseUrl": settings.ui_oidc_config.get("apiBaseUrl") or "/api",
+                "authSessionMode": settings.auth_session_mode,
                 "oidcAuthority": settings.ui_oidc_config.get("authority"),
                 "oidcClientId": settings.ui_oidc_config.get("clientId"),
                 "oidcScopes": settings.ui_oidc_config.get("scope"),
@@ -595,9 +599,10 @@ def create_app() -> FastAPI:
         ).model_dump(mode="json")
 
         logger.info(
-            "Serving /config.js: oidcEnabled=%s authRequired=%s apiBaseUrl=%s scopes=%s",
+            "Serving /config.js: oidcEnabled=%s authRequired=%s authSessionMode=%s apiBaseUrl=%s scopes=%s",
             cfg.get("oidcEnabled"),
             cfg.get("authRequired"),
+            cfg.get("authSessionMode"),
             cfg.get("apiBaseUrl"),
             cfg.get("oidcScopes"),
         )

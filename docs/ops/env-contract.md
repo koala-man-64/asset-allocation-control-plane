@@ -16,6 +16,7 @@ Rules:
 - Git and GitHub metadata are used for repo slug defaults where possible.
 - Secrets are never fetched from Azure. Existing `.env.web` secrets are reused, and matching GitHub secret names suppress prompts so already-populated repo secrets can be preserved without re-entry.
 - Protected deploy smoke tokens are minted during `deploy-prod.yml` from the Azure login identity using `API_OIDC_AUDIENCE`; rerun `scripts/ops/provision/provision_entra_oidc.ps1` after setting `AZURE_CLIENT_ID` so the deploy principal receives `AssetAllocation.Access`.
+- `API_AUTH_SESSION_MODE=cookie` enables browser session cookies. `API_AUTH_SESSION_SECRET_KEYS` must be populated with at least one high-entropy secret before rollout; comma-separated older keys may remain temporarily for rotation.
 - `API_DEPLOY_MANIFEST` controls whether `deploy-prod.yml` rolls out the transitional public API edge (`deploy/app_api_public.yaml`) or the internal-only VNet app (`deploy/app_api.yaml`). Internal-only deploys switch verification to the in-environment smoke job instead of public HTTP probes.
 - `RUN_LIVE_MASSIVE_TESTS` is an optional local opt-in flag in the managed env surface. Leave it `false` unless you intentionally want live Massive integration tests to run.
 - `AI_RELAY_API_KEY` is always manual input. The setup script never discovers or backfills it automatically.

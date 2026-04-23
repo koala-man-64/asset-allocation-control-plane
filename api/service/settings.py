@@ -6,6 +6,7 @@ from typing import Any, List, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
 AuthMode = Literal["anonymous", "oidc"]
+AuthSessionMode = Literal["bearer", "cookie"]
 ProviderName = Literal["etrade", "schwab"]
 _FIXED_UI_API_BASE_URL = "/api"
 _LOCAL_RUNTIME_MARKER_ENV_VARS = (
@@ -60,6 +61,13 @@ def _get_optional_int(
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
     return value
+
+
+def _get_auth_session_mode() -> AuthSessionMode:
+    raw = (_get_optional_str("API_AUTH_SESSION_MODE") or "bearer").lower()
+    if raw not in {"bearer", "cookie"}:
+        raise ValueError("API_AUTH_SESSION_MODE must be either 'bearer' or 'cookie'.")
+    return raw  # type: ignore[return-value]
 
 
 def _get_optional_float(
@@ -609,6 +617,13 @@ class ServiceSettings:
     postgres_dsn: Optional[str]
     browser_oidc_enabled: bool
     ui_oidc_config: dict[str, Any]
+    auth_session_mode: AuthSessionMode = "bearer"
+    auth_session_idle_ttl_seconds: int = 2_592_000
+    auth_session_absolute_ttl_seconds: int = 7_776_000
+    auth_session_secret_keys: list[str] = field(default_factory=list)
+    auth_session_cookie_secure: bool = True
+    auth_session_cookie_name: str = "__Host-aa_session"
+    auth_session_csrf_cookie_name: str = "__Host-aa_csrf"
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
     quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
@@ -625,6 +640,10 @@ class ServiceSettings:
     @property
     def auth_summary(self) -> str:
         return "oidc" if self.oidc_auth_enabled else "anonymous-local"
+
+    @property
+    def cookie_auth_sessions_enabled(self) -> bool:
+        return self.auth_session_mode == "cookie"
 
     def get_provider_callback_path(self, provider: ProviderName) -> str:
         return _build_provider_callback_path(provider, api_root_prefix=self.api_root_prefix)
@@ -649,6 +668,25 @@ class ServiceSettings:
         oidc_jwks_url = _get_optional_str("API_OIDC_JWKS_URL")
         oidc_required_scopes = _split_csv(_get_optional_str("API_OIDC_REQUIRED_SCOPES"))
         oidc_required_roles = _split_csv(_get_optional_str("API_OIDC_REQUIRED_ROLES"))
+        auth_session_mode = _get_auth_session_mode()
+        auth_session_idle_ttl_seconds = _get_optional_int(
+            "API_AUTH_SESSION_IDLE_TTL_SECONDS",
+            default=2_592_000,
+            minimum=60,
+            maximum=31_536_000,
+        )
+        auth_session_absolute_ttl_seconds = _get_optional_int(
+            "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS",
+            default=7_776_000,
+            minimum=60,
+            maximum=31_536_000,
+        )
+        if auth_session_absolute_ttl_seconds < auth_session_idle_ttl_seconds:
+            raise ValueError(
+                "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS must be greater than or equal to "
+                "API_AUTH_SESSION_IDLE_TTL_SECONDS."
+            )
+        auth_session_secret_keys = _split_csv(_get_optional_str("API_AUTH_SESSION_SECRET_KEYS"))
 
         oidc_inputs_present = bool(
             oidc_issuer
@@ -662,6 +700,8 @@ class ServiceSettings:
         if oidc_inputs_present and not oidc_audience:
             raise ValueError("API_OIDC_AUDIENCE is required when API OIDC auth is configured.")
         oidc_auth_enabled = bool(oidc_issuer and oidc_audience)
+        if auth_session_mode == "cookie" and not auth_session_secret_keys:
+            raise ValueError("API_AUTH_SESSION_SECRET_KEYS is required when API_AUTH_SESSION_MODE=cookie.")
 
         configured_ui_authority = _get_optional_str("UI_OIDC_AUTHORITY")
         ui_authority = configured_ui_authority or oidc_issuer
@@ -687,6 +727,8 @@ class ServiceSettings:
                 anonymous_local_auth_enabled = True
             else:
                 raise ValueError("Deployed runtime requires API OIDC configuration.")
+        if auth_session_mode == "cookie" and not oidc_auth_enabled:
+            raise ValueError("Cookie auth sessions require API OIDC auth to be configured.")
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
@@ -715,7 +757,9 @@ class ServiceSettings:
             "redirectUri": ui_redirect_uri,
             "postLogoutRedirectUri": _derive_ui_post_logout_redirect_uri(ui_redirect_uri),
             "apiBaseUrl": _FIXED_UI_API_BASE_URL,
+            "authSessionMode": auth_session_mode,
         }
+        local_runtime = _is_local_runtime()
 
         return ServiceSettings(
             api_root_prefix=api_root_prefix,
@@ -730,6 +774,13 @@ class ServiceSettings:
             postgres_dsn=postgres_dsn,
             browser_oidc_enabled=browser_oidc_enabled,
             ui_oidc_config=ui_oidc_config,
+            auth_session_mode=auth_session_mode,
+            auth_session_idle_ttl_seconds=auth_session_idle_ttl_seconds,
+            auth_session_absolute_ttl_seconds=auth_session_absolute_ttl_seconds,
+            auth_session_secret_keys=auth_session_secret_keys,
+            auth_session_cookie_secure=not local_runtime,
+            auth_session_cookie_name="aa_session_dev" if local_runtime else "__Host-aa_session",
+            auth_session_csrf_cookie_name="aa_csrf_dev" if local_runtime else "__Host-aa_csrf",
             ai_relay=ai_relay,
             quiver=quiver,
             etrade=etrade,

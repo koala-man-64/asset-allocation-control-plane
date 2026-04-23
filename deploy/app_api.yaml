@@ -36,6 +36,8 @@ properties:
       value: "${ALPACA_LIVE_SECRET_KEY}"
     - name: ai-relay-api-key
       value: "${AI_RELAY_API_KEY}"
+    - name: api-auth-session-secret-keys
+      value: "${API_AUTH_SESSION_SECRET_KEYS}"
   template:
     serviceAccountName: ${SERVICE_ACCOUNT_NAME}
     containers:
@@ -125,6 +127,14 @@ properties:
         value: "${API_OIDC_REQUIRED_SCOPES}"
       - name: API_OIDC_REQUIRED_ROLES
         value: "${API_OIDC_REQUIRED_ROLES}"
+      - name: API_AUTH_SESSION_MODE
+        value: "${API_AUTH_SESSION_MODE}"
+      - name: API_AUTH_SESSION_IDLE_TTL_SECONDS
+        value: "${API_AUTH_SESSION_IDLE_TTL_SECONDS}"
+      - name: API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS
+        value: "${API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS}"
+      - name: API_AUTH_SESSION_SECRET_KEYS
+        secretRef: api-auth-session-secret-keys
       - name: AI_RELAY_ENABLED
         value: "${AI_RELAY_ENABLED}"
       - name: AI_RELAY_MODEL

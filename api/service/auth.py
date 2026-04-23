@@ -13,6 +13,7 @@ from jwt.algorithms import RSAAlgorithm
 import requests
 
 from api.service.settings import AuthMode, ServiceSettings
+from api.service.session_cookies import SessionCookieBundle, SessionCookieError, SessionCookieManager
 
 
 logger = logging.getLogger("api.service.auth")
@@ -23,6 +24,9 @@ class AuthContext:
     mode: AuthMode
     subject: Optional[str]
     claims: Dict[str, Any]
+    source: str = "bearer"
+    csrf_token: Optional[str] = None
+    session_renewal: Optional[SessionCookieBundle] = None
 
 
 class AuthError(Exception):
@@ -128,6 +132,15 @@ def _summarize_unverified_token_for_logs(token: str) -> Dict[str, Any]:
 class AuthManager:
     def __init__(self, settings: ServiceSettings):
         self._settings = settings
+        self._session_cookies = SessionCookieManager(
+            enabled=settings.cookie_auth_sessions_enabled,
+            secret_keys=settings.auth_session_secret_keys,
+            idle_ttl_seconds=settings.auth_session_idle_ttl_seconds,
+            absolute_ttl_seconds=settings.auth_session_absolute_ttl_seconds,
+            cookie_name=settings.auth_session_cookie_name,
+            csrf_cookie_name=settings.auth_session_csrf_cookie_name,
+            secure=settings.auth_session_cookie_secure,
+        )
         self._jwks_client_lock = threading.RLock()
         self._jwks_url: Optional[str] = None
         self._jwks_cache: Optional[Dict[str, Any]] = None
@@ -250,6 +263,20 @@ class AuthManager:
             )
             raise AuthError(status_code=502, detail="Failed to verify bearer token.", www_authenticate="Bearer") from exc
 
+        self._enforce_claim_requirements(claims if isinstance(claims, dict) else {}, context)
+
+        subject = str(claims.get("sub") or claims.get("oid") or "") or None
+        logger.info(
+            "OIDC bearer verification accepted: request_id=%s method=%s path=%s subject=%s claims=%s",
+            context.get("request_id", "-"),
+            context.get("method", "-"),
+            context.get("path", "-"),
+            subject or "-",
+            summarize_auth_claims_for_logs(claims),
+        )
+        return AuthContext(mode="oidc", subject=subject, claims=dict(claims), source="bearer")
+
+    def _enforce_claim_requirements(self, claims: Dict[str, Any], context: Dict[str, Any]) -> None:
         required_scopes = set(self._settings.oidc_required_scopes or [])
         if required_scopes:
             raw_scopes = str(claims.get("scp") or "").strip()
@@ -284,20 +311,39 @@ class AuthManager:
             if missing:
                 raise AuthError(status_code=403, detail=f"Missing required roles: {', '.join(missing)}.")
 
-        subject = str(claims.get("sub") or claims.get("oid") or "") or None
-        logger.info(
-            "OIDC bearer verification accepted: request_id=%s method=%s path=%s subject=%s claims=%s",
-            context.get("request_id", "-"),
-            context.get("method", "-"),
-            context.get("path", "-"),
-            subject or "-",
-            summarize_auth_claims_for_logs(claims),
-        )
-        return AuthContext(mode="oidc", subject=subject, claims=dict(claims))
+    def authenticate_bearer_headers(
+        self,
+        headers: Dict[str, str],
+        *,
+        request_context: Optional[Dict[str, Any]] = None,
+    ) -> AuthContext:
+        normalized = {str(k).lower(): str(v) for k, v in headers.items()}
+        authorization = (normalized.get("authorization") or "").strip()
+        if not authorization or not _is_bearer_auth(authorization):
+            raise AuthError(status_code=401, detail="Missing bearer token.", www_authenticate="Bearer")
+        return self._verify_bearer_token(_extract_bearer_token(authorization), request_context=request_context)
+
+    def issue_session_cookie(self, auth_context: AuthContext) -> SessionCookieBundle:
+        return self._session_cookies.issue(subject=auth_context.subject, claims=auth_context.claims)
+
+    def set_session_cookies(self, response: Any, bundle: SessionCookieBundle) -> None:
+        self._session_cookies.set_cookies(response, bundle)
+
+    def clear_session_cookies(self, response: Any) -> None:
+        self._session_cookies.clear_cookies(response)
 
     def authenticate_headers(
         self,
         headers: Dict[str, str],
+        *,
+        request_context: Optional[Dict[str, Any]] = None,
+    ) -> AuthContext:
+        return self.authenticate_request(headers, {}, request_context=request_context)
+
+    def authenticate_request(
+        self,
+        headers: Dict[str, str],
+        cookies: Dict[str, str],
         *,
         request_context: Optional[Dict[str, Any]] = None,
     ) -> AuthContext:
@@ -320,6 +366,40 @@ class AuthManager:
                     summarize_auth_claims_for_logs(ctx.claims).get("scp"),
                 )
                 return ctx
+            if self._session_cookies.enabled:
+                try:
+                    verified = self._session_cookies.verify(cookies)
+                except SessionCookieError as exc:
+                    if exc.cookie_present:
+                        logger.warning(
+                            "Auth session cookie rejected: request_id=%s path=%s detail=%s",
+                            context.get("request_id", "-"),
+                            context.get("path", "-"),
+                            exc.detail,
+                        )
+                        raise AuthError(status_code=401, detail=exc.detail, www_authenticate="Bearer") from exc
+                else:
+                    self._enforce_claim_requirements(verified.claims, context)
+                    ctx = AuthContext(
+                        mode="oidc",
+                        subject=verified.subject,
+                        claims=verified.claims,
+                        source="session-cookie",
+                        csrf_token=verified.csrf_token,
+                        session_renewal=verified.renewal,
+                    )
+                    logger.info(
+                        "Auth success via session cookie: request_id=%s path=%s subject=%s oid=%s tid=%s roles=%s scp=%s renewed=%s",
+                        context.get("request_id", "-"),
+                        context.get("path", "-"),
+                        ctx.subject or "-",
+                        _claim_text(ctx.claims, "oid"),
+                        _claim_text(ctx.claims, "tid"),
+                        summarize_auth_claims_for_logs(ctx.claims).get("roles"),
+                        summarize_auth_claims_for_logs(ctx.claims).get("scp"),
+                        bool(verified.renewal),
+                    )
+                    return ctx
 
         if self._settings.anonymous_local_auth_enabled:
             logger.info(
@@ -327,7 +407,7 @@ class AuthManager:
                 context.get("request_id", "-"),
                 context.get("path", "-"),
             )
-            return AuthContext(mode="anonymous", subject=None, claims={})
+            return AuthContext(mode="anonymous", subject=None, claims={}, source="anonymous")
 
         logger.warning(
             "Auth rejected before token verification: request_id=%s method=%s path=%s auth_present=%s anonymous_enabled=%s",

@@ -1,4 +1,5 @@
 import logging
+import hmac
 from inspect import Parameter, signature
 from typing import Any, Dict
 from fastapi import HTTPException, Request
@@ -87,12 +88,60 @@ def _authenticate_headers(
     return auth.authenticate_headers(headers)
 
 
+def _authenticate_request(
+    auth: AuthManager,
+    request: Request,
+    *,
+    request_context: Dict[str, str],
+) -> AuthContext:
+    authenticate_request = getattr(auth, "authenticate_request", None)
+    if callable(authenticate_request):
+        return authenticate_request(
+            dict(request.headers),
+            dict(request.cookies),
+            request_context=request_context,
+        )
+    return _authenticate_headers(auth, dict(request.headers), request_context=request_context)
+
+
+def _require_csrf_for_cookie_auth(request: Request, auth_context: AuthContext) -> None:
+    if auth_context.source != "session-cookie":
+        return
+    if request.method.upper() in {"GET", "HEAD", "OPTIONS", "TRACE"}:
+        return
+
+    settings = get_settings(request)
+    header_token = str(request.headers.get("x-csrf-token") or "").strip()
+    cookie_token = str(request.cookies.get(settings.auth_session_csrf_cookie_name) or "").strip()
+    expected_token = str(auth_context.csrf_token or "").strip()
+
+    if (
+        not header_token
+        or not cookie_token
+        or not expected_token
+        or not hmac.compare_digest(header_token, expected_token)
+        or not hmac.compare_digest(cookie_token, expected_token)
+    ):
+        logger.warning(
+            "CSRF rejected for cookie-auth request: request_id=%s method=%s path=%s has_header=%s has_cookie=%s",
+            _request_id(request),
+            request.method,
+            request.url.path,
+            bool(header_token),
+            bool(cookie_token),
+        )
+        raise HTTPException(status_code=403, detail="CSRF token is missing or invalid.")
+
+
 def validate_auth(request: Request) -> AuthContext:
     auth = get_auth_manager(request)
     request_context = _request_context(request)
 
     try:
-        ctx = _authenticate_headers(auth, dict(request.headers), request_context=request_context)
+        ctx = _authenticate_request(auth, request, request_context=request_context)
+        _require_csrf_for_cookie_auth(request, ctx)
+        if ctx.session_renewal is not None:
+            request.state.auth_session_renewal = ctx.session_renewal
         if ctx.mode == "anonymous":
             logger.info(
                 "Auth bypassed for local/test runtime: request_id=%s path=%s host=%s",
