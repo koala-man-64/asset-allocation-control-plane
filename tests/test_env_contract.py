@@ -412,6 +412,47 @@ else:
     assert values["ALPHA_VANTAGE_API_KEY"] == ""
 
 
+def test_setup_env_generates_api_auth_session_secret_when_missing(tmp_path: Path) -> None:
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+    write_stub_command(stub_dir, "az", 'print("[]")')
+
+    env_file = tmp_path / "generated.env.web"
+    write_env_file(
+        env_file,
+        build_contract_env_values({"API_AUTH_SESSION_SECRET_KEYS": ""}),
+    )
+
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-EnvFilePath",
+            str(env_file),
+        ],
+        cwd=repo_root(),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    stdout = completed.stdout
+    values = env_map(env_file)
+    generated = values["API_AUTH_SESSION_SECRET_KEYS"]
+
+    assert "API_AUTH_SESSION_SECRET_KEYS=<redacted> [requirement=required;" in stdout
+    assert "source=generated" in stdout
+    assert re.fullmatch(r"[0-9a-f]{64}", generated)
+
+
 def test_setup_env_treats_existing_placeholder_values_as_unset(tmp_path: Path) -> None:
     env_file = tmp_path / "placeholder.env.web"
     write_env_file(
@@ -881,6 +922,73 @@ else:
 
     assert "Preserving existing GitHub secret: ALPHA_VANTAGE_API_KEY" in combined_output
     assert all(record["name"] != "ALPHA_VANTAGE_API_KEY" for record in records)
+
+
+def test_sync_script_requires_local_api_auth_session_secret_even_when_github_secret_exists(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values({"API_AUTH_SESSION_SECRET_KEYS": ""}),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    write_stub_command(
+        stub_dir,
+        "gh",
+        """
+if args[:2] == ["secret", "list"]:
+    if "--jq" in args:
+        print("API_AUTH_SESSION_SECRET_KEYS")
+    else:
+        print(json.dumps([{"name": "API_AUTH_SESSION_SECRET_KEYS"}]))
+elif args[:2] == ["variable", "list"]:
+    print("")
+else:
+    print("")
+""".strip(),
+    )
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("other-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    error_output = completed.stdout + completed.stderr
+    assert ".env.web is missing required values" in error_output
+    assert "API_AUTH_SESSION_SECRET_KEYS" in error_output
 
 
 def test_sync_script_rejects_acr_pull_identity_for_azure_client_id(tmp_path: Path) -> None:

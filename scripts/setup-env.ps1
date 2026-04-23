@@ -207,6 +207,30 @@ function Read-SecretFileValue {
     return (Normalize-EnvValue -Value ($raw.TrimEnd("`r", "`n")))
 }
 
+function New-RandomHexSecret {
+    param([int]$ByteLength = 32)
+    $bytes = New-Object byte[] $ByteLength
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    } finally {
+        if ($null -ne $rng) { $rng.Dispose() }
+    }
+    return (($bytes | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+function Resolve-GeneratedSecretValue {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    switch ($Name) {
+        "API_AUTH_SESSION_SECRET_KEYS" {
+            return (New-RandomHexSecret -ByteLength 32)
+        }
+        default {
+            return ""
+        }
+    }
+}
+
 function Get-ResourceLeafName {
     param([AllowNull()][string]$ResourceId)
     if ([string]::IsNullOrWhiteSpace($ResourceId)) { return "" }
@@ -305,6 +329,7 @@ foreach ($requiredKey in @(
     "AZURE_STORAGE_ACCOUNT_NAME",
     "API_OIDC_ISSUER",
     "API_OIDC_AUDIENCE",
+    "API_AUTH_SESSION_SECRET_KEYS",
     "UI_OIDC_CLIENT_ID",
     "UI_OIDC_AUTHORITY",
     "UI_OIDC_SCOPES",
@@ -1225,8 +1250,21 @@ foreach ($row in $contractRows) {
     }
 
     if ($isSecret -and (Test-GitHubSecretExists -Name $name)) {
-        $results.Add([pscustomobject]@{ Name = $name; Value = ""; SuggestedValue = ""; Requirement = $requirement; Source = "github-secret"; IsSecret = $true; PromptRequired = $false })
+        $generatedSecretValue = Resolve-GeneratedSecretValue -Name $name
+        if ([string]::IsNullOrWhiteSpace($generatedSecretValue)) {
+            $results.Add([pscustomobject]@{ Name = $name; Value = ""; SuggestedValue = ""; Requirement = $requirement; Source = "github-secret"; IsSecret = $true; PromptRequired = $false })
+            continue
+        }
+        $results.Add([pscustomobject]@{ Name = $name; Value = $generatedSecretValue; SuggestedValue = ""; Requirement = $requirement; Source = "generated"; IsSecret = $true; PromptRequired = $false })
         continue
+    }
+
+    if ($isSecret) {
+        $generatedSecretValue = Resolve-GeneratedSecretValue -Name $name
+        if (-not [string]::IsNullOrWhiteSpace($generatedSecretValue)) {
+            $results.Add([pscustomobject]@{ Name = $name; Value = $generatedSecretValue; SuggestedValue = ""; Requirement = $requirement; Source = "generated"; IsSecret = $true; PromptRequired = $false })
+            continue
+        }
     }
 
     if (-not $isSecret) {

@@ -209,6 +209,7 @@ foreach ($requiredKey in @(
     "AZURE_STORAGE_ACCOUNT_NAME",
     "API_OIDC_ISSUER",
     "API_OIDC_AUDIENCE",
+    "API_AUTH_SESSION_SECRET_KEYS",
     "UI_OIDC_CLIENT_ID",
     "UI_OIDC_AUTHORITY",
     "UI_OIDC_SCOPES",
@@ -232,6 +233,12 @@ function Get-RequirementLevel {
     }
     if ($script:RequiredEnvKeys.Contains($Name)) { return "required" }
     return "optional"
+}
+
+function Test-SecretAllowsRemoteFallback {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    if ($Name -eq "API_AUTH_SESSION_SECRET_KEYS") { return $false }
+    return $true
 }
 
 if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scripts/setup-env.ps1 first." }
@@ -268,7 +275,7 @@ foreach ($key in ($contractMap.Keys | Sort-Object)) {
     if (-not [string]::IsNullOrWhiteSpace($value)) { continue }
     $entry = $contractMap[$key]
     $storage = (($entry.github_storage | Out-String).Trim()).ToLowerInvariant()
-    if ($storage -eq "secret" -and (Test-GitHubSecretExists -Name $key)) { continue }
+    if ($storage -eq "secret" -and (Test-SecretAllowsRemoteFallback -Name $key) -and (Test-GitHubSecretExists -Name $key)) { continue }
     $missingRequired.Add($key)
 }
 if ($missingRequired.Count -gt 0) {
@@ -296,7 +303,7 @@ foreach ($key in ($contractMap.Keys | Sort-Object)) {
             }
             continue
         }
-        if ($storage -eq "secret" -and (Test-GitHubSecretExists -Name $key)) {
+        if ($storage -eq "secret" -and (Test-SecretAllowsRemoteFallback -Name $key) -and (Test-GitHubSecretExists -Name $key)) {
             Write-Host ("Preserving existing GitHub secret: {0}" -f $key) -ForegroundColor Cyan
             continue
         }
