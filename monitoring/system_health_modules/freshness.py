@@ -47,6 +47,23 @@ def _normalize_domain_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
 
 
+def _government_signals_slug() -> str:
+    return str(os.environ.get("AZURE_FOLDER_GOVERNMENT_SIGNALS") or "government-signals").strip().strip("/")
+
+
+def _canonicalize_domain_name(value: str) -> str:
+    normalized = str(value or "").strip().strip("/")
+    if not normalized:
+        return normalized
+
+    government_signals_slug = _government_signals_slug()
+    if normalized in {government_signals_slug, f"{government_signals_slug}/runs"}:
+        return "government-signals"
+    if normalized == "targets":
+        return "price-target"
+    return normalized
+
+
 def _load_freshness_overrides() -> Dict[str, Dict[str, Any]]:
     raw = os.environ.get("SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON", "")
     text = raw.strip()
@@ -298,19 +315,18 @@ def _resolve_last_updated_with_marker_probes(
 
 
 def _domain_name_from_marker_path(path: str) -> str:
-    domain_name = os.path.dirname(path) or path
+    cleaned_path = str(path or "").strip().rstrip("/")
+    domain_name = os.path.dirname(cleaned_path) or cleaned_path
     normalized = domain_name.replace("/whitelist.csv", "").replace("-data", "")
-    return "price-target" if normalized == "targets" else normalized
+    return _canonicalize_domain_name(normalized)
 
 
 def _domain_name_from_delta_path(path: str) -> str:
-    domain_name = path
+    domain_name = str(path or "").strip().strip("/")
     name_clean = domain_name.split("/")[-1].replace("-data", "")
     if "/signals/" in domain_name:
         name_clean = "signals"
-    if name_clean == "targets":
-        name_clean = "price-target"
-    return name_clean
+    return _canonicalize_domain_name(name_clean)
 
 
 def _collect_job_names_for_layers(specs: Sequence["LayerProbeSpec"]) -> List[str]:
@@ -502,9 +518,7 @@ def _default_layer_specs() -> List[LayerProbeSpec]:
         "SYSTEM_HEALTH_MAX_AGE_SECONDS",
         _runtime_attr("DEFAULT_SYSTEM_HEALTH_MAX_AGE_SECONDS"),
     )
-    government_signals_slug = str(
-        os.environ.get("AZURE_FOLDER_GOVERNMENT_SIGNALS") or "government-signals"
-    ).strip().strip("/")
+    government_signals_slug = _government_signals_slug()
 
     cron_bronze_market = "0 22 * * 1-5"
     cron_bronze_price_target = "0 4 * * 1-5"

@@ -128,6 +128,22 @@ def test_make_job_portal_url_uses_resource_anchor() -> None:
     )
 
 
+def test_system_health_normalizes_government_signals_storage_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AZURE_FOLDER_GOVERNMENT_SIGNALS", "gov-signals")
+
+    assert system_health._domain_name_from_marker_path("gov-signals/runs/") == "government-signals"
+    assert system_health._domain_name_from_marker_path("gov-signals/") == "government-signals"
+    assert system_health._domain_name_from_delta_path("gov-signals/") == "government-signals"
+
+    job_names = system_health._collect_job_names_for_layers(system_health._default_layer_specs())
+    assert "bronze-government-signals-job" in job_names
+    assert "silver-government-signals-job" in job_names
+    assert "gold-government-signals-job" in job_names
+    assert all("/" not in job_name for job_name in job_names)
+
+
 @pytest.mark.asyncio
 async def test_system_health_public_when_no_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("API_OIDC_ISSUER", raising=False)
