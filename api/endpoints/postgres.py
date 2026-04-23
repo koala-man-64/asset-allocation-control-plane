@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import String as SqlString, Table, and_, cast, create_engine, inspect, select, text
 
 from api.service.data_discovery import (
-    GoldColumnLookupRecord,
     GoldColumnLookupResponse,
     PostgresColumnMetadata,
     TableMetadataResponse,

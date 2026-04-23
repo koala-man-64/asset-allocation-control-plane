@@ -1,3 +1,5 @@
+import pytest
+
 from api.service.data_discovery import (
     PostgresColumnMetadata,
     TableMetadataResponse,

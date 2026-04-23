@@ -75,6 +75,7 @@ _LEGACY_EXPORTS = (
     timedelta,
     httpx,
     get_system_health_cache,
+    require_data_discovery_read_access,
     validate_auth,
     ArmConfig,
     AzureArmClient,
