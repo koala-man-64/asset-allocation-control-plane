@@ -234,8 +234,8 @@ properties:
       - name: REALTIME_LOG_STREAM_BATCH_SIZE
         value: "${REALTIME_LOG_STREAM_BATCH_SIZE}"
       resources:
-        cpu: 0.75
-        memory: 1.5Gi
+        cpu: 1.5
+        memory: 3.0Gi
       probes:
       - type: Liveness
         httpGet:
