@@ -28,6 +28,9 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     assert "/api/ai/chat/stream" in body["paths"]
     assert "/api/intraday/watchlists" in body["paths"]
     assert "/api/system/symbol-enrichment/summary" in body["paths"]
+    assert "/api/system/discovery/catalog" in body["paths"]
+    assert "/api/system/discovery/datasets/{schema_name}/{table_name}" in body["paths"]
+    assert "/api/system/discovery/datasets/{schema_name}/{table_name}/sample" in body["paths"]
     assert "/api/backtests/results/lookup" in body["paths"]
     assert "/api/backtests/runs" in body["paths"]
     assert "/api/backtests/{run_id}/events" in body["paths"]
@@ -94,6 +97,9 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     )
     assert "RankingRefreshClaimRequest" in body["components"]["schemas"]
     assert "ResultsReconcileRequest" in body["components"]["schemas"]
+    assert "DataDiscoveryCatalogResponse" in body["components"]["schemas"]
+    assert "DataDiscoveryDatasetDetailResponse" in body["components"]["schemas"]
+    assert "DataDiscoverySampleResponse" in body["components"]["schemas"]
     assert (
         body["paths"]["/api/internal/results/reconcile"]["post"]["requestBody"]["content"]["application/json"][
             "schema"

@@ -554,6 +554,48 @@ class IntradayMonitorSettings:
 
 
 @dataclass(frozen=True)
+class DataDiscoverySettings:
+    required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.DataDiscovery.Read"])
+    write_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.DataDiscovery.Write"])
+    visible_schemas: list[str] = field(default_factory=lambda: ["core", "gold", "platinum"])
+    sample_max_limit: int = 25
+    cache_ttl_seconds: float = 30.0
+
+    @staticmethod
+    def from_env() -> "DataDiscoverySettings":
+        visible_schemas = _split_csv(_get_optional_str("DATA_DISCOVERY_VISIBLE_SCHEMAS")) or [
+            "core",
+            "gold",
+            "platinum",
+        ]
+        normalized_visible_schemas = list(
+            dict.fromkeys(str(schema or "").strip().lower() for schema in visible_schemas if str(schema or "").strip())
+        )
+        if not normalized_visible_schemas:
+            raise ValueError("DATA_DISCOVERY_VISIBLE_SCHEMAS must include at least one schema.")
+
+        return DataDiscoverySettings(
+            required_roles=_split_csv(_get_optional_str("DATA_DISCOVERY_REQUIRED_ROLES"))
+            or ["AssetAllocation.DataDiscovery.Read"],
+            write_required_roles=_split_csv(_get_optional_str("DATA_DISCOVERY_WRITE_REQUIRED_ROLES"))
+            or ["AssetAllocation.DataDiscovery.Write"],
+            visible_schemas=normalized_visible_schemas,
+            sample_max_limit=_get_optional_int(
+                "DATA_DISCOVERY_SAMPLE_MAX_LIMIT",
+                default=25,
+                minimum=1,
+                maximum=250,
+            ),
+            cache_ttl_seconds=_get_optional_float(
+                "DATA_DISCOVERY_CACHE_TTL_SECONDS",
+                default=30.0,
+                minimum=0.0,
+                maximum=3600.0,
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class ServiceSettings:
     api_root_prefix: str
     api_public_base_url: Optional[str]
@@ -574,6 +616,7 @@ class ServiceSettings:
     schwab_callback_url: Optional[str] = None
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
+    data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
 
     @property
     def auth_required(self) -> bool:
@@ -664,6 +707,7 @@ class ServiceSettings:
         )
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
+        data_discovery = DataDiscoverySettings.from_env()
         ui_oidc_config = {
             "authority": ui_authority,
             "clientId": ui_client_id,
@@ -693,4 +737,5 @@ class ServiceSettings:
             schwab_callback_url=schwab_callback_url,
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
+            data_discovery=data_discovery,
         )

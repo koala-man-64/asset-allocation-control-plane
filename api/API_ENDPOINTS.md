@@ -21,6 +21,9 @@ API Root
     |-- /system
     |   |-- /health [GET] (system.system_health) - Returns overall system status, layer freshness, and active alerts :: api/endpoints/system.py <== ui/src/services/DataService.ts
     |   |-- /lineage [GET] (system.system_lineage) - Returns data lineage graph and dependencies :: api/endpoints/system.py <== ui/src/services/DataService.ts
+    |   |-- /discovery/catalog [GET] (system.get_discovery_catalog) - Supported dataset catalog for control-plane and canonical Gold discovery :: api/endpoints/system.py
+    |   |-- /discovery/datasets/{schema_name}/{table_name} [GET] (system.get_discovery_dataset_detail) - Field-level metadata, types, descriptions, and default sort for one dataset :: api/endpoints/system.py
+    |   |-- /discovery/datasets/{schema_name}/{table_name}/sample [GET] (system.get_discovery_dataset_sample) - Read-only bounded sample preview for one dataset :: api/endpoints/system.py
     |   |-- /debug-symbols [GET] (system.get_debug_symbols) - Returns runtime-config-backed debug-symbol state :: api/endpoints/system.py <== ui/src/services/DataService.ts
     |   |-- /debug-symbols [POST] (system.set_debug_symbols) - Updates runtime-config-backed debug-symbol state :: api/endpoints/system.py <== ui/src/services/DataService.ts
     |   |-- /runtime-config/catalog [GET] (system.get_runtime_config_catalog) - Lists allowlisted runtime-config keys :: api/endpoints/system.py <== ui/src/services/DataService.ts

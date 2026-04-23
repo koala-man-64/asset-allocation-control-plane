@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from api.endpoints.system_modules import compat as system_compat
 from api.endpoints.system_modules import container_apps as system_container_apps_routes
+from api.endpoints.system_modules import discovery as system_discovery_routes
 from api.endpoints.system_modules import domain_columns as system_domain_columns_routes
 from api.endpoints.system_modules import domain_metadata as system_domain_metadata_routes
 from api.endpoints.system_modules import jobs as system_jobs_routes
@@ -27,6 +28,7 @@ from api.service.dependencies import (
     get_auth_manager,
     get_settings,
     get_system_health_cache,
+    require_data_discovery_read_access,
     validate_auth,
 )
 from api.service.realtime import manager as realtime_manager
@@ -294,6 +296,20 @@ _retrieve_domain_columns_from_schema = system_domain_columns_routes._retrieve_do
 _retrieve_domain_columns = system_domain_columns_routes._retrieve_domain_columns
 
 
+
+
+_discovery_router, _discovery_exports = system_discovery_routes.build_router(
+    runtime=_system_runtime(),
+)
+router.include_router(_discovery_router)
+
+get_discovery_catalog = _discovery_exports["get_discovery_catalog"]
+get_discovery_dataset_detail = _discovery_exports["get_discovery_dataset_detail"]
+get_discovery_dataset_sample = _discovery_exports["get_discovery_dataset_sample"]
+
+DataDiscoveryCatalogResponse = system_discovery_routes.DataDiscoveryCatalogResponse
+DataDiscoveryDatasetDetailResponse = system_discovery_routes.DataDiscoveryDatasetDetailResponse
+DataDiscoverySampleResponse = system_discovery_routes.DataDiscoverySampleResponse
 
 
 _purge_router, _purge_exports = system_purge_routes.build_router(

@@ -1,51 +1,65 @@
-from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 import pytest
 from sqlalchemy import Column, Float, Integer, MetaData, String, Table
 from sqlalchemy.dialects import postgresql
 
 from api.service.app import create_app
+from api.service.auth import AuthContext
 from tests.api._client import get_test_client
 
-# Helper to mock settings if needed, but endpoint uses resolve_postgres_dsn which checks ENV first.
+
+def _configure_discovery_env(monkeypatch: pytest.MonkeyPatch, *, dsn: str = "postgresql://user:pass@localhost/db") -> None:
+    monkeypatch.setenv("POSTGRES_DSN", dsn)
+    monkeypatch.setenv("DATA_DISCOVERY_CACHE_TTL_SECONDS", "0")
+
+
+def _configure_deployed_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_OIDC_ISSUER", "https://issuer.example.com")
+    monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation-api")
+    monkeypatch.setenv("DATA_DISCOVERY_CACHE_TTL_SECONDS", "0")
+
 
 @pytest.mark.asyncio
-async def test_list_schemas(monkeypatch):
+async def test_list_schemas(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
-    mock_inspector.get_schema_names.return_value = ["public", "information_schema", "core", "gold"]
-    
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    mock_inspector.get_schema_names.return_value = ["public", "information_schema", "core", "gold", "platinum"]
+
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
             app = create_app()
             async with get_test_client(app) as client:
                 resp = await client.get("/api/system/postgres/schemas")
-                 
+
     assert resp.status_code == 200
-    assert resp.json() == ["core", "gold"]
+    assert resp.json() == ["core", "gold", "platinum"]
+
 
 @pytest.mark.asyncio
-async def test_list_tables(monkeypatch):
+async def test_list_tables(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
-    mock_inspector.get_schema_names.return_value = ["public"]
+    mock_inspector.get_schema_names.return_value = ["core", "gold"]
     mock_inspector.get_table_names.return_value = ["table1", "table2"]
-    
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
             app = create_app()
             async with get_test_client(app) as client:
-                resp = await client.get("/api/system/postgres/schemas/public/tables")
-                 
+                resp = await client.get("/api/system/postgres/schemas/core/tables")
+
     assert resp.status_code == 200
     assert resp.json() == ["table1", "table2"]
 
+
 @pytest.mark.asyncio
-async def test_list_tables_hides_noncanonical_gold_tables(monkeypatch):
+async def test_list_tables_hides_noncanonical_gold_tables(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
     mock_inspector.get_schema_names.return_value = ["gold"]
@@ -55,7 +69,7 @@ async def test_list_tables_hides_noncanonical_gold_tables(monkeypatch):
         "finance_data",
     ]
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -66,28 +80,30 @@ async def test_list_tables_hides_noncanonical_gold_tables(monkeypatch):
     assert resp.status_code == 200
     assert resp.json() == ["finance_data", "market_data"]
 
+
 @pytest.mark.asyncio
-async def test_list_tables_404_schema(monkeypatch):
+async def test_list_tables_404_schema_when_hidden_or_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
-    mock_inspector.get_schema_names.return_value = ["public"]
-    
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    mock_inspector.get_schema_names.return_value = ["core", "gold"]
+
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
             app = create_app()
             async with get_test_client(app) as client:
-                resp = await client.get("/api/system/postgres/schemas/missing_schema/tables")
-                 
+                resp = await client.get("/api/system/postgres/schemas/public/tables")
+
     assert resp.status_code == 404
     assert "not found" in resp.json()["detail"]
 
+
 @pytest.mark.asyncio
-async def test_query_table_success(monkeypatch):
+async def test_query_table_success(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
-    mock_inspector.get_schema_names.return_value = ["public"]
+    mock_inspector.get_schema_names.return_value = ["core"]
     mock_inspector.get_table_names.return_value = ["test_table"]
     mock_inspector.get_pk_constraint.return_value = {"constrained_columns": []}
     mock_inspector.get_columns.return_value = [
@@ -99,7 +115,7 @@ async def test_query_table_success(monkeypatch):
         MetaData(),
         Column("col1", Integer),
         Column("col2", String),
-        schema="public",
+        schema="core",
     )
     mock_result = MagicMock()
     mock_result.mappings.return_value.all.return_value = [
@@ -112,23 +128,23 @@ async def test_query_table_success(monkeypatch):
     mock_connect.__enter__.return_value = mock_conn
     mock_connect.__exit__.return_value = False
     mock_engine.connect.return_value = mock_connect
-    
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
-             with patch("api.endpoints.postgres._reflect_table", return_value=reflected_table):
+            with patch("api.endpoints.postgres._reflect_table", return_value=reflected_table):
                 app = create_app()
                 async with get_test_client(app) as client:
                     resp = await client.post(
                         "/api/system/postgres/query",
                         json={
-                            "schema_name": "public",
+                            "schema_name": "core",
                             "table_name": "test_table",
                             "limit": 10,
                         },
                     )
-    
+
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
@@ -141,15 +157,15 @@ async def test_query_table_success(monkeypatch):
             compile_kwargs={"literal_binds": True},
         )
     )
-    assert 'FROM public.test_table' in compiled
-    assert 'LIMIT 10' in compiled
+    assert "FROM core.test_table" in compiled
+    assert "LIMIT 10" in compiled
 
 
 @pytest.mark.asyncio
-async def test_query_table_applies_server_side_filters(monkeypatch):
+async def test_query_table_applies_server_side_filters(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
-    mock_inspector.get_schema_names.return_value = ["public"]
+    mock_inspector.get_schema_names.return_value = ["core"]
     mock_inspector.get_table_names.return_value = ["test_table"]
     mock_inspector.get_pk_constraint.return_value = {"constrained_columns": []}
     mock_inspector.get_columns.return_value = [
@@ -161,7 +177,7 @@ async def test_query_table_applies_server_side_filters(monkeypatch):
         MetaData(),
         Column("symbol", String),
         Column("price", Float),
-        schema="public",
+        schema="core",
     )
     mock_result = MagicMock()
     mock_result.mappings.return_value.all.return_value = [{"symbol": "AAPL", "price": 10}]
@@ -172,7 +188,7 @@ async def test_query_table_applies_server_side_filters(monkeypatch):
     mock_connect.__exit__.return_value = False
     mock_engine.connect.return_value = mock_connect
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -182,7 +198,7 @@ async def test_query_table_applies_server_side_filters(monkeypatch):
                     resp = await client.post(
                         "/api/system/postgres/query",
                         json={
-                            "schema_name": "public",
+                            "schema_name": "core",
                             "table_name": "test_table",
                             "limit": 10,
                             "filters": [
@@ -212,34 +228,34 @@ async def test_query_table_applies_server_side_filters(monkeypatch):
     assert "ILIKE" in compiled
     assert ">= 5.0" in compiled
 
+
 @pytest.mark.asyncio
-async def test_query_table_security_fail(monkeypatch):
+async def test_query_table_returns_404_for_missing_table(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
-    mock_inspector.get_schema_names.return_value = ["public"]
+    mock_inspector.get_schema_names.return_value = ["core"]
     mock_inspector.get_table_names.return_value = ["test_table"]
-    
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
             app = create_app()
             async with get_test_client(app) as client:
-                # Try a missing table
                 resp = await client.post(
                     "/api/system/postgres/query",
                     json={
-                        "schema_name": "public",
+                        "schema_name": "core",
                         "table_name": "missing_table",
                     },
                 )
-    
+
     assert resp.status_code == 404
     assert "not found" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_get_table_metadata_success(monkeypatch):
+async def test_get_table_metadata_success(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
     mock_inspector.get_schema_names.return_value = ["gold"]
@@ -263,7 +279,7 @@ async def test_get_table_metadata_success(monkeypatch):
     mock_connect.__exit__.return_value = False
     mock_engine.connect.return_value = mock_connect
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -291,7 +307,7 @@ async def test_get_table_metadata_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_update_row_success(monkeypatch):
+async def test_update_row_success(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
     mock_inspector.get_schema_names.return_value = ["gold"]
@@ -319,7 +335,7 @@ async def test_update_row_success(monkeypatch):
         schema="gold",
     )
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -347,7 +363,7 @@ async def test_update_row_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_update_row_requires_primary_key(monkeypatch):
+async def test_update_row_requires_primary_key(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
     mock_inspector.get_schema_names.return_value = ["gold"]
@@ -357,7 +373,7 @@ async def test_update_row_requires_primary_key(monkeypatch):
         {"name": "surprise", "type": "INTEGER", "nullable": True},
     ]
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -378,7 +394,7 @@ async def test_update_row_requires_primary_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_purge_table_success(monkeypatch):
+async def test_purge_table_success(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
     mock_inspector.get_schema_names.return_value = ["gold"]
@@ -392,7 +408,7 @@ async def test_purge_table_success(monkeypatch):
     mock_begin.__exit__.return_value = False
     mock_engine.begin.return_value = mock_begin
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -417,13 +433,13 @@ async def test_purge_table_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_purge_table_security_fail(monkeypatch):
+async def test_purge_table_returns_404_for_missing_table(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_inspector = MagicMock()
     mock_inspector.get_schema_names.return_value = ["gold"]
     mock_inspector.get_table_names.return_value = ["market_data"]
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         with patch("api.endpoints.postgres.inspect", return_value=mock_inspector):
@@ -442,7 +458,7 @@ async def test_purge_table_security_fail(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_gold_lookup_tables_success(monkeypatch):
+async def test_list_gold_lookup_tables_success(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_conn = MagicMock()
     mock_result = MagicMock()
@@ -453,7 +469,7 @@ async def test_list_gold_lookup_tables_success(monkeypatch):
     mock_connect.__exit__.return_value = False
     mock_engine.connect.return_value = mock_connect
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         app = create_app()
@@ -465,7 +481,7 @@ async def test_list_gold_lookup_tables_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_gold_column_lookup_applies_filters_and_pagination(monkeypatch):
+async def test_list_gold_column_lookup_applies_filters_and_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
     mock_result = MagicMock()
     mock_result.mappings.return_value.all.return_value = [
@@ -505,7 +521,7 @@ async def test_list_gold_column_lookup_applies_filters_and_pagination(monkeypatc
     mock_connect.__exit__.return_value = False
     mock_engine.connect.return_value = mock_connect
 
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         app = create_app()
@@ -532,9 +548,9 @@ async def test_list_gold_column_lookup_applies_filters_and_pagination(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_list_gold_column_lookup_rejects_unsupported_table(monkeypatch):
+async def test_list_gold_column_lookup_rejects_unsupported_table(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_engine = MagicMock()
-    monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost/db")
+    _configure_discovery_env(monkeypatch)
 
     with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
         app = create_app()
@@ -545,3 +561,95 @@ async def test_list_gold_column_lookup_rejects_unsupported_table(monkeypatch):
 
     assert resp.status_code == 404
     assert "not supported" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "json_payload"),
+    [
+        ("get", "/api/system/postgres/schemas", None),
+        ("get", "/api/system/postgres/schemas/gold/tables/market_data/metadata", None),
+        (
+            "post",
+            "/api/system/postgres/query",
+            {
+                "schema_name": "gold",
+                "table_name": "market_data",
+            },
+        ),
+    ],
+)
+async def test_postgres_read_routes_require_read_role_when_deployed(
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    path: str,
+    json_payload: dict[str, object] | None,
+) -> None:
+    _configure_deployed_auth(monkeypatch)
+
+    app = create_app()
+    monkeypatch.setattr(
+        app.state.auth,
+        "authenticate_headers",
+        lambda _headers: AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
+    )
+
+    async with get_test_client(app) as client:
+        request_kwargs = {"headers": {"Authorization": "Bearer token"}}
+        if json_payload is not None:
+            request_kwargs["json"] = json_payload
+        response = await getattr(client, method)(path, **request_kwargs)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Missing required roles: AssetAllocation.DataDiscovery.Read."}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "json_payload"),
+    [
+        (
+            "/api/system/postgres/update",
+            {
+                "schema_name": "gold",
+                "table_name": "market_data",
+                "match": {"symbol": "AAPL"},
+                "values": {"surprise": 7},
+            },
+        ),
+        (
+            "/api/system/postgres/purge",
+            {
+                "schema_name": "gold",
+                "table_name": "market_data",
+            },
+        ),
+    ],
+)
+async def test_postgres_write_routes_require_write_role_when_deployed(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    json_payload: dict[str, object],
+) -> None:
+    _configure_deployed_auth(monkeypatch)
+
+    app = create_app()
+    monkeypatch.setattr(
+        app.state.auth,
+        "authenticate_headers",
+        lambda _headers: AuthContext(
+            mode="oidc",
+            subject="user-1",
+            claims={"roles": ["AssetAllocation.DataDiscovery.Read"]},
+        ),
+    )
+
+    async with get_test_client(app) as client:
+        response = await client.post(
+            path,
+            headers={"Authorization": "Bearer token"},
+            json=json_payload,
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Missing required roles: AssetAllocation.DataDiscovery.Write."}
