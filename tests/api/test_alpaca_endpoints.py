@@ -6,6 +6,7 @@ import pytest
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -51,10 +52,14 @@ async def test_alpaca_live_route_returns_503_when_live_unconfigured(monkeypatch:
     _configure_paper_alpaca(monkeypatch)
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     async with get_test_client(app) as client:
@@ -74,10 +79,14 @@ async def test_alpaca_account_route_calls_gateway(monkeypatch: pytest.MonkeyPatc
     _configure_paper_alpaca(monkeypatch)
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
     app.state.alpaca_gateway.get_account = lambda **kwargs: {  # type: ignore[method-assign]
         "id": "acct-1",
@@ -109,10 +118,14 @@ async def test_alpaca_submit_order_requires_trade_role(monkeypatch: pytest.Monke
     monkeypatch.setenv("ALPACA_TRADING_REQUIRED_ROLES", "AssetAllocation.Alpaca.Trade")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
 
     async with get_test_client(app) as client:
@@ -140,10 +153,14 @@ async def test_alpaca_submit_order_calls_gateway_when_role_present(monkeypatch: 
     monkeypatch.setenv("ALPACA_TRADING_REQUIRED_ROLES", "AssetAllocation.Alpaca.Trade")
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access", "AssetAllocation.Alpaca.Trade"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access", "AssetAllocation.Alpaca.Trade"]},
+        ),
     )
     captured: dict[str, object] = {}
 
@@ -190,10 +207,14 @@ async def test_alpaca_orders_route_parses_symbols(monkeypatch: pytest.MonkeyPatc
     _configure_paper_alpaca(monkeypatch)
 
     app = create_app()
-    app.state.auth.authenticate_headers = lambda _headers: AuthContext(  # type: ignore[method-assign]
-        mode="oidc",
-        subject="user-123",
-        claims={"roles": ["AssetAllocation.Access"]},
+    install_auth_stub(
+        monkeypatch,
+        app.state.auth,
+        auth_context=AuthContext(
+            mode="oidc",
+            subject="user-123",
+            claims={"roles": ["AssetAllocation.Access"]},
+        ),
     )
     captured: dict[str, object] = {}
 

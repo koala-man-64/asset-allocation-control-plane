@@ -16,6 +16,7 @@ from api.service.ai_contracts_compat import (
 from api.service.app import create_app
 from api.service.auth import AuthContext, AuthError
 from api.service.openai_responses_gateway import AiRelayAttachment, AiRelayGatewayError
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -124,10 +125,10 @@ async def test_ai_chat_stream_returns_401_when_authentication_fails(monkeypatch:
     monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation-api")
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: (_ for _ in ()).throw(AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer")),
+        auth_error=AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer"),
     )
 
     async with get_test_client(app) as client:
@@ -144,10 +145,10 @@ async def test_ai_chat_stream_returns_403_for_missing_ai_role(monkeypatch: pytes
     monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation-api")
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
+        auth_context=AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
     )
 
     async with get_test_client(app) as client:

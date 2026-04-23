@@ -7,6 +7,7 @@ from asset_allocation_contracts.ui_config import UiRuntimeConfig
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -88,10 +89,10 @@ async def test_config_js_preserves_explicit_oidc_redirect_uri(monkeypatch: pytes
     )
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
+        auth_context=AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
     )
     async with get_test_client(app) as client:
         resp = await client.get("/config.js", headers={"Authorization": "Bearer token"})

@@ -586,7 +586,6 @@ def create_app() -> FastAPI:
         cfg = UiRuntimeConfig.model_validate(
             {
                 "apiBaseUrl": settings.ui_oidc_config.get("apiBaseUrl") or "/api",
-                "authSessionMode": settings.auth_session_mode,
                 "oidcAuthority": settings.ui_oidc_config.get("authority"),
                 "oidcClientId": settings.ui_oidc_config.get("clientId"),
                 "oidcScopes": settings.ui_oidc_config.get("scope"),
@@ -599,10 +598,9 @@ def create_app() -> FastAPI:
         ).model_dump(mode="json")
 
         logger.info(
-            "Serving /config.js: oidcEnabled=%s authRequired=%s authSessionMode=%s apiBaseUrl=%s scopes=%s",
+            "Serving /config.js: oidcEnabled=%s authRequired=%s apiBaseUrl=%s scopes=%s",
             cfg.get("oidcEnabled"),
             cfg.get("authRequired"),
-            cfg.get("authSessionMode"),
             cfg.get("apiBaseUrl"),
             cfg.get("oidcScopes"),
         )
