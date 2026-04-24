@@ -144,6 +144,16 @@ def test_workflow_refs_are_documented() -> None:
         assert contract[name]["github_storage"] == "secret"
 
 
+def test_deploy_workflow_maps_auth_session_config_to_correct_github_storage() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+
+    assert "API_AUTH_SESSION_MODE: ${{ vars.API_AUTH_SESSION_MODE }}" in text
+    assert "API_AUTH_SESSION_IDLE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_IDLE_TTL_SECONDS }}" in text
+    assert "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS }}" in text
+    assert "API_AUTH_SESSION_SECRET_KEYS: ${{ secrets.API_AUTH_SESSION_SECRET_KEYS }}" in text
+    assert "API_AUTH_SESSION_SECRET_KEYS: ${{ vars.API_AUTH_SESSION_SECRET_KEYS }}" not in text
+
+
 def test_sync_script_reads_repo_local_contract() -> None:
     text = (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8")
     assert 'Join-Path $repoRoot "docs\\ops\\env-contract.csv"' in text
