@@ -158,8 +158,6 @@ RUN_LIVE_QUIVER_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in fo
 MASSIVE_API_KEY,secret,secret,secret_store,true,Massive API key. Never auto-discovered.
 SCHWAB_CLIENT_ID,secret,secret,secret_store,true,Schwab Trader API client id for the approved Schwab developer application.
 SCHWAB_CLIENT_SECRET,secret,secret,secret_store,true,Schwab Trader API client secret for the approved Schwab developer application.
-SCHWAB_ACCESS_TOKEN,secret,secret,secret_store,true,Optional Schwab OAuth access token used as a bootstrap session token. Prefer refresh-token based rotation for runtime use.
-SCHWAB_REFRESH_TOKEN,secret,secret,secret_store,true,Schwab OAuth refresh token used to refresh the in-memory broker session. Treat as a broker account secret.
 POSTGRES_SERVER_NAME,deploy_var,var,deploy_config,true,Azure Database for PostgreSQL Flexible Server name used during provisioning and DSN generation.
 POSTGRES_DATABASE_NAME,deploy_var,var,deploy_config,true,Control-plane Postgres database name used during provisioning and DSN generation.
 POSTGRES_ADMIN_USER,deploy_var,var,deploy_config,true,Azure Postgres administrator username used during provisioning and DSN regeneration.

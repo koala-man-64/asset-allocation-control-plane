@@ -1,8 +1,9 @@
 """Read-only broker balance smoke test with interactive OAuth bootstrap.
 
 This script is intentionally operator-facing. It reads the same local env files
-used by the control plane, launches broker OAuth in a browser when needed, and
-prints masked account identifiers with balance fields.
+used by the control plane, launches broker OAuth in a browser when needed,
+keeps broker OAuth tokens in memory, and prints masked account identifiers with
+balance fields.
 """
 
 from __future__ import annotations
@@ -35,7 +36,6 @@ from schwab.config import SchwabConfig
 from schwab.errors import SchwabAuthError, SchwabError, SchwabNotConfiguredError
 from schwab.list_accounts import _normalize_rows as normalize_schwab_rows
 from schwab.list_accounts import _render_rows as render_schwab_rows
-from schwab.local_env import save_schwab_tokens
 
 DEFAULT_OPERATOR_PROJECT = Path.home() / "Projects" / "asset-allocation-control-plane"
 DEFAULT_ENV_PATHS = (
@@ -75,22 +75,6 @@ def _load_env(paths: Sequence[Path]) -> dict[str, str]:
             merged[str(key)] = "" if value is None else str(value)
     os.environ.update(merged)
     return merged
-
-
-def _select_schwab_write_env(
-    *,
-    requested: str | None,
-    loaded_paths: Sequence[Path],
-) -> Path:
-    if requested:
-        return Path(requested).expanduser().resolve()
-
-    for path in reversed(loaded_paths):
-        values = dotenv_values(path)
-        if (values.get("SCHWAB_CLIENT_ID") or "").strip():
-            return path
-
-    return (ROOT / ".env").resolve()
 
 
 def _mask_account(value: Any) -> str:
@@ -241,11 +225,7 @@ def print_alpaca_balances() -> bool:
     return success
 
 
-def _save_and_apply_schwab_tokens(env_path: Path, config: SchwabConfig, tokens: SchwabOAuthTokens) -> SchwabConfig:
-    save_schwab_tokens(env_path, tokens)
-    os.environ["SCHWAB_ACCESS_TOKEN"] = tokens.access_token
-    if tokens.refresh_token:
-        os.environ["SCHWAB_REFRESH_TOKEN"] = tokens.refresh_token
+def _apply_schwab_tokens(config: SchwabConfig, tokens: SchwabOAuthTokens) -> SchwabConfig:
     return replace(
         config,
         access_token=tokens.access_token,
@@ -260,18 +240,17 @@ def _fetch_schwab_payload(config: SchwabConfig) -> tuple[Any, Any]:
     return account_numbers, accounts
 
 
-def _refresh_schwab(config: SchwabConfig, *, write_env_path: Path) -> SchwabConfig:
+def _refresh_schwab(config: SchwabConfig) -> SchwabConfig:
     with SchwabClient(config) as client:
         tokens = client.refresh_access_token()
-    refreshed = _save_and_apply_schwab_tokens(write_env_path, config, tokens)
-    print(f"Refreshed Schwab access token and updated {write_env_path}")
+    refreshed = _apply_schwab_tokens(config, tokens)
+    print("Refreshed Schwab access token in process memory.")
     return refreshed
 
 
 def _schwab_browser_oauth(
     config: SchwabConfig,
     *,
-    write_env_path: Path,
     non_interactive: bool,
     no_browser: bool,
 ) -> SchwabConfig:
@@ -295,14 +274,13 @@ def _schwab_browser_oauth(
     with SchwabClient(config) as client:
         code = client.extract_authorization_code(callback_url)
         tokens = client.exchange_authorization_code(code)
-    updated = _save_and_apply_schwab_tokens(write_env_path, config, tokens)
-    print(f"Saved Schwab OAuth tokens to {write_env_path}")
+    updated = _apply_schwab_tokens(config, tokens)
+    print("Stored Schwab OAuth tokens in process memory for this smoke run.")
     return updated
 
 
 def print_schwab_balances(
     *,
-    write_env_path: Path,
     non_interactive: bool,
     no_browser: bool,
 ) -> bool:
@@ -320,15 +298,14 @@ def print_schwab_balances(
             except SchwabAuthError:
                 if not config.refresh_token:
                     raise
-                config = _refresh_schwab(config, write_env_path=write_env_path)
+                config = _refresh_schwab(config)
                 account_numbers, accounts = _fetch_schwab_payload(config)
         elif config.refresh_token:
-            config = _refresh_schwab(config, write_env_path=write_env_path)
+            config = _refresh_schwab(config)
             account_numbers, accounts = _fetch_schwab_payload(config)
         else:
             config = _schwab_browser_oauth(
                 config,
-                write_env_path=write_env_path,
                 non_interactive=non_interactive,
                 no_browser=no_browser,
             )
@@ -552,11 +529,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Env file to load. Repeat to load multiple files in order. Defaults to repo/operator .env and .env.web.",
     )
-    parser.add_argument(
-        "--write-env-file",
-        default=None,
-        help="Env file to update when Schwab OAuth tokens are refreshed or bootstrapped.",
-    )
     parser.add_argument("--skip-alpaca", action="store_true", help="Skip Alpaca balance retrieval.")
     parser.add_argument("--skip-schwab", action="store_true", help="Skip Schwab balance retrieval.")
     parser.add_argument("--skip-etrade", action="store_true", help="Skip E*TRADE balance retrieval.")
@@ -608,13 +580,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     _load_env(loaded_paths)
-    write_env_path = _select_schwab_write_env(requested=args.write_env_file, loaded_paths=loaded_paths)
 
     print("Loaded env files:")
     for path in loaded_paths:
         print(f"  {path}")
-    print(f"Schwab token write target: {write_env_path}")
-    print("This script performs read-only account/balance calls. E*TRADE OAuth tokens are kept in memory.")
+    print("This script performs read-only account/balance calls. Broker OAuth tokens are kept in memory.")
 
     success = True
     if not args.skip_alpaca:
@@ -622,7 +592,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.skip_schwab:
         success = (
             print_schwab_balances(
-                write_env_path=write_env_path,
                 non_interactive=args.non_interactive,
                 no_browser=args.no_browser,
             )

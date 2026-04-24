@@ -169,7 +169,7 @@ def test_list_orders_for_account_passes_query_params():
 def test_missing_access_token_raises_not_configured():
     client = SchwabClient(_config(access_token=""))
 
-    with pytest.raises(SchwabNotConfiguredError, match="SCHWAB_ACCESS_TOKEN"):
+    with pytest.raises(SchwabNotConfiguredError, match="Complete the Schwab connect flow"):
         client.get_account_numbers()
 
 

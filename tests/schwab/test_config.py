@@ -19,8 +19,8 @@ def test_from_env_reads_schwab_values(monkeypatch):
     assert cfg.auth_base_url == SCHWAB_AUTH_BASE_URL
     assert cfg.trader_base_url == SCHWAB_TRADER_BASE_URL
     assert cfg.timeout_seconds == 45.0
-    assert cfg.access_token == "access-token"
-    assert cfg.refresh_token == "refresh-token"
+    assert cfg.access_token == ""
+    assert cfg.refresh_token == ""
 
 
 def test_from_env_requires_client_id(monkeypatch):
@@ -57,8 +57,8 @@ def test_from_mapping_reads_schwab_values():
     assert cfg.auth_base_url == SCHWAB_AUTH_BASE_URL
     assert cfg.trader_base_url == SCHWAB_TRADER_BASE_URL
     assert cfg.timeout_seconds == 15.0
-    assert cfg.access_token == "access-token"
-    assert cfg.refresh_token == "refresh-token"
+    assert cfg.access_token == ""
+    assert cfg.refresh_token == ""
 
 
 def test_from_mapping_defaults_timeout():

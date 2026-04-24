@@ -216,8 +216,8 @@ def test_schwab_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     ]
     assert settings.schwab.client_id == "client-id"
     assert settings.schwab.client_secret == "client-secret"
-    assert settings.schwab.access_token == "access-token"
-    assert settings.schwab.refresh_token == "refresh-token"
+    assert not hasattr(settings.schwab, "access_token")
+    assert not hasattr(settings.schwab, "refresh_token")
 
 
 def test_alpaca_settings_allow_unconfigured_environments(monkeypatch: pytest.MonkeyPatch) -> None:

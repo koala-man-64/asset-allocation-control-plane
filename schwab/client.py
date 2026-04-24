@@ -402,7 +402,7 @@ class SchwabClient:
             token = _strip_or_none(access_token) or _strip_or_none(self.config.access_token)
             if not token:
                 raise SchwabNotConfiguredError(
-                    "A Schwab access token is required. Set SCHWAB_ACCESS_TOKEN or pass access_token explicitly."
+                    "A Schwab OAuth access token is required. Complete the Schwab connect flow or pass access_token explicitly."
                 )
             return {"Authorization": f"Bearer {token}"}
 

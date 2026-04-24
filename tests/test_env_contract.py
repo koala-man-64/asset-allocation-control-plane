@@ -539,10 +539,11 @@ def test_broker_runtime_secrets_and_trade_gates_are_documented() -> None:
         "ETRADE_LIVE_CONSUMER_SECRET",
         "SCHWAB_CLIENT_ID",
         "SCHWAB_CLIENT_SECRET",
-        "SCHWAB_ACCESS_TOKEN",
-        "SCHWAB_REFRESH_TOKEN",
     ):
         assert contract[name]["github_storage"] == "secret"
+
+    assert "SCHWAB_ACCESS_TOKEN" not in contract
+    assert "SCHWAB_REFRESH_TOKEN" not in contract
 
 
 def test_sync_script_normalizes_quoted_scalar_values_before_github_sync(tmp_path: Path) -> None:

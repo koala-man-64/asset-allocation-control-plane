@@ -57,6 +57,8 @@ def _handle_schwab_error(exc: Exception) -> None:
     if isinstance(exc, SchwabGatewayValidationError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if isinstance(exc, SchwabGatewaySessionExpiredError):
+        if exc.payload:
+            raise HTTPException(status_code=409, detail={"message": str(exc), **exc.payload}) from exc
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if isinstance(exc, SchwabGatewayAmbiguousWriteError):
         raise HTTPException(status_code=409, detail=str(exc)) from exc

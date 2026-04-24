@@ -1,5 +1,6 @@
 import httpx
 
+from schwab.config import SchwabConfig
 from schwab.list_accounts import _render_rows, fetch_account_snapshot
 
 
@@ -11,11 +12,16 @@ def test_fetch_account_snapshot_refreshes_tokens_once_and_formats_rows(tmp_path)
                 "SCHWAB_CLIENT_ID=client-id",
                 "SCHWAB_CLIENT_SECRET=client-secret",
                 "SCHWAB_APP_CALLBACK_URL=https://127.0.0.1",
-                "SCHWAB_ACCESS_TOKEN=expired-access-token",
-                "SCHWAB_REFRESH_TOKEN=refresh-token",
             ]
         ),
         encoding="utf-8",
+    )
+    config = SchwabConfig(
+        client_id="client-id",
+        client_secret="client-secret",
+        app_callback_url="https://127.0.0.1",
+        access_token="expired-access-token",
+        refresh_token="refresh-token",
     )
 
     request_log: list[tuple[str, str]] = []
@@ -74,7 +80,7 @@ def test_fetch_account_snapshot_refreshes_tokens_once_and_formats_rows(tmp_path)
     transport = httpx.MockTransport(handler)
     http_client = httpx.Client(transport=transport)
 
-    snapshot = fetch_account_snapshot(env_file=env_path, http_client=http_client)
+    snapshot = fetch_account_snapshot(env_file=env_path, config=config, http_client=http_client)
 
     assert snapshot.refreshed_tokens is True
     assert len(snapshot.rows) == 1
@@ -93,8 +99,8 @@ def test_fetch_account_snapshot_refreshes_tokens_once_and_formats_rows(tmp_path)
     ]
 
     saved = env_path.read_text(encoding="utf-8")
-    assert "SCHWAB_ACCESS_TOKEN=fresh-access-token" in saved
-    assert "SCHWAB_REFRESH_TOKEN=fresh-refresh-token" in saved
+    assert "SCHWAB_ACCESS_TOKEN" not in saved
+    assert "SCHWAB_REFRESH_TOKEN" not in saved
 
 
 def test_render_rows_masks_and_aligns_multiple_accounts():

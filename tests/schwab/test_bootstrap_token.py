@@ -5,7 +5,7 @@ import httpx
 from schwab.bootstrap_token import bootstrap_tokens_from_callback
 
 
-def test_bootstrap_tokens_from_callback_saves_tokens_to_local_env_file(tmp_path):
+def test_bootstrap_tokens_from_callback_keeps_tokens_out_of_env_file(tmp_path):
     env_path = tmp_path / ".env"
     env_path.write_text(
         "\n".join(
@@ -53,7 +53,9 @@ def test_bootstrap_tokens_from_callback_saves_tokens_to_local_env_file(tmp_path)
     assert captured["url"] == "https://api.schwabapi.com/v1/oauth/token"
     assert captured["authorization"] == f"Basic {expected_basic}"
     assert captured["body"] == "grant_type=authorization_code&code=abc%40example.com&redirect_uri=https%3A%2F%2F127.0.0.1"
+    assert result.tokens.access_token == "access-token-from-api"
+    assert result.tokens.refresh_token == "refresh-token-from-api"
 
     saved = env_path.read_text(encoding="utf-8")
-    assert "SCHWAB_ACCESS_TOKEN=access-token-from-api" in saved
-    assert "SCHWAB_REFRESH_TOKEN=refresh-token-from-api" in saved
+    assert "SCHWAB_ACCESS_TOKEN" not in saved
+    assert "SCHWAB_REFRESH_TOKEN" not in saved

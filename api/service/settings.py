@@ -469,8 +469,6 @@ class SchwabSettings:
     trading_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Schwab.Trade"])
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
-    access_token: Optional[str] = None
-    refresh_token: Optional[str] = None
 
     @staticmethod
     def from_env(
@@ -502,8 +500,6 @@ class SchwabSettings:
             or ["AssetAllocation.Schwab.Trade"],
             client_id=_get_optional_str("SCHWAB_CLIENT_ID"),
             client_secret=_get_optional_str("SCHWAB_CLIENT_SECRET"),
-            access_token=_get_optional_str("SCHWAB_ACCESS_TOKEN"),
-            refresh_token=_get_optional_str("SCHWAB_REFRESH_TOKEN"),
         )
         if settings.trading_enabled and not settings.enabled:
             raise ValueError("SCHWAB_TRADING_ENABLED requires SCHWAB_ENABLED=true.")

@@ -4,6 +4,7 @@ import pytest
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from api.service.schwab_gateway import SchwabGatewaySessionExpiredError
 from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
@@ -140,6 +141,45 @@ async def test_schwab_account_numbers_route_calls_gateway(monkeypatch: pytest.Mo
 
     assert response.status_code == 200
     assert response.json() == [{"accountNumber": "123456789", "hashValue": "hash-1", "subject": "user-123"}]
+
+
+@pytest.mark.asyncio
+async def test_schwab_account_numbers_route_returns_reconnect_payload_when_session_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_oidc(monkeypatch)
+    monkeypatch.setenv("SCHWAB_ENABLED", "true")
+
+    app = create_app()
+    _install_auth(monkeypatch, app)
+
+    def _missing_session(**_kwargs):
+        raise SchwabGatewaySessionExpiredError(
+            "No active Schwab broker session exists. Connect first.",
+            payload={
+                "connect_required": True,
+                "authorize_url": "https://schwab.example/authorize?state=opaque",
+                "state": "opaque",
+                "state_expires_at": "2026-04-24T16:00:00Z",
+            },
+        )
+
+    app.state.schwab_gateway.get_account_numbers = _missing_session  # type: ignore[method-assign]
+
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/providers/schwab/account-numbers",
+            headers={"Authorization": "Bearer placeholder"},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "No active Schwab broker session exists. Connect first.",
+        "connect_required": True,
+        "authorize_url": "https://schwab.example/authorize?state=opaque",
+        "state": "opaque",
+        "state_expires_at": "2026-04-24T16:00:00Z",
+    }
 
 
 @pytest.mark.asyncio

@@ -22,7 +22,7 @@ def test_schwab_control_plane_runbook_documents_trading_gates_and_recovery() -> 
 
     assert "`SCHWAB_ENABLED=true`" in text
     assert "`SCHWAB_TRADING_ENABLED=true`" in text
-    assert "`SCHWAB_REFRESH_TOKEN`" in text
+    assert "never written back to `.env`, `.env.web`, setup output, or GitHub sync input" in text
     assert "`POST /api/providers/schwab/accounts/{account_number}/orders/preview`" in text
     assert "The callback and complete routes reject missing, expired, or mismatched OAuth state." in text
     assert "Do not resend the request blindly." in text

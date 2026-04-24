@@ -1,4 +1,4 @@
-"""Manual OAuth bootstrap for Schwab tokens using a pasted callback URL."""
+"""Manual Schwab OAuth code exchange using a pasted callback URL."""
 
 from __future__ import annotations
 
@@ -10,12 +10,11 @@ from pathlib import Path
 import httpx
 
 from schwab.client import SchwabClient, SchwabOAuthTokens
-from schwab.local_env import load_schwab_config, save_schwab_tokens
+from schwab.local_env import load_schwab_config
 
 
 @dataclass(frozen=True)
 class SchwabBootstrapResult:
-    env_path: Path
     authorization_url: str
     tokens: SchwabOAuthTokens
 
@@ -33,9 +32,7 @@ def bootstrap_tokens_from_callback(
         authorization_code = client.extract_authorization_code(callback_url)
         tokens = client.exchange_authorization_code(authorization_code)
 
-    save_schwab_tokens(env_path, tokens)
     return SchwabBootstrapResult(
-        env_path=env_path,
         authorization_url=authorization_url,
         tokens=tokens,
     )
@@ -43,7 +40,7 @@ def bootstrap_tokens_from_callback(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Bootstrap Schwab OAuth tokens by pasting the full redirected callback URL.",
+        description="Exchange a Schwab OAuth code by pasting the full redirected callback URL.",
     )
     parser.add_argument(
         "--env-file",
@@ -92,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Schwab bootstrap failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Saved SCHWAB_ACCESS_TOKEN and SCHWAB_REFRESH_TOKEN to {result.env_path}")
+    print("Schwab OAuth code exchange succeeded. Tokens were kept in process memory and were not written to env files.")
     print(f"Access token lifetime: {result.tokens.expires_in} seconds")
     return 0
 

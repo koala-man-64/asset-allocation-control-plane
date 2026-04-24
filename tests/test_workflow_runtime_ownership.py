@@ -229,8 +229,8 @@ def test_deploy_workflow_includes_etrade_and_schwab_runtime_env_and_secrets() ->
     assert "SCHWAB_TRADING_REQUIRED_ROLES: ${{ vars.SCHWAB_TRADING_REQUIRED_ROLES || 'AssetAllocation.Schwab.Trade' }}" in text
     assert "SCHWAB_CLIENT_ID: ${{ secrets.SCHWAB_CLIENT_ID }}" in text
     assert "SCHWAB_CLIENT_SECRET: ${{ secrets.SCHWAB_CLIENT_SECRET }}" in text
-    assert "SCHWAB_ACCESS_TOKEN: ${{ secrets.SCHWAB_ACCESS_TOKEN }}" in text
-    assert "SCHWAB_REFRESH_TOKEN: ${{ secrets.SCHWAB_REFRESH_TOKEN }}" in text
+    assert "SCHWAB_ACCESS_TOKEN" not in text
+    assert "SCHWAB_REFRESH_TOKEN" not in text
 
 
 def test_deploy_workflow_exports_manifest_runtime_env_surface() -> None:

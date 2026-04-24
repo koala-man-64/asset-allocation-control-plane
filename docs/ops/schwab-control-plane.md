@@ -25,12 +25,10 @@ Set the following environment variables before using the routes:
 - `SCHWAB_ENABLED=true`
 - `SCHWAB_CLIENT_ID`
 - `SCHWAB_CLIENT_SECRET`
-- `SCHWAB_REFRESH_TOKEN` for runtime token refresh
 - `SCHWAB_APP_CALLBACK_URL` if `API_PUBLIC_BASE_URL` cannot derive the registered callback URL
 
 Optional controls:
 
-- `SCHWAB_ACCESS_TOKEN` for bootstrap-only local sessions
 - `SCHWAB_TIMEOUT_SECONDS`
 - `SCHWAB_REQUIRED_ROLES`
 - `SCHWAB_TRADING_REQUIRED_ROLES`
@@ -53,7 +51,7 @@ Manual code fallback:
 3. Copy the returned OAuth code from the callback URL
 4. `POST /api/providers/schwab/connect/complete` with `{"code":"...","state":"..."}`
 
-The callback and complete routes reject missing, expired, or mismatched OAuth state. Tokens are kept in memory; the API does not write OAuth tokens back to `.env` or `.env.web`.
+The callback and complete routes reject missing, expired, or mismatched OAuth state. Tokens are retrieved only through this code path, kept in process memory, and never written back to `.env`, `.env.web`, setup output, or GitHub sync input. If a broker route is called without an active session, the API returns a reconnect-required response with a Schwab authorization URL. Subsequent calls refresh the access token from the in-memory refresh token when Schwab provides one.
 
 ## Account And Trading Routes
 

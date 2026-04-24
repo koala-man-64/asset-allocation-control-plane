@@ -69,8 +69,6 @@ class SchwabConfig:
             client_id=str(client_id or ""),
             client_secret=str(client_secret or ""),
             app_callback_url=str(_strip_or_none(values.get("SCHWAB_APP_CALLBACK_URL")) or ""),
-            access_token=str(_strip_or_none(values.get("SCHWAB_ACCESS_TOKEN")) or ""),
-            refresh_token=str(_strip_or_none(values.get("SCHWAB_REFRESH_TOKEN")) or ""),
             timeout_seconds=_float_or_default(values.get("SCHWAB_TIMEOUT_SECONDS"), SCHWAB_TIMEOUT_SECONDS),
         )
 

@@ -28,6 +28,10 @@ class SchwabGatewayValidationError(ValueError):
 class SchwabGatewaySessionExpiredError(RuntimeError):
     """Raised when Schwab tokens are absent, expired, or rejected."""
 
+    def __init__(self, message: str, *, payload: Optional[Mapping[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.payload = dict(payload or {})
+
 
 class SchwabGatewayAmbiguousWriteError(RuntimeError):
     """Raised when a Schwab write may have reached the provider but no outcome is known."""
@@ -72,11 +76,7 @@ class SchwabGateway:
         self._settings = settings
         self._lock = threading.RLock()
         self._pending_auth: dict[str, _PendingAuthState] = {}
-        self._tokens = _TokenState(
-            access_token=settings.access_token or "",
-            refresh_token=settings.refresh_token or "",
-            connected_at=_utc_now() if settings.access_token or settings.refresh_token else None,
-        )
+        self._tokens = _TokenState()
         self._client = client or SchwabClient(self._build_config(settings))
 
     @staticmethod
@@ -85,8 +85,6 @@ class SchwabGateway:
             client_id=settings.client_id or "",
             client_secret=settings.client_secret or "",
             app_callback_url=settings.callback_url or "",
-            access_token=settings.access_token or "",
-            refresh_token=settings.refresh_token or "",
             timeout_seconds=settings.timeout_seconds,
         )
 
@@ -375,21 +373,22 @@ class SchwabGateway:
         subject: Optional[str],
         call: Callable[[str], Any],
     ) -> Any:
-        del operation, subject
-        access_token = self._access_token_for_read()
+        del operation
+        access_token = self._access_token_for_read(subject=subject)
         try:
             return call(access_token)
-        except SchwabAuthError as exc:
+        except SchwabAuthError:
             if not self._has_refresh_token():
                 self._clear_access_token()
-                raise SchwabGatewaySessionExpiredError("Schwab rejected the broker session. Reconnect required.") from exc
+                self._raise_reconnect_required("Schwab rejected the broker session. Reconnect required.", subject=subject)
             try:
                 return call(self._refresh_access_token())
-            except SchwabAuthError as retry_exc:
+            except SchwabAuthError:
                 self._clear_access_token()
-                raise SchwabGatewaySessionExpiredError(
-                    "Schwab rejected the refreshed broker session. Reconnect required."
-                ) from retry_exc
+                self._raise_reconnect_required(
+                    "Schwab rejected the refreshed broker session. Reconnect required.",
+                    subject=subject,
+                )
 
     def _execute_write(
         self,
@@ -398,15 +397,15 @@ class SchwabGateway:
         subject: Optional[str],
         call: Callable[[str], Any],
     ) -> Any:
-        del subject
-        access_token = self._access_token_for_write()
+        access_token = self._access_token_for_write(subject=subject)
         try:
             return call(access_token)
-        except SchwabAuthError as exc:
+        except SchwabAuthError:
             self._clear_access_token()
-            raise SchwabGatewaySessionExpiredError(
-                "Schwab rejected the broker session. Reconnect before previewing or trading."
-            ) from exc
+            self._raise_reconnect_required(
+                "Schwab rejected the broker session. Reconnect before previewing or trading.",
+                subject=subject,
+            )
         except SchwabError as exc:
             if exc.status_code is None:
                 raise SchwabGatewayAmbiguousWriteError(
@@ -414,7 +413,7 @@ class SchwabGateway:
                 ) from exc
             raise
 
-    def _access_token_for_read(self) -> str:
+    def _access_token_for_read(self, *, subject: Optional[str]) -> str:
         now = _utc_now()
         with self._lock:
             self._purge_expired_locked(now)
@@ -425,10 +424,10 @@ class SchwabGateway:
             refresh_token = self._tokens.refresh_token
         if refresh_token:
             return self._refresh_access_token()
-        raise SchwabGatewaySessionExpiredError("No active Schwab broker session exists. Connect first.")
+        self._raise_reconnect_required("No active Schwab broker session exists. Connect first.", subject=subject)
 
-    def _access_token_for_write(self) -> str:
-        return self._access_token_for_read()
+    def _access_token_for_write(self, *, subject: Optional[str]) -> str:
+        return self._access_token_for_read(subject=subject)
 
     def _refresh_access_token(self) -> str:
         with self._lock:
@@ -449,6 +448,18 @@ class SchwabGateway:
         with self._lock:
             self._tokens.access_token = ""
             self._tokens.expires_at = None
+
+    def _raise_reconnect_required(self, message: str, *, subject: Optional[str]) -> None:
+        connect_payload = self.start_connect(subject=subject)
+        payload = {
+            "connect_required": True,
+            "authorize_url": connect_payload["authorize_url"],
+            "state": connect_payload["state"],
+            "state_expires_at": connect_payload["state_expires_at"],
+        }
+        if "callback_url" in connect_payload:
+            payload["callback_url"] = connect_payload["callback_url"]
+        raise SchwabGatewaySessionExpiredError(message, payload=payload)
 
     def _store_tokens_locked(self, tokens: SchwabOAuthTokens, *, now: datetime, refreshed: bool = False) -> None:
         expires_at = now + timedelta(seconds=tokens.expires_in) if tokens.expires_in > 0 else None

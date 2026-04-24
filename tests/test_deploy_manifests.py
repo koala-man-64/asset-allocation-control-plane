@@ -93,8 +93,6 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "SCHWAB_TRADING_REQUIRED_ROLES",
         "SCHWAB_CLIENT_ID",
         "SCHWAB_CLIENT_SECRET",
-        "SCHWAB_ACCESS_TOKEN",
-        "SCHWAB_REFRESH_TOKEN",
         "AI_RELAY_ENABLED",
         "AI_RELAY_MODEL",
         "AI_RELAY_REASONING_EFFORT",
@@ -131,13 +129,17 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "etrade-live-consumer-secret" in _secret_names(private_doc)
     assert "schwab-client-id" in _secret_names(public_doc)
     assert "schwab-client-secret" in _secret_names(public_doc)
-    assert "schwab-access-token" in _secret_names(public_doc)
-    assert "schwab-refresh-token" in _secret_names(public_doc)
     assert "schwab-client-id" in _secret_names(private_doc)
     assert "schwab-client-secret" in _secret_names(private_doc)
-    assert "schwab-access-token" in _secret_names(private_doc)
-    assert "schwab-refresh-token" in _secret_names(private_doc)
+    assert "schwab-access-token" not in _secret_names(public_doc)
+    assert "schwab-refresh-token" not in _secret_names(public_doc)
+    assert "schwab-access-token" not in _secret_names(private_doc)
+    assert "schwab-refresh-token" not in _secret_names(private_doc)
     assert "ai-relay-api-key" in _secret_names(public_doc)
     assert "ai-relay-api-key" in _secret_names(private_doc)
+    assert "SCHWAB_ACCESS_TOKEN" not in _env_names(public_doc)
+    assert "SCHWAB_REFRESH_TOKEN" not in _env_names(public_doc)
+    assert "SCHWAB_ACCESS_TOKEN" not in _env_names(private_doc)
+    assert "SCHWAB_REFRESH_TOKEN" not in _env_names(private_doc)
     assert expected_envs <= _env_names(public_doc)
     assert expected_envs <= _env_names(private_doc)

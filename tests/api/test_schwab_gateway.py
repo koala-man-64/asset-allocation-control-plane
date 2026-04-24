@@ -8,6 +8,7 @@ from api.service.schwab_gateway import (
     SchwabGatewayAmbiguousWriteError,
     SchwabGatewaySessionExpiredError,
     SchwabGatewayValidationError,
+    _TokenState,
 )
 from api.service.settings import SchwabSettings
 from schwab import SchwabHTTPResponse, SchwabOAuthTokens
@@ -77,16 +78,20 @@ def _settings(**overrides) -> SchwabSettings:
         "callback_url": "https://api.example.com/api/providers/schwab/connect/callback",
         "client_id": "client-id",
         "client_secret": "client-secret",
-        "access_token": "access-token",
-        "refresh_token": "refresh-token",
     }
     values.update(overrides)
     return SchwabSettings(**values)
 
 
+def _gateway_with_tokens(client: _FakeSchwabClient) -> SchwabGateway:
+    gateway = SchwabGateway(_settings(), client=client)  # type: ignore[arg-type]
+    gateway._tokens = _TokenState(access_token="access-token", refresh_token="refresh-token")  # type: ignore[attr-defined]
+    return gateway
+
+
 def test_start_and_complete_connect_validates_pending_state() -> None:
     client = _FakeSchwabClient()
-    gateway = SchwabGateway(_settings(access_token=None, refresh_token=None), client=client)  # type: ignore[arg-type]
+    gateway = SchwabGateway(_settings(), client=client)  # type: ignore[arg-type]
 
     start = gateway.start_connect(subject="user-123")
 
@@ -106,7 +111,7 @@ def test_complete_connect_rejects_missing_pending_state() -> None:
 
 def test_read_retries_once_after_auth_failure_when_refresh_token_exists() -> None:
     client = _FakeSchwabClient()
-    gateway = SchwabGateway(_settings(), client=client)  # type: ignore[arg-type]
+    gateway = _gateway_with_tokens(client)
 
     response = gateway.get_account_numbers(subject="user-123")
 
@@ -121,7 +126,7 @@ def test_read_retries_once_after_auth_failure_when_refresh_token_exists() -> Non
 def test_write_maps_network_unknowns_to_ambiguous_outcome() -> None:
     client = _FakeSchwabClient()
     client.place_error = SchwabError("Schwab timeout calling orders")
-    gateway = SchwabGateway(_settings(), client=client)  # type: ignore[arg-type]
+    gateway = _gateway_with_tokens(client)
 
     with pytest.raises(SchwabGatewayAmbiguousWriteError, match="outcome is unknown"):
         gateway.place_order(
@@ -134,7 +139,7 @@ def test_write_maps_network_unknowns_to_ambiguous_outcome() -> None:
 def test_write_does_not_retry_broker_auth_failure() -> None:
     client = _FakeSchwabClient()
     client.place_error = SchwabAuthError("expired")
-    gateway = SchwabGateway(_settings(), client=client)  # type: ignore[arg-type]
+    gateway = _gateway_with_tokens(client)
 
     with pytest.raises(SchwabGatewaySessionExpiredError, match="Reconnect before previewing or trading"):
         gateway.place_order(
@@ -143,11 +148,12 @@ def test_write_does_not_retry_broker_auth_failure() -> None:
             subject="user-123",
         )
 
-    assert [call[0] for call in client.calls] == ["place_order"]
+    assert [call[0] for call in client.calls] == ["place_order", "build_authorization_url"]
 
 
 def test_place_order_returns_provider_write_metadata() -> None:
-    gateway = SchwabGateway(_settings(), client=_FakeSchwabClient())  # type: ignore[arg-type]
+    client = _FakeSchwabClient()
+    gateway = _gateway_with_tokens(client)
 
     response = gateway.place_order(
         account_number="123456789",
@@ -160,3 +166,17 @@ def test_place_order_returns_provider_write_metadata() -> None:
         "location": "/accounts/123456789/orders/456",
         "response": None,
     }
+
+
+def test_missing_session_builds_reconnect_payload() -> None:
+    client = _FakeSchwabClient()
+    gateway = SchwabGateway(_settings(), client=client)  # type: ignore[arg-type]
+
+    with pytest.raises(SchwabGatewaySessionExpiredError) as exc_info:
+        gateway.get_account_numbers(subject="user-123")
+
+    assert str(exc_info.value) == "No active Schwab broker session exists. Connect first."
+    assert exc_info.value.payload["connect_required"] is True
+    assert exc_info.value.payload["authorize_url"].startswith("https://schwab.example/authorize?state=")
+    assert exc_info.value.payload["callback_url"] == "https://api.example.com/api/providers/schwab/connect/callback"
+    assert [call[0] for call in client.calls] == ["build_authorization_url"]

@@ -1,4 +1,4 @@
-"""Read-only Schwab account smoke test with one-shot token refresh."""
+"""Read-only Schwab account smoke test with one-shot in-memory token refresh."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from schwab import SchwabClient
 from schwab.client import SchwabOAuthTokens
 from schwab.config import SchwabConfig
 from schwab.errors import SchwabAuthError
-from schwab.local_env import load_schwab_config, save_schwab_tokens
+from schwab.local_env import load_schwab_config
 
 
 @dataclass(frozen=True)
@@ -199,14 +199,12 @@ def _render_rows(rows: Sequence[SchwabAccountRow]) -> str:
 
 def _refresh_tokens(
     config: SchwabConfig,
-    env_path: Path,
     *,
     http_client: httpx.Client | None = None,
 ) -> tuple[SchwabConfig, SchwabOAuthTokens]:
     with SchwabClient(config, http_client=http_client) as client:
         tokens = client.refresh_access_token()
 
-    save_schwab_tokens(env_path, tokens)
     refreshed_config = replace(
         config,
         access_token=tokens.access_token,
@@ -218,9 +216,11 @@ def _refresh_tokens(
 def fetch_account_snapshot(
     *,
     env_file: str | Path | None = None,
+    config: SchwabConfig | None = None,
     http_client: httpx.Client | None = None,
 ) -> SchwabAccountSnapshot:
-    env_path, config = load_schwab_config(env_file)
+    env_path, loaded_config = load_schwab_config(env_file)
+    config = config or loaded_config
     refreshed_tokens = False
 
     for attempt in range(2):
@@ -237,7 +237,7 @@ def fetch_account_snapshot(
         except SchwabAuthError:
             if attempt > 0 or not config.refresh_token:
                 raise
-            config, _tokens = _refresh_tokens(config, env_path, http_client=http_client)
+            config, _tokens = _refresh_tokens(config, http_client=http_client)
             refreshed_tokens = True
 
     raise RuntimeError("Unreachable Schwab account snapshot retry state.")
@@ -266,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if snapshot.refreshed_tokens:
-        print(f"Refreshed Schwab tokens and updated {snapshot.env_path}")
+        print("Refreshed Schwab access token in process memory.")
     print(_render_rows(snapshot.rows))
     return 0
 

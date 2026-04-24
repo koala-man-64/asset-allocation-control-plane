@@ -1,12 +1,11 @@
-"""Helpers for reading and updating local Schwab credentials in .env files."""
+"""Helpers for reading local Schwab OAuth client configuration from env files."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values
 
-from schwab.client import SchwabOAuthTokens
 from schwab.config import SchwabConfig
 
 
@@ -35,15 +34,3 @@ def load_schwab_config(
         require_client_credentials=require_client_credentials,
     )
     return env_path, config
-
-
-def save_schwab_tokens(env_path: str | Path, tokens: SchwabOAuthTokens) -> Path:
-    resolved = resolve_env_path(env_path)
-    resolved.parent.mkdir(parents=True, exist_ok=True)
-    if not resolved.exists():
-        resolved.write_text("", encoding="utf-8")
-
-    set_key(str(resolved), "SCHWAB_ACCESS_TOKEN", tokens.access_token, quote_mode="never")
-    if tokens.refresh_token:
-        set_key(str(resolved), "SCHWAB_REFRESH_TOKEN", tokens.refresh_token, quote_mode="never")
-    return resolved

@@ -46,10 +46,6 @@ properties:
       value: "${SCHWAB_CLIENT_ID}"
     - name: schwab-client-secret
       value: "${SCHWAB_CLIENT_SECRET}"
-    - name: schwab-access-token
-      value: "${SCHWAB_ACCESS_TOKEN}"
-    - name: schwab-refresh-token
-      value: "${SCHWAB_REFRESH_TOKEN}"
     - name: ai-relay-api-key
       value: "${AI_RELAY_API_KEY}"
     - name: api-auth-session-secret-keys
@@ -177,10 +173,6 @@ properties:
         secretRef: schwab-client-id
       - name: SCHWAB_CLIENT_SECRET
         secretRef: schwab-client-secret
-      - name: SCHWAB_ACCESS_TOKEN
-        secretRef: schwab-access-token
-      - name: SCHWAB_REFRESH_TOKEN
-        secretRef: schwab-refresh-token
       - name: API_OIDC_ISSUER
         value: "${API_OIDC_ISSUER}"
       - name: API_OIDC_AUDIENCE
