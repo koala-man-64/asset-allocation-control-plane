@@ -4,6 +4,7 @@ import pytest
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -35,19 +36,17 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     assert "/api/backtests/runs" in body["paths"]
     assert "/api/backtests/{run_id}/events" in body["paths"]
     assert "/api/providers/etrade/connect/callback-url" in body["paths"]
+    assert "/api/providers/schwab/connect/start" in body["paths"]
     assert "/api/providers/schwab/connect/callback" in body["paths"]
     assert "/api/providers/schwab/connect/callback-url" in body["paths"]
+    assert "/api/providers/schwab/account-numbers" in body["paths"]
+    assert "/api/providers/schwab/accounts/{account_number}/positions" in body["paths"]
+    assert "/api/providers/schwab/accounts/{account_number}/orders/preview" in body["paths"]
     assert (
         body["paths"]["/api/providers/etrade/connect/callback-url"]["get"]["responses"]["200"]["content"][
             "application/json"
         ]["schema"]["$ref"]
         == "#/components/schemas/ProviderCallbackUrlResponse"
-    )
-    assert (
-        body["paths"]["/api/providers/schwab/connect/callback"]["get"]["responses"]["200"]["content"][
-            "application/json"
-        ]["schema"]["$ref"]
-        == "#/components/schemas/SchwabCallbackReceiptResponse"
     )
     assert (
         body["paths"]["/api/providers/schwab/connect/callback-url"]["get"]["responses"]["200"]["content"][
@@ -163,10 +162,10 @@ async def test_swagger_routes_allow_bearer_auth_when_deployed(monkeypatch: pytes
     _configure_deployed_auth(monkeypatch)
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
+        auth_context=AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
     )
 
     async with get_test_client(app) as client:

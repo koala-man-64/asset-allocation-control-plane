@@ -10,6 +10,7 @@ from api.service.auth import AuthContext, AuthManager, summarize_auth_claims_for
 from api.service.etrade_gateway import ETradeGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
+from api.service.schwab_gateway import SchwabGateway
 from api.service.settings import ServiceSettings
 
 logger = logging.getLogger("asset-allocation.api.auth")
@@ -34,6 +35,10 @@ def get_etrade_gateway(request: Request) -> ETradeGateway:
 
 def get_alpaca_gateway(request: Request) -> AlpacaGateway:
     return request.app.state.alpaca_gateway
+
+
+def get_schwab_gateway(request: Request) -> SchwabGateway:
+    return request.app.state.schwab_gateway
 
 
 def get_system_health_cache(request: Request) -> TtlCache[Dict[str, Any]]:
@@ -294,6 +299,36 @@ def require_etrade_trade_access(request: Request) -> AuthContext:
         auth_context=auth_context,
         required_roles=settings.trading_required_roles,
         log_prefix="E*TRADE trade",
+    )
+    return auth_context
+
+
+def require_schwab_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).schwab
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Schwab integration is disabled.")
+
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Schwab",
+    )
+    return auth_context
+
+
+def require_schwab_trade_access(request: Request) -> AuthContext:
+    auth_context = require_schwab_access(request)
+    settings = get_settings(request).schwab
+    if not settings.trading_enabled:
+        raise HTTPException(status_code=503, detail="Schwab trading is disabled.")
+
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.trading_required_roles,
+        log_prefix="Schwab trade",
     )
     return auth_context
 

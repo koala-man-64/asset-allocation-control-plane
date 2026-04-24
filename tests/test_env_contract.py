@@ -519,6 +519,32 @@ def test_ai_relay_smoke_tokens_are_documented_as_secrets() -> None:
     assert contract["AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN"]["github_storage"] == "secret"
 
 
+def test_broker_runtime_secrets_and_trade_gates_are_documented() -> None:
+    contract = contract_map()
+    for name in (
+        "ETRADE_ENABLED",
+        "ETRADE_TRADING_ENABLED",
+        "SCHWAB_ENABLED",
+        "SCHWAB_TRADING_ENABLED",
+        "SCHWAB_TIMEOUT_SECONDS",
+        "SCHWAB_REQUIRED_ROLES",
+        "SCHWAB_TRADING_REQUIRED_ROLES",
+    ):
+        assert contract[name]["github_storage"] == "var"
+
+    for name in (
+        "ETRADE_SANDBOX_CONSUMER_KEY",
+        "ETRADE_SANDBOX_CONSUMER_SECRET",
+        "ETRADE_LIVE_CONSUMER_KEY",
+        "ETRADE_LIVE_CONSUMER_SECRET",
+        "SCHWAB_CLIENT_ID",
+        "SCHWAB_CLIENT_SECRET",
+        "SCHWAB_ACCESS_TOKEN",
+        "SCHWAB_REFRESH_TOKEN",
+    ):
+        assert contract[name]["github_storage"] == "secret"
+
+
 def test_sync_script_normalizes_quoted_scalar_values_before_github_sync(tmp_path: Path) -> None:
     temp_repo = tmp_path / "repo"
     (temp_repo / "scripts").mkdir(parents=True)

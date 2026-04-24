@@ -37,6 +37,11 @@ local.settings.json
 data/
 !ui/src/data/
 !ui/src/data/**
+!scripts/ops/data/
+!scripts/ops/data/__init__.py
+!scripts/ops/data/apply_postgres_migrations.ps1
+!scripts/ops/data/delete_gold_tables.ps1
+!scripts/ops/data/sync_gold_column_lookup.py
 tmp/
 artifacts/**
 

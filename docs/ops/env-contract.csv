@@ -80,6 +80,12 @@ ETRADE_IDLE_RENEW_SECONDS,deploy_var,var,deploy_config,true,Idle threshold in se
 ETRADE_SESSION_EXPIRY_GUARD_SECONDS,deploy_var,var,deploy_config,true,Safety guard window in seconds before Eastern-midnight token expiry where preview or trade requests are blocked.
 ETRADE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific roles required for E*TRADE read access.
 ETRADE_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for E*TRADE preview, place, and cancel access.
+SCHWAB_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the repo-local Schwab integration routes.
+SCHWAB_TRADING_ENABLED,deploy_var,var,deploy_config,true,Separately enable or disable Schwab preview, place, replace, and cancel operations.
+SCHWAB_APP_CALLBACK_URL,deploy_var,var,deploy_config,true,Optional explicit Schwab callback URL override. When unset, the API derives the callback from API_PUBLIC_BASE_URL plus the canonical Schwab callback path.
+SCHWAB_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound Schwab OAuth and Trader API requests.
+SCHWAB_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific roles required for Schwab read access.
+SCHWAB_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Schwab preview, place, replace, and cancel access.
 ALPACA_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound Alpaca Trading API requests.
 ALPACA_MAX_RETRIES,deploy_var,var,deploy_config,true,Maximum retry attempts for retryable Alpaca GET requests.
 ALPACA_BACKOFF_BASE_SECONDS,deploy_var,var,deploy_config,true,Base backoff in seconds between retryable Alpaca GET requests.
@@ -152,7 +158,8 @@ RUN_LIVE_QUIVER_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in fo
 MASSIVE_API_KEY,secret,secret,secret_store,true,Massive API key. Never auto-discovered.
 SCHWAB_CLIENT_ID,secret,secret,secret_store,true,Schwab Trader API client id for the approved Schwab developer application.
 SCHWAB_CLIENT_SECRET,secret,secret,secret_store,true,Schwab Trader API client secret for the approved Schwab developer application.
-SCHWAB_APP_CALLBACK_URL,deploy_var,var,deploy_config,true,Optional explicit Schwab callback URL override. When unset, the API derives the callback from API_PUBLIC_BASE_URL plus the canonical Schwab callback path.
+SCHWAB_ACCESS_TOKEN,secret,secret,secret_store,true,Optional Schwab OAuth access token used as a bootstrap session token. Prefer refresh-token based rotation for runtime use.
+SCHWAB_REFRESH_TOKEN,secret,secret,secret_store,true,Schwab OAuth refresh token used to refresh the in-memory broker session. Treat as a broker account secret.
 POSTGRES_SERVER_NAME,deploy_var,var,deploy_config,true,Azure Database for PostgreSQL Flexible Server name used during provisioning and DSN generation.
 POSTGRES_DATABASE_NAME,deploy_var,var,deploy_config,true,Control-plane Postgres database name used during provisioning and DSN generation.
 POSTGRES_ADMIN_USER,deploy_var,var,deploy_config,true,Azure Postgres administrator username used during provisioning and DSN regeneration.

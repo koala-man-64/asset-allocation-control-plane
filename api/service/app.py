@@ -49,6 +49,7 @@ from api.service.massive_gateway import MassiveGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.quiver_gateway import QuiverGateway
 from api.service.realtime_tickets import WebSocketTicketStore
+from api.service.schwab_gateway import SchwabGateway
 from api.service.settings import ServiceSettings
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
@@ -193,6 +194,8 @@ def create_app() -> FastAPI:
             app.state.etrade_gateway = ETradeGateway(settings.etrade)
         if not hasattr(app.state, "alpaca_gateway"):
             app.state.alpaca_gateway = AlpacaGateway(settings.alpaca)
+        if not hasattr(app.state, "schwab_gateway"):
+            app.state.schwab_gateway = SchwabGateway(settings.schwab)
         if not hasattr(app.state, "ai_relay_gateway"):
             app.state.ai_relay_gateway = OpenAIResponsesGateway(settings.ai_relay)
         if not hasattr(app.state, "log_stream_manager"):
@@ -347,6 +350,11 @@ def create_app() -> FastAPI:
 
         try:
             app.state.alpaca_gateway.close()
+        except Exception:
+            pass
+
+        try:
+            app.state.schwab_gateway.close()
         except Exception:
             pass
 

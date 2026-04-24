@@ -85,8 +85,27 @@ API Root
     |   |   |-- /fundamentals/float [GET] (massive.get_float) - Massive float payload :: api/endpoints/massive.py
     |   |   `-- /financials/{report} [GET] (massive.get_finance_report) - Massive financial payload :: api/endpoints/massive.py
     |   `-- /schwab
-    |       |-- /connect/callback [GET] (schwab.schwab_connect_callback) - Unauthenticated browser callback receipt for Schwab OAuth authorization codes :: api/endpoints/schwab.py
-    |       `-- /connect/callback-url [GET] (schwab.schwab_connect_callback_url) - Authenticated discovery route that returns the canonical Schwab callback URL to register with the provider :: api/endpoints/schwab.py
+    |       |-- /connect/start [POST] (schwab.schwab_connect_start) - Starts Schwab OAuth and returns the authorize URL plus state metadata :: api/endpoints/schwab.py
+    |       |-- /connect/complete [POST] (schwab.schwab_connect_complete) - Completes manual Schwab OAuth code exchange with state validation :: api/endpoints/schwab.py
+    |       |-- /connect/callback [GET] (schwab.schwab_connect_callback) - Unauthenticated browser callback for Schwab OAuth completion with pending-state validation :: api/endpoints/schwab.py
+    |       |-- /connect/callback-url [GET] (schwab.schwab_connect_callback_url) - Authenticated discovery route that returns the canonical Schwab callback URL to register with the provider :: api/endpoints/schwab.py
+    |       |-- /session [GET] (schwab.schwab_session) - Returns current in-memory Schwab broker session state :: api/endpoints/schwab.py
+    |       |-- /disconnect [POST] (schwab.schwab_disconnect) - Clears the local Schwab broker session :: api/endpoints/schwab.py
+    |       |-- /account-numbers [GET] (schwab.schwab_account_numbers) - Returns Schwab account number and hash metadata :: api/endpoints/schwab.py
+    |       |-- /accounts [GET] (schwab.schwab_accounts) - Returns Schwab accounts with optional provider fields :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number} [GET] (schwab.schwab_account) - Returns one Schwab account with optional provider fields :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/balance [GET] (schwab.schwab_balance) - Returns Schwab account balances and provider account metadata :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/positions [GET] (schwab.schwab_positions) - Returns Schwab account positions and metadata :: api/endpoints/schwab.py
+    |       |-- /orders [GET] (schwab.schwab_all_orders) - Returns Schwab orders across accounts :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/orders [GET] (schwab.schwab_account_orders) - Returns Schwab orders for one account :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/orders/preview [POST] (schwab.schwab_preview_order) - Previews a Schwab order :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/orders [POST] (schwab.schwab_place_order) - Places a Schwab order :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/orders/{order_id} [GET] (schwab.schwab_order) - Returns a Schwab order by id :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/orders/{order_id} [PUT] (schwab.schwab_replace_order) - Replaces a Schwab order :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/orders/{order_id} [DELETE] (schwab.schwab_cancel_order) - Cancels a Schwab order :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/transactions [GET] (schwab.schwab_transactions) - Returns Schwab account transaction history :: api/endpoints/schwab.py
+    |       |-- /accounts/{account_number}/transactions/{transaction_id} [GET] (schwab.schwab_transaction) - Returns Schwab transaction details :: api/endpoints/schwab.py
+    |       `-- /user-preference [GET] (schwab.schwab_user_preference) - Returns Schwab user preference metadata :: api/endpoints/schwab.py
 
     # Raw Data Layer
     |-- /data

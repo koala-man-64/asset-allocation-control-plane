@@ -7,6 +7,7 @@ from api.service.app import create_app
 from api.service.auth import AuthContext
 from api.service.data_discovery import _GoldLookupFieldMetadata
 from core.strategy_engine.universe import UniverseColumnSpec, UniverseTableSpec
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -334,10 +335,10 @@ async def test_discovery_catalog_requires_read_role_when_deployed(monkeypatch: p
     _configure_deployed_auth(monkeypatch)
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
+        auth_context=AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
     )
 
     async with get_test_client(app) as client:

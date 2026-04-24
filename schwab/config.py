@@ -20,6 +20,19 @@ def _strip_or_none(value: object) -> Optional[str]:
     return text or None
 
 
+def _float_or_default(value: object, default: float) -> float:
+    text = _strip_or_none(value)
+    if text is None:
+        return default
+    try:
+        parsed = float(text)
+    except ValueError as exc:
+        raise ValueError("SCHWAB_TIMEOUT_SECONDS must be a number.") from exc
+    if parsed <= 0:
+        raise ValueError("SCHWAB_TIMEOUT_SECONDS must be greater than zero.")
+    return parsed
+
+
 @dataclass(frozen=True)
 class SchwabConfig:
     """Runtime configuration for the Schwab Trader API client.
@@ -58,6 +71,7 @@ class SchwabConfig:
             app_callback_url=str(_strip_or_none(values.get("SCHWAB_APP_CALLBACK_URL")) or ""),
             access_token=str(_strip_or_none(values.get("SCHWAB_ACCESS_TOKEN")) or ""),
             refresh_token=str(_strip_or_none(values.get("SCHWAB_REFRESH_TOKEN")) or ""),
+            timeout_seconds=_float_or_default(values.get("SCHWAB_TIMEOUT_SECONDS"), SCHWAB_TIMEOUT_SECONDS),
         )
 
     @staticmethod
