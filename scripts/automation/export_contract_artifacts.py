@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import sys
@@ -30,6 +31,9 @@ os.environ.setdefault("AZURE_CONTAINER_COMMON", "local")
 
 from api.service.app import create_app
 
+_DIFF_PREVIEW_LINE_LIMIT = 40
+_ITEM_PREVIEW_LIMIT = 10
+
 
 def _serialize_json(payload: object) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
@@ -58,6 +62,93 @@ def _find_drift(artifacts: dict[Path, str]) -> list[Path]:
     return drifted
 
 
+def _load_json_document(text: str | None) -> object | None:
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def _format_item_preview(items: list[str]) -> list[str]:
+    preview = [f"- {item}" for item in items[:_ITEM_PREVIEW_LIMIT]]
+    remaining = len(items) - _ITEM_PREVIEW_LIMIT
+    if remaining > 0:
+        preview.append(f"- ... ({remaining} more)")
+    return preview
+
+
+def _build_diff_preview(*, current: str | None, expected: str, path: Path) -> list[str]:
+    diff_lines = list(
+        difflib.unified_diff(
+            [] if current is None else current.splitlines(),
+            expected.splitlines(),
+            fromfile=f"{path.name} (tracked)",
+            tofile=f"{path.name} (generated)",
+            lineterm="",
+        )
+    )
+    if not diff_lines:
+        return []
+
+    if len(diff_lines) > _DIFF_PREVIEW_LINE_LIMIT:
+        remaining = len(diff_lines) - _DIFF_PREVIEW_LINE_LIMIT
+        diff_lines = diff_lines[:_DIFF_PREVIEW_LINE_LIMIT] + [f"... diff truncated ({remaining} more lines)"]
+    return ["Diff preview:", *diff_lines]
+
+
+def _build_openapi_path_summary(*, current_json: object | None, expected_json: object | None) -> list[str]:
+    if not isinstance(current_json, dict) or not isinstance(expected_json, dict):
+        return []
+
+    current_paths = current_json.get("paths")
+    expected_paths = expected_json.get("paths")
+    if not isinstance(current_paths, dict) or not isinstance(expected_paths, dict):
+        return []
+
+    current_path_keys = set(current_paths)
+    expected_path_keys = set(expected_paths)
+    removed_paths = sorted(current_path_keys - expected_path_keys)
+    added_paths = sorted(expected_path_keys - current_path_keys)
+    changed_paths = sorted(
+        path
+        for path in current_path_keys & expected_path_keys
+        if current_paths.get(path) != expected_paths.get(path)
+    )
+
+    lines = [
+        f"OpenAPI paths: tracked={len(current_paths)} generated={len(expected_paths)}.",
+    ]
+    if removed_paths:
+        lines.append(f"Paths only in tracked ({len(removed_paths)}):")
+        lines.extend(_format_item_preview(removed_paths))
+    if added_paths:
+        lines.append(f"Paths only in generated ({len(added_paths)}):")
+        lines.extend(_format_item_preview(added_paths))
+    if changed_paths:
+        lines.append(f"Changed shared paths: {len(changed_paths)}.")
+        lines.extend(_format_item_preview(changed_paths))
+    return lines
+
+
+def _build_drift_details(*, path: Path, current: str | None, expected: str) -> list[str]:
+    if current is None:
+        return ["Tracked file is missing."]
+
+    current_json = _load_json_document(current)
+    expected_json = _load_json_document(expected)
+    details: list[str] = []
+    if current_json is not None and expected_json is not None and current_json == expected_json:
+        details.append("Semantic JSON matches; drift is formatting-only.")
+
+    if path.name == "control-plane.openapi.json":
+        details.extend(_build_openapi_path_summary(current_json=current_json, expected_json=expected_json))
+
+    details.extend(_build_diff_preview(current=current, expected=expected, path=path))
+    return details
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export or validate generated contract artifacts.")
     parser.add_argument(
@@ -79,7 +170,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print("Contract artifact drift detected:", file=sys.stderr)
         for path in drifted:
+            current = path.read_text(encoding="utf-8") if path.exists() else None
             print(f"- {path}", file=sys.stderr)
+            for line in _build_drift_details(path=path, current=current, expected=artifacts[path]):
+                print(f"  {line}", file=sys.stderr)
         print(
             "Run `python scripts/automation/export_contract_artifacts.py`, review api/contracts/*, and stage the regenerated files.",
             file=sys.stderr,
