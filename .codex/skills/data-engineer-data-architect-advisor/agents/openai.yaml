@@ -1,0 +1,4 @@
+interface:
+  display_name: "Data Engineer / Data Architect Advisor"
+  short_description: "Senior data platform architecture advisor"
+  default_prompt: "Use $data-engineer-data-architect-advisor to design or review a production-ready data platform, pipeline, schema, or analytics architecture."
