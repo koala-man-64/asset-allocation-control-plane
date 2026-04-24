@@ -29,8 +29,7 @@ os.environ.setdefault("LOG_LEVEL", "INFO")
 os.environ.setdefault("AZURE_STORAGE_ACCOUNT_NAME", "localdev")
 os.environ.setdefault("AZURE_CONTAINER_COMMON", "local")
 
-from api.service.app import create_app
-
+_CANONICAL_API_ROOT_PREFIX = ""
 _DIFF_PREVIEW_LINE_LIMIT = 40
 _ITEM_PREVIEW_LIMIT = 10
 
@@ -40,9 +39,23 @@ def _serialize_json(payload: object) -> str:
 
 
 def _render_artifact_texts() -> dict[Path, str]:
-    app = create_app()
+    previous_api_root_prefix = os.environ.get("API_ROOT_PREFIX")
+    os.environ["API_ROOT_PREFIX"] = _CANONICAL_API_ROOT_PREFIX
+    try:
+        # Contract artifacts are generated from the portable unprefixed API surface.
+        # Deployments may add API_ROOT_PREFIX for ingress routing without changing this artifact.
+        from api.service.app import create_app
+
+        app = create_app()
+        openapi_text = _serialize_json(app.openapi())
+    finally:
+        if previous_api_root_prefix is None:
+            os.environ.pop("API_ROOT_PREFIX", None)
+        else:
+            os.environ["API_ROOT_PREFIX"] = previous_api_root_prefix
+
     return {
-        OUTPUT_DIR / "control-plane.openapi.json": _serialize_json(app.openapi()),
+        OUTPUT_DIR / "control-plane.openapi.json": openapi_text,
         OUTPUT_DIR / "ui-runtime-config.schema.json": _serialize_json(UiRuntimeConfig.model_json_schema()),
     }
 

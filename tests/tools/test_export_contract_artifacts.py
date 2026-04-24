@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -100,3 +101,16 @@ def test_check_mode_reports_format_only_json_drift(tmp_path: Path, monkeypatch, 
 
     captured = capsys.readouterr()
     assert "Semantic JSON matches; drift is formatting-only." in captured.err
+
+
+def test_openapi_export_uses_canonical_unprefixed_api_surface(monkeypatch) -> None:
+    monkeypatch.setenv("API_ROOT_PREFIX", "asset-allocation")
+    export = _load_export_module()
+
+    artifacts = export._render_artifact_texts()
+    openapi = json.loads(artifacts[export.OUTPUT_DIR / "control-plane.openapi.json"])
+    paths = openapi["paths"]
+
+    assert "/api/ai/chat/stream" in paths
+    assert "/asset-allocation/api/ai/chat/stream" not in paths
+    assert os.environ["API_ROOT_PREFIX"] == "asset-allocation"
