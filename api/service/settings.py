@@ -657,6 +657,68 @@ class DataDiscoverySettings:
 
 
 @dataclass(frozen=True)
+class TradeDeskSettings:
+    read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Read"])
+    preview_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Preview"])
+    place_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Place"])
+    cancel_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Cancel"])
+    live_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Live"])
+    global_kill_switch: bool = False
+    live_kill_switch: bool = True
+    paper_execution_enabled: bool = False
+    sandbox_execution_enabled: bool = False
+    live_execution_enabled: bool = False
+    simulated_execution_enabled: bool = False
+    provider_kill_switches: list[str] = field(default_factory=list)
+    account_kill_switches: list[str] = field(default_factory=list)
+    account_allowlist: list[str] = field(default_factory=list)
+    live_account_allowlist: list[str] = field(default_factory=list)
+    max_order_notional: float = 50_000.0
+    data_max_age_seconds: int = 300
+
+    @staticmethod
+    def from_env() -> "TradeDeskSettings":
+        return TradeDeskSettings(
+            read_required_roles=_split_csv(_get_optional_str("TRADE_DESK_READ_REQUIRED_ROLES"))
+            or ["AssetAllocation.TradeDesk.Read"],
+            preview_required_roles=_split_csv(_get_optional_str("TRADE_DESK_PREVIEW_REQUIRED_ROLES"))
+            or ["AssetAllocation.TradeDesk.Preview"],
+            place_required_roles=_split_csv(_get_optional_str("TRADE_DESK_PLACE_REQUIRED_ROLES"))
+            or ["AssetAllocation.TradeDesk.Place"],
+            cancel_required_roles=_split_csv(_get_optional_str("TRADE_DESK_CANCEL_REQUIRED_ROLES"))
+            or ["AssetAllocation.TradeDesk.Cancel"],
+            live_required_roles=_split_csv(_get_optional_str("TRADE_DESK_LIVE_REQUIRED_ROLES"))
+            or ["AssetAllocation.TradeDesk.Live"],
+            global_kill_switch=_get_optional_bool("TRADE_DESK_GLOBAL_KILL_SWITCH", default=False),
+            live_kill_switch=_get_optional_bool("TRADE_DESK_LIVE_KILL_SWITCH", default=True),
+            paper_execution_enabled=_get_optional_bool("TRADE_DESK_PAPER_EXECUTION_ENABLED", default=False),
+            sandbox_execution_enabled=_get_optional_bool("TRADE_DESK_SANDBOX_EXECUTION_ENABLED", default=False),
+            live_execution_enabled=_get_optional_bool("TRADE_DESK_LIVE_EXECUTION_ENABLED", default=False),
+            simulated_execution_enabled=_get_optional_bool("TRADE_DESK_SIMULATED_EXECUTION_ENABLED", default=False),
+            provider_kill_switches=[
+                provider.strip().lower()
+                for provider in _split_csv(_get_optional_str("TRADE_DESK_PROVIDER_KILL_SWITCHES"))
+                if provider.strip()
+            ],
+            account_kill_switches=_split_csv(_get_optional_str("TRADE_DESK_ACCOUNT_KILL_SWITCHES")),
+            account_allowlist=_split_csv(_get_optional_str("TRADE_DESK_ACCOUNT_ALLOWLIST")),
+            live_account_allowlist=_split_csv(_get_optional_str("TRADE_DESK_LIVE_ACCOUNT_ALLOWLIST")),
+            max_order_notional=_get_optional_float(
+                "TRADE_DESK_MAX_ORDER_NOTIONAL",
+                default=50_000.0,
+                minimum=1.0,
+                maximum=1_000_000_000.0,
+            ),
+            data_max_age_seconds=_get_optional_int(
+                "TRADE_DESK_DATA_MAX_AGE_SECONDS",
+                default=300,
+                minimum=1,
+                maximum=86_400,
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class ServiceSettings:
     api_root_prefix: str
     api_public_base_url: Optional[str]
@@ -686,6 +748,7 @@ class ServiceSettings:
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
     data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
+    trade_desk: TradeDeskSettings = field(default_factory=TradeDeskSettings)
 
     @property
     def auth_required(self) -> bool:
@@ -799,6 +862,7 @@ class ServiceSettings:
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
         data_discovery = DataDiscoverySettings.from_env()
+        trade_desk = TradeDeskSettings.from_env()
         ui_oidc_config = {
             "authority": ui_authority,
             "clientId": ui_client_id,
@@ -839,4 +903,5 @@ class ServiceSettings:
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
             data_discovery=data_discovery,
+            trade_desk=trade_desk,
         )

@@ -36,6 +36,7 @@ from api.endpoints import (
     schwab,
     strategies,
     system,
+    trade_desk,
     universes,
 )
 from api.service.auth import AuthManager
@@ -536,6 +537,7 @@ def create_app() -> FastAPI:
         app.include_router(universes.router, prefix=f"{api_prefix}/universes", tags=["Universes"])
         app.include_router(strategies.router, prefix=f"{api_prefix}/strategies", tags=["Strategies"])
         app.include_router(portfolios.router, prefix=api_prefix, tags=["Portfolios"])
+        app.include_router(trade_desk.router, prefix=api_prefix, tags=["Trade Desk"])
         app.include_router(rankings.router, prefix=f"{api_prefix}/rankings", tags=["Rankings"])
         app.include_router(regimes.router, prefix=f"{api_prefix}/regimes", tags=["Regimes"])
         app.include_router(backtests.router, prefix=f"{api_prefix}/backtests", tags=["Backtests"])
