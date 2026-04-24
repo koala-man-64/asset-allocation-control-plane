@@ -67,6 +67,9 @@ jobs:
       API_OIDC_JWKS_URL: ${{ vars.API_OIDC_JWKS_URL }}
       API_OIDC_REQUIRED_SCOPES: ${{ vars.API_OIDC_REQUIRED_SCOPES }}
       API_OIDC_REQUIRED_ROLES: ${{ vars.API_OIDC_REQUIRED_ROLES }}
+      API_AUTH_SESSION_MODE: ${{ vars.API_AUTH_SESSION_MODE }}
+      API_AUTH_SESSION_IDLE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_IDLE_TTL_SECONDS }}
+      API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS }}
       AI_RELAY_ENABLED: ${{ vars.AI_RELAY_ENABLED || 'false' }}
       AI_RELAY_MODEL: ${{ vars.AI_RELAY_MODEL || 'gpt-5.4-mini' }}
       AI_RELAY_REASONING_EFFORT: ${{ vars.AI_RELAY_REASONING_EFFORT || 'low' }}
@@ -122,6 +125,7 @@ jobs:
       ALPACA_LIVE_API_KEY_ID: ${{ secrets.ALPACA_LIVE_API_KEY_ID }}
       ALPACA_LIVE_SECRET_KEY: ${{ secrets.ALPACA_LIVE_SECRET_KEY }}
       POSTGRES_DSN: ${{ secrets.POSTGRES_DSN }}
+      API_AUTH_SESSION_SECRET_KEYS: ${{ secrets.API_AUTH_SESSION_SECRET_KEYS }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
