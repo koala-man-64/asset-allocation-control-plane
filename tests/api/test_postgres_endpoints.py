@@ -7,6 +7,7 @@ from sqlalchemy.dialects import postgresql
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -588,10 +589,10 @@ async def test_postgres_read_routes_require_read_role_when_deployed(
     _configure_deployed_auth(monkeypatch)
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
+        auth_context=AuthContext(mode="oidc", subject="user-1", claims={"roles": ["AssetAllocation.Access"]}),
     )
 
     async with get_test_client(app) as client:
@@ -634,10 +635,10 @@ async def test_postgres_write_routes_require_write_role_when_deployed(
     _configure_deployed_auth(monkeypatch)
 
     app = create_app()
-    monkeypatch.setattr(
+    install_auth_stub(
+        monkeypatch,
         app.state.auth,
-        "authenticate_headers",
-        lambda _headers: AuthContext(
+        auth_context=AuthContext(
             mode="oidc",
             subject="user-1",
             claims={"roles": ["AssetAllocation.DataDiscovery.Read"]},

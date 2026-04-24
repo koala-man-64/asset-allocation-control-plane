@@ -175,6 +175,51 @@ def test_etrade_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.etrade.live_consumer_secret == "live-secret"
 
 
+def test_schwab_trading_requires_schwab_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SCHWAB_TRADING_ENABLED", "true")
+    monkeypatch.delenv("SCHWAB_ENABLED", raising=False)
+
+    with pytest.raises(ValueError, match="SCHWAB_TRADING_ENABLED requires SCHWAB_ENABLED=true."):
+        ServiceSettings.from_env()
+
+
+def test_schwab_settings_require_client_credentials_together(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SCHWAB_CLIENT_ID", "client-id")
+    monkeypatch.delenv("SCHWAB_CLIENT_SECRET", raising=False)
+
+    with pytest.raises(ValueError, match="SCHWAB_CLIENT_ID and SCHWAB_CLIENT_SECRET are required together."):
+        ServiceSettings.from_env()
+
+
+def test_schwab_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.setenv("SCHWAB_ENABLED", "true")
+    monkeypatch.setenv("SCHWAB_TRADING_ENABLED", "true")
+    monkeypatch.setenv("SCHWAB_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("SCHWAB_REQUIRED_ROLES", "AssetAllocation.Schwab.Read")
+    monkeypatch.setenv("SCHWAB_TRADING_REQUIRED_ROLES", "AssetAllocation.Schwab.Trade,AssetAllocation.Admin")
+    monkeypatch.setenv("SCHWAB_CLIENT_ID", "client-id")
+    monkeypatch.setenv("SCHWAB_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("SCHWAB_ACCESS_TOKEN", "access-token")
+    monkeypatch.setenv("SCHWAB_REFRESH_TOKEN", "refresh-token")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.schwab.enabled is True
+    assert settings.schwab.trading_enabled is True
+    assert settings.schwab.callback_url == "https://api.example.com/api/providers/schwab/connect/callback"
+    assert settings.schwab.timeout_seconds == pytest.approx(45.0)
+    assert settings.schwab.required_roles == ["AssetAllocation.Schwab.Read"]
+    assert settings.schwab.trading_required_roles == [
+        "AssetAllocation.Schwab.Trade",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.schwab.client_id == "client-id"
+    assert settings.schwab.client_secret == "client-secret"
+    assert settings.schwab.access_token == "access-token"
+    assert settings.schwab.refresh_token == "refresh-token"
+
+
 def test_alpaca_settings_allow_unconfigured_environments(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ALPACA_PAPER_API_KEY_ID", raising=False)
     monkeypatch.delenv("ALPACA_PAPER_SECRET_KEY", raising=False)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from unittest.mock import Mock
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,8 +9,9 @@ import anyio
 import pytest
 
 from api.service.app import create_app
-from api.service.auth import AuthContext, AuthError
+from api.service.auth import AuthContext
 from api.service.realtime_tickets import utc_now
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 from tests.api._websocket import WebSocketHandshakeError, connect_websocket
 
@@ -180,16 +180,15 @@ async def test_websocket_ticket_required_and_single_use_for_oidc_mode(
 
     app = create_app()
     async with app.router.lifespan_context(app):
-        def authenticate_headers(headers: dict[str, str]) -> AuthContext:
-            if headers.get("authorization") != "Bearer token":
-                raise AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer")
-            return AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"})
-
-        monkeypatch.setattr(app.state.auth, "authenticate_headers", authenticate_headers)
         async with get_test_client(app, manage_lifespan=False) as client:
             unauthenticated = await client.post("/api/realtime/ticket")
             assert unauthenticated.status_code == 401
 
+            install_auth_stub(
+                monkeypatch,
+                app.state.auth,
+                auth_context=AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"}),
+            )
             authenticated = await client.post("/api/realtime/ticket", headers={"Authorization": "Bearer token"})
             assert authenticated.status_code == 200
             payload = authenticated.json()
@@ -231,12 +230,11 @@ async def test_websocket_rejects_invalid_and_expired_tickets(
     app = create_app()
 
     async with app.router.lifespan_context(app):
-        def authenticate_headers(headers: dict[str, str]) -> AuthContext:
-            if headers.get("authorization") != "Bearer token":
-                raise AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer")
-            return AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"})
-
-        monkeypatch.setattr(app.state.auth, "authenticate_headers", authenticate_headers)
+        install_auth_stub(
+            monkeypatch,
+            app.state.auth,
+            auth_context=AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"}),
+        )
         with pytest.raises(WebSocketHandshakeError) as invalid_ticket:
             async with connect_websocket(
                 app,
@@ -279,18 +277,17 @@ async def test_websocket_ticket_supports_oidc_mode(
     monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation")
 
     app = create_app()
-    authenticate_headers = Mock(
-        return_value=AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"})
-    )
     async with app.router.lifespan_context(app):
-        monkeypatch.setattr(app.state.auth, "authenticate_headers", authenticate_headers)
+        install_auth_stub(
+            monkeypatch,
+            app.state.auth,
+            auth_context=AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"}),
+        )
 
         async with get_test_client(app, manage_lifespan=False) as client:
             response = await client.post("/api/realtime/ticket", headers={"Authorization": "Bearer token"})
             assert response.status_code == 200
             ticket = response.json()["ticket"]
-
-        authenticate_headers.assert_called()
 
         async with connect_websocket(
             app,

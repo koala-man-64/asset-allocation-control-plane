@@ -69,6 +69,32 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "ALPACA_LIVE_TRADING_BASE_URL",
         "ALPACA_LIVE_API_KEY_ID",
         "ALPACA_LIVE_SECRET_KEY",
+        "ETRADE_ENABLED",
+        "ETRADE_TRADING_ENABLED",
+        "ETRADE_CALLBACK_URL",
+        "ETRADE_TIMEOUT_SECONDS",
+        "ETRADE_READ_RETRY_ATTEMPTS",
+        "ETRADE_READ_RETRY_BASE_DELAY_SECONDS",
+        "ETRADE_PENDING_AUTH_TTL_SECONDS",
+        "ETRADE_PREVIEW_TTL_SECONDS",
+        "ETRADE_IDLE_RENEW_SECONDS",
+        "ETRADE_SESSION_EXPIRY_GUARD_SECONDS",
+        "ETRADE_REQUIRED_ROLES",
+        "ETRADE_TRADING_REQUIRED_ROLES",
+        "ETRADE_SANDBOX_CONSUMER_KEY",
+        "ETRADE_SANDBOX_CONSUMER_SECRET",
+        "ETRADE_LIVE_CONSUMER_KEY",
+        "ETRADE_LIVE_CONSUMER_SECRET",
+        "SCHWAB_ENABLED",
+        "SCHWAB_TRADING_ENABLED",
+        "SCHWAB_APP_CALLBACK_URL",
+        "SCHWAB_TIMEOUT_SECONDS",
+        "SCHWAB_REQUIRED_ROLES",
+        "SCHWAB_TRADING_REQUIRED_ROLES",
+        "SCHWAB_CLIENT_ID",
+        "SCHWAB_CLIENT_SECRET",
+        "SCHWAB_ACCESS_TOKEN",
+        "SCHWAB_REFRESH_TOKEN",
         "AI_RELAY_ENABLED",
         "AI_RELAY_MODEL",
         "AI_RELAY_REASONING_EFFORT",
@@ -95,6 +121,22 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "alpaca-paper-secret-key" in _secret_names(private_doc)
     assert "alpaca-live-api-key-id" in _secret_names(private_doc)
     assert "alpaca-live-secret-key" in _secret_names(private_doc)
+    assert "etrade-sandbox-consumer-key" in _secret_names(public_doc)
+    assert "etrade-sandbox-consumer-secret" in _secret_names(public_doc)
+    assert "etrade-live-consumer-key" in _secret_names(public_doc)
+    assert "etrade-live-consumer-secret" in _secret_names(public_doc)
+    assert "etrade-sandbox-consumer-key" in _secret_names(private_doc)
+    assert "etrade-sandbox-consumer-secret" in _secret_names(private_doc)
+    assert "etrade-live-consumer-key" in _secret_names(private_doc)
+    assert "etrade-live-consumer-secret" in _secret_names(private_doc)
+    assert "schwab-client-id" in _secret_names(public_doc)
+    assert "schwab-client-secret" in _secret_names(public_doc)
+    assert "schwab-access-token" in _secret_names(public_doc)
+    assert "schwab-refresh-token" in _secret_names(public_doc)
+    assert "schwab-client-id" in _secret_names(private_doc)
+    assert "schwab-client-secret" in _secret_names(private_doc)
+    assert "schwab-access-token" in _secret_names(private_doc)
+    assert "schwab-refresh-token" in _secret_names(private_doc)
     assert "ai-relay-api-key" in _secret_names(public_doc)
     assert "ai-relay-api-key" in _secret_names(private_doc)
     assert expected_envs <= _env_names(public_doc)

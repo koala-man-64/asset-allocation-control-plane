@@ -9,12 +9,13 @@ from typing import Any, Dict, Optional
 import pytest
 
 from api.service.app import create_app
-from api.service.auth import AuthContext, AuthError
+from api.service.auth import AuthContext
 from api.endpoints import system as system_endpoint
 from monitoring.delta_log import find_latest_delta_version
 from monitoring import system_health
 from monitoring.ttl_cache import CacheGetResult
 from monitoring.ttl_cache import TtlCache
+from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
 
@@ -164,15 +165,14 @@ async def test_system_health_requires_oidc_when_configured(tmp_path: Path, monke
 
     app = create_app()
     async with get_test_client(app) as client:
-        def authenticate_headers(headers: Dict[str, str]) -> AuthContext:
-            if headers.get("authorization") != "Bearer token":
-                raise AuthError(status_code=401, detail="Unauthorized.", www_authenticate="Bearer")
-            return AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"})
-
-        monkeypatch.setattr(app.state.auth, "authenticate_headers", authenticate_headers)
         resp = await client.get("/api/system/health")
         assert resp.status_code == 401
 
+        install_auth_stub(
+            monkeypatch,
+            app.state.auth,
+            auth_context=AuthContext(mode="oidc", subject="user-123", claims={"sub": "user-123"}),
+        )
         resp2 = await client.get("/api/system/health", headers={"Authorization": "Bearer token"})
         assert resp2.status_code == 200
 

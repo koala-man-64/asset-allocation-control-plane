@@ -10087,21 +10087,43 @@
         "title": "RuntimeConfigUpsertRequest",
         "type": "object"
       },
-      "SchwabCallbackReceiptResponse": {
+      "SchwabConnectCompleteRequest": {
+        "additionalProperties": false,
         "properties": {
-          "authorizationReceived": {
-            "default": true,
-            "title": "Authorizationreceived",
-            "type": "boolean"
+          "code": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
           },
-          "provider": {
-            "const": "schwab",
-            "default": "schwab",
-            "title": "Provider",
+          "state": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "State",
             "type": "string"
           }
         },
-        "title": "SchwabCallbackReceiptResponse",
+        "required": [
+          "code",
+          "state"
+        ],
+        "title": "SchwabConnectCompleteRequest",
+        "type": "object"
+      },
+      "SchwabOrderRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "order": {
+            "additionalProperties": true,
+            "minProperties": 1,
+            "title": "Order",
+            "type": "object"
+          }
+        },
+        "required": [
+          "order"
+        ],
+        "title": "SchwabOrderRequest",
         "type": "object"
       },
       "StrategyConfig-Output": {
@@ -24330,6 +24352,846 @@
         ]
       }
     },
+    "/api/providers/schwab/account-numbers": {
+      "get": {
+        "operationId": "schwab_account_numbers_api_providers_schwab_account_numbers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Account Numbers Api Providers Schwab Account Numbers Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Account Numbers",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts": {
+      "get": {
+        "operationId": "schwab_accounts_api_providers_schwab_accounts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fields"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Accounts Api Providers Schwab Accounts Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Accounts",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}": {
+      "get": {
+        "operationId": "schwab_account_api_providers_schwab_accounts__account_number__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fields"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Account Api Providers Schwab Accounts  Account Number  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Account",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/balance": {
+      "get": {
+        "operationId": "schwab_balance_api_providers_schwab_accounts__account_number__balance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Balance Api Providers Schwab Accounts  Account Number  Balance Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Balance",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/orders": {
+      "get": {
+        "operationId": "schwab_account_orders_api_providers_schwab_accounts__account_number__orders_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maxResults",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 3000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Maxresults"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromEnteredTime",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fromenteredtime"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toEnteredTime",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Toenteredtime"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Account Orders Api Providers Schwab Accounts  Account Number  Orders Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Account Orders",
+        "tags": [
+          "Schwab"
+        ]
+      },
+      "post": {
+        "operationId": "schwab_place_order_api_providers_schwab_accounts__account_number__orders_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchwabOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Place Order Api Providers Schwab Accounts  Account Number  Orders Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Place Order",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/orders/preview": {
+      "post": {
+        "operationId": "schwab_preview_order_api_providers_schwab_accounts__account_number__orders_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchwabOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Preview Order Api Providers Schwab Accounts  Account Number  Orders Preview Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Preview Order",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/orders/{order_id}": {
+      "delete": {
+        "operationId": "schwab_cancel_order_api_providers_schwab_accounts__account_number__orders__order_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Cancel Order Api Providers Schwab Accounts  Account Number  Orders  Order Id  Delete"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Cancel Order",
+        "tags": [
+          "Schwab"
+        ]
+      },
+      "get": {
+        "operationId": "schwab_order_api_providers_schwab_accounts__account_number__orders__order_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Order Api Providers Schwab Accounts  Account Number  Orders  Order Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Order",
+        "tags": [
+          "Schwab"
+        ]
+      },
+      "put": {
+        "operationId": "schwab_replace_order_api_providers_schwab_accounts__account_number__orders__order_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchwabOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Replace Order Api Providers Schwab Accounts  Account Number  Orders  Order Id  Put"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Replace Order",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/positions": {
+      "get": {
+        "operationId": "schwab_positions_api_providers_schwab_accounts__account_number__positions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Positions Api Providers Schwab Accounts  Account Number  Positions Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Positions",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/transactions": {
+      "get": {
+        "operationId": "schwab_transactions_api_providers_schwab_accounts__account_number__transactions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Startdate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enddate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "types",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Types"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Transactions Api Providers Schwab Accounts  Account Number  Transactions Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Transactions",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/accounts/{account_number}/transactions/{transaction_id}": {
+      "get": {
+        "operationId": "schwab_transaction_api_providers_schwab_accounts__account_number__transactions__transaction_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_number",
+            "required": true,
+            "schema": {
+              "title": "Account Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Transaction Api Providers Schwab Accounts  Account Number  Transactions  Transaction Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Transaction",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
     "/api/providers/schwab/connect/callback": {
       "get": {
         "operationId": "schwab_connect_callback_api_providers_schwab_connect_callback_get",
@@ -24347,17 +25209,11 @@
           {
             "in": "query",
             "name": "state",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "State"
+              "minLength": 1,
+              "title": "State",
+              "type": "string"
             }
           },
           {
@@ -24382,7 +25238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchwabCallbackReceiptResponse"
+                  "title": "Response Schwab Connect Callback Api Providers Schwab Connect Callback Get"
                 }
               }
             },
@@ -24421,6 +25277,340 @@
           }
         },
         "summary": "Schwab Connect Callback Url",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/connect/complete": {
+      "post": {
+        "operationId": "schwab_connect_complete_api_providers_schwab_connect_complete_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchwabConnectCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Connect Complete Api Providers Schwab Connect Complete Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Connect Complete",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/connect/start": {
+      "post": {
+        "operationId": "schwab_connect_start_api_providers_schwab_connect_start_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Connect Start Api Providers Schwab Connect Start Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Connect Start",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/disconnect": {
+      "post": {
+        "operationId": "schwab_disconnect_api_providers_schwab_disconnect_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Disconnect Api Providers Schwab Disconnect Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Disconnect",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/orders": {
+      "get": {
+        "operationId": "schwab_all_orders_api_providers_schwab_orders_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "maxResults",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 3000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Maxresults"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromEnteredTime",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fromenteredtime"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toEnteredTime",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Toenteredtime"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab All Orders Api Providers Schwab Orders Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab All Orders",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/session": {
+      "get": {
+        "operationId": "schwab_session_api_providers_schwab_session_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab Session Api Providers Schwab Session Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab Session",
+        "tags": [
+          "Schwab"
+        ]
+      }
+    },
+    "/api/providers/schwab/user-preference": {
+      "get": {
+        "operationId": "schwab_user_preference_api_providers_schwab_user_preference_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "require_enabled",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Require Enabled",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Schwab User Preference Api Providers Schwab User Preference Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Schwab User Preference",
         "tags": [
           "Schwab"
         ]

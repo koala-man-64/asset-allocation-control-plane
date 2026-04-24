@@ -213,6 +213,26 @@ def test_deploy_workflow_includes_alpaca_runtime_env_and_secrets() -> None:
     assert "ALPACA_LIVE_SECRET_KEY: ${{ secrets.ALPACA_LIVE_SECRET_KEY }}" in text
 
 
+def test_deploy_workflow_includes_etrade_and_schwab_runtime_env_and_secrets() -> None:
+    text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "ETRADE_ENABLED: ${{ vars.ETRADE_ENABLED || 'false' }}" in text
+    assert "ETRADE_TRADING_ENABLED: ${{ vars.ETRADE_TRADING_ENABLED || 'false' }}" in text
+    assert "ETRADE_TIMEOUT_SECONDS: ${{ vars.ETRADE_TIMEOUT_SECONDS || '15' }}" in text
+    assert "ETRADE_TRADING_REQUIRED_ROLES: ${{ vars.ETRADE_TRADING_REQUIRED_ROLES || 'AssetAllocation.ETrade.Trade' }}" in text
+    assert "ETRADE_SANDBOX_CONSUMER_KEY: ${{ secrets.ETRADE_SANDBOX_CONSUMER_KEY }}" in text
+    assert "ETRADE_SANDBOX_CONSUMER_SECRET: ${{ secrets.ETRADE_SANDBOX_CONSUMER_SECRET }}" in text
+    assert "ETRADE_LIVE_CONSUMER_KEY: ${{ secrets.ETRADE_LIVE_CONSUMER_KEY }}" in text
+    assert "ETRADE_LIVE_CONSUMER_SECRET: ${{ secrets.ETRADE_LIVE_CONSUMER_SECRET }}" in text
+    assert "SCHWAB_ENABLED: ${{ vars.SCHWAB_ENABLED || 'false' }}" in text
+    assert "SCHWAB_TRADING_ENABLED: ${{ vars.SCHWAB_TRADING_ENABLED || 'false' }}" in text
+    assert "SCHWAB_TIMEOUT_SECONDS: ${{ vars.SCHWAB_TIMEOUT_SECONDS || '30' }}" in text
+    assert "SCHWAB_TRADING_REQUIRED_ROLES: ${{ vars.SCHWAB_TRADING_REQUIRED_ROLES || 'AssetAllocation.Schwab.Trade' }}" in text
+    assert "SCHWAB_CLIENT_ID: ${{ secrets.SCHWAB_CLIENT_ID }}" in text
+    assert "SCHWAB_CLIENT_SECRET: ${{ secrets.SCHWAB_CLIENT_SECRET }}" in text
+    assert "SCHWAB_ACCESS_TOKEN: ${{ secrets.SCHWAB_ACCESS_TOKEN }}" in text
+    assert "SCHWAB_REFRESH_TOKEN: ${{ secrets.SCHWAB_REFRESH_TOKEN }}" in text
+
+
 def test_deploy_workflow_exports_manifest_runtime_env_surface() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
     assert "API_PUBLIC_BASE_URL: ${{ vars.API_PUBLIC_BASE_URL }}" in text

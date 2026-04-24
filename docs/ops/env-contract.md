@@ -20,6 +20,9 @@ Rules:
 - `API_DEPLOY_MANIFEST` controls whether `deploy-prod.yml` rolls out the transitional public API edge (`deploy/app_api_public.yaml`) or the internal-only VNet app (`deploy/app_api.yaml`). Internal-only deploys switch verification to the in-environment smoke job instead of public HTTP probes.
 - `RUN_LIVE_MASSIVE_TESTS` is an optional local opt-in flag in the managed env surface. Leave it `false` unless you intentionally want live Massive integration tests to run.
 - `AI_RELAY_API_KEY` is always manual input. The setup script never discovers or backfills it automatically.
+- E*TRADE and Schwab broker credentials are operator-provided GitHub secrets. The setup script never discovers or backfills broker API keys, OAuth client secrets, access tokens, or refresh tokens.
+- `SCHWAB_REFRESH_TOKEN` is a broker account secret. `SCHWAB_ACCESS_TOKEN` is optional/bootstrap-only; the control-plane refreshes into in-memory session state when a refresh token is available.
+- Broker write routes are separately gated. Set `ETRADE_TRADING_ENABLED=true` or `SCHWAB_TRADING_ENABLED=true` only after the corresponding read integration, credentials, and broker trade roles are configured.
 - `API_CORS_ALLOW_ORIGINS` should not stay blank in deployed environments. `scripts/setup-env.ps1` derives it from `UI_PUBLIC_HOSTNAME` when present, otherwise from the effective UI redirect origin and finally the live UI Container App ingress FQDN.
 - The parallel private runtime is controlled through the `ACA_*`, `PRIVATE_ENDPOINT_*`, `NAT_*`, `*_VNET_NAME`, and `UI_PUBLIC_HOSTNAME` vars in the env contract so the VNet-backed substrate and stable UI hostname stay explicit in source control.
 - `scripts/sync-all-to-github.ps1` reads only `.env.web` and this repo-local env contract, and fails fast if AI relay is enabled without the required AI key or role surface.

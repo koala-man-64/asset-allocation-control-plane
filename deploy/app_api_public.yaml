@@ -34,6 +34,22 @@ properties:
       value: "${ALPACA_LIVE_API_KEY_ID}"
     - name: alpaca-live-secret-key
       value: "${ALPACA_LIVE_SECRET_KEY}"
+    - name: etrade-sandbox-consumer-key
+      value: "${ETRADE_SANDBOX_CONSUMER_KEY}"
+    - name: etrade-sandbox-consumer-secret
+      value: "${ETRADE_SANDBOX_CONSUMER_SECRET}"
+    - name: etrade-live-consumer-key
+      value: "${ETRADE_LIVE_CONSUMER_KEY}"
+    - name: etrade-live-consumer-secret
+      value: "${ETRADE_LIVE_CONSUMER_SECRET}"
+    - name: schwab-client-id
+      value: "${SCHWAB_CLIENT_ID}"
+    - name: schwab-client-secret
+      value: "${SCHWAB_CLIENT_SECRET}"
+    - name: schwab-access-token
+      value: "${SCHWAB_ACCESS_TOKEN}"
+    - name: schwab-refresh-token
+      value: "${SCHWAB_REFRESH_TOKEN}"
     - name: ai-relay-api-key
       value: "${AI_RELAY_API_KEY}"
     - name: api-auth-session-secret-keys
@@ -115,8 +131,56 @@ properties:
         value: "${API_PUBLIC_BASE_URL}"
       - name: ETRADE_CALLBACK_URL
         value: "${ETRADE_CALLBACK_URL}"
+      - name: ETRADE_ENABLED
+        value: "${ETRADE_ENABLED}"
+      - name: ETRADE_TRADING_ENABLED
+        value: "${ETRADE_TRADING_ENABLED}"
+      - name: ETRADE_TIMEOUT_SECONDS
+        value: "${ETRADE_TIMEOUT_SECONDS}"
+      - name: ETRADE_READ_RETRY_ATTEMPTS
+        value: "${ETRADE_READ_RETRY_ATTEMPTS}"
+      - name: ETRADE_READ_RETRY_BASE_DELAY_SECONDS
+        value: "${ETRADE_READ_RETRY_BASE_DELAY_SECONDS}"
+      - name: ETRADE_PENDING_AUTH_TTL_SECONDS
+        value: "${ETRADE_PENDING_AUTH_TTL_SECONDS}"
+      - name: ETRADE_PREVIEW_TTL_SECONDS
+        value: "${ETRADE_PREVIEW_TTL_SECONDS}"
+      - name: ETRADE_IDLE_RENEW_SECONDS
+        value: "${ETRADE_IDLE_RENEW_SECONDS}"
+      - name: ETRADE_SESSION_EXPIRY_GUARD_SECONDS
+        value: "${ETRADE_SESSION_EXPIRY_GUARD_SECONDS}"
+      - name: ETRADE_REQUIRED_ROLES
+        value: "${ETRADE_REQUIRED_ROLES}"
+      - name: ETRADE_TRADING_REQUIRED_ROLES
+        value: "${ETRADE_TRADING_REQUIRED_ROLES}"
+      - name: ETRADE_SANDBOX_CONSUMER_KEY
+        secretRef: etrade-sandbox-consumer-key
+      - name: ETRADE_SANDBOX_CONSUMER_SECRET
+        secretRef: etrade-sandbox-consumer-secret
+      - name: ETRADE_LIVE_CONSUMER_KEY
+        secretRef: etrade-live-consumer-key
+      - name: ETRADE_LIVE_CONSUMER_SECRET
+        secretRef: etrade-live-consumer-secret
       - name: SCHWAB_APP_CALLBACK_URL
         value: "${SCHWAB_APP_CALLBACK_URL}"
+      - name: SCHWAB_ENABLED
+        value: "${SCHWAB_ENABLED}"
+      - name: SCHWAB_TRADING_ENABLED
+        value: "${SCHWAB_TRADING_ENABLED}"
+      - name: SCHWAB_TIMEOUT_SECONDS
+        value: "${SCHWAB_TIMEOUT_SECONDS}"
+      - name: SCHWAB_REQUIRED_ROLES
+        value: "${SCHWAB_REQUIRED_ROLES}"
+      - name: SCHWAB_TRADING_REQUIRED_ROLES
+        value: "${SCHWAB_TRADING_REQUIRED_ROLES}"
+      - name: SCHWAB_CLIENT_ID
+        secretRef: schwab-client-id
+      - name: SCHWAB_CLIENT_SECRET
+        secretRef: schwab-client-secret
+      - name: SCHWAB_ACCESS_TOKEN
+        secretRef: schwab-access-token
+      - name: SCHWAB_REFRESH_TOKEN
+        secretRef: schwab-refresh-token
       - name: API_OIDC_ISSUER
         value: "${API_OIDC_ISSUER}"
       - name: API_OIDC_AUDIENCE

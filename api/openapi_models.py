@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from asset_allocation_contracts.strategy import UniverseDefinition as SharedUniverseDefinition
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -27,7 +25,3 @@ class UniversePreviewResponse(BaseModel):
 class ProviderCallbackUrlResponse(BaseModel):
     callback_url: str = Field(min_length=1)
 
-
-class SchwabCallbackReceiptResponse(BaseModel):
-    provider: Literal["schwab"] = "schwab"
-    authorizationReceived: bool = True

@@ -460,6 +460,59 @@ class ETradeSettings:
 
 
 @dataclass(frozen=True)
+class SchwabSettings:
+    enabled: bool = False
+    trading_enabled: bool = False
+    callback_url: Optional[str] = None
+    timeout_seconds: float = 30.0
+    required_roles: list[str] = field(default_factory=list)
+    trading_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Schwab.Trade"])
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+
+    @staticmethod
+    def from_env(
+        *,
+        api_root_prefix: str = "",
+        api_public_base_url: str | None = None,
+    ) -> "SchwabSettings":
+        callback_url = _resolve_provider_callback_url(
+            "schwab",
+            api_root_prefix=api_root_prefix,
+            api_public_base_url=api_public_base_url,
+            override_url=_get_optional_str("SCHWAB_APP_CALLBACK_URL"),
+            override_env_name="SCHWAB_APP_CALLBACK_URL",
+            allow_placeholder_override=True,
+        )
+
+        settings = SchwabSettings(
+            enabled=_get_optional_bool("SCHWAB_ENABLED", default=False),
+            trading_enabled=_get_optional_bool("SCHWAB_TRADING_ENABLED", default=False),
+            callback_url=callback_url,
+            timeout_seconds=_get_optional_float(
+                "SCHWAB_TIMEOUT_SECONDS",
+                default=30.0,
+                minimum=1.0,
+                maximum=300.0,
+            ),
+            required_roles=_split_csv(_get_optional_str("SCHWAB_REQUIRED_ROLES")),
+            trading_required_roles=_split_csv(_get_optional_str("SCHWAB_TRADING_REQUIRED_ROLES"))
+            or ["AssetAllocation.Schwab.Trade"],
+            client_id=_get_optional_str("SCHWAB_CLIENT_ID"),
+            client_secret=_get_optional_str("SCHWAB_CLIENT_SECRET"),
+            access_token=_get_optional_str("SCHWAB_ACCESS_TOKEN"),
+            refresh_token=_get_optional_str("SCHWAB_REFRESH_TOKEN"),
+        )
+        if settings.trading_enabled and not settings.enabled:
+            raise ValueError("SCHWAB_TRADING_ENABLED requires SCHWAB_ENABLED=true.")
+        if bool(settings.client_id) != bool(settings.client_secret):
+            raise ValueError("SCHWAB_CLIENT_ID and SCHWAB_CLIENT_SECRET are required together.")
+        return settings
+
+
+@dataclass(frozen=True)
 class AlpacaSettings:
     timeout_seconds: float = 10.0
     max_retries: int = 2
@@ -628,6 +681,7 @@ class ServiceSettings:
     quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
     alpaca: AlpacaSettings = field(default_factory=AlpacaSettings)
+    schwab: SchwabSettings = field(default_factory=SchwabSettings)
     schwab_callback_url: Optional[str] = None
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
@@ -651,7 +705,7 @@ class ServiceSettings:
     def get_provider_callback_url(self, provider: ProviderName) -> str | None:
         if provider == "etrade":
             return self.etrade.callback_url
-        return self.schwab_callback_url
+        return self.schwab.callback_url
 
     @staticmethod
     def from_env() -> "ServiceSettings":
@@ -733,19 +787,14 @@ class ServiceSettings:
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
         quiver = QuiverSettings.from_env()
-        etrade = ETradeSettings.from_env()
         alpaca = AlpacaSettings.from_env()
         etrade = ETradeSettings.from_env(
             api_root_prefix=api_root_prefix,
             api_public_base_url=api_public_base_url,
         )
-        schwab_callback_url = _resolve_provider_callback_url(
-            "schwab",
+        schwab = SchwabSettings.from_env(
             api_root_prefix=api_root_prefix,
             api_public_base_url=api_public_base_url,
-            override_url=_get_optional_str("SCHWAB_APP_CALLBACK_URL"),
-            override_env_name="SCHWAB_APP_CALLBACK_URL",
-            allow_placeholder_override=True,
         )
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
@@ -785,7 +834,8 @@ class ServiceSettings:
             quiver=quiver,
             etrade=etrade,
             alpaca=alpaca,
-            schwab_callback_url=schwab_callback_url,
+            schwab=schwab,
+            schwab_callback_url=schwab.callback_url,
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
             data_discovery=data_discovery,
