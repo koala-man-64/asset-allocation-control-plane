@@ -423,3 +423,63 @@ def require_intraday_monitor_job_access(request: Request, *, require_enabled: bo
         raise HTTPException(status_code=403, detail="Caller job is not allowed to use intraday monitoring.")
     return auth_context
 
+
+def require_trade_desk_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).trade_desk
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="Trade desk read",
+    )
+    return auth_context
+
+
+def require_trade_desk_preview_access(request: Request) -> AuthContext:
+    auth_context = require_trade_desk_read_access(request)
+    settings = get_settings(request).trade_desk
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.preview_required_roles,
+        log_prefix="Trade desk preview",
+    )
+    return auth_context
+
+
+def require_trade_desk_place_access(request: Request) -> AuthContext:
+    auth_context = require_trade_desk_read_access(request)
+    settings = get_settings(request).trade_desk
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.place_required_roles,
+        log_prefix="Trade desk place",
+    )
+    return auth_context
+
+
+def require_trade_desk_cancel_access(request: Request) -> AuthContext:
+    auth_context = require_trade_desk_read_access(request)
+    settings = get_settings(request).trade_desk
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.cancel_required_roles,
+        log_prefix="Trade desk cancel",
+    )
+    return auth_context
+
+
+def require_trade_desk_live_access(request: Request) -> AuthContext:
+    auth_context = require_trade_desk_place_access(request)
+    settings = get_settings(request).trade_desk
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.live_required_roles,
+        log_prefix="Trade desk live",
+    )
+    return auth_context
+

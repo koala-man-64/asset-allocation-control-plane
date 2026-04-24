@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import pytest
+from asset_allocation_contracts.trade_desk import (
+    TradeAccountDetail,
+    TradeAccountSummary,
+    TradeCapabilityFlags,
+    TradeDataFreshness,
+    TradeOrderPlaceRequest,
+    TradeOrderPreviewRequest,
+)
+
+from api.service.settings import TradeDeskSettings
+from api.service.trade_desk_service import TradeDeskError, TradeDeskService
+from core.trade_desk_repository import IdempotencyRecord, TradeAccountRecord, stable_hash
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _account(*, readiness: str = "ready", freshness: TradeDataFreshness | None = None) -> TradeAccountSummary:
+    return TradeAccountSummary(
+        accountId="acct-paper",
+        name="Core Paper",
+        provider="alpaca",
+        environment="paper",
+        readiness=readiness,
+        capabilities=TradeCapabilityFlags(
+            canReadAccount=True,
+            canReadPositions=True,
+            canReadOrders=True,
+            canReadHistory=True,
+            canPreview=True,
+            canSubmitPaper=True,
+            canCancel=True,
+            supportsMarketOrders=True,
+            supportsLimitOrders=True,
+            supportsEquities=True,
+            readOnly=False,
+        ),
+        cash=100_000,
+        buyingPower=100_000,
+        freshness=freshness
+        or TradeDataFreshness(
+            balancesState="fresh",
+            positionsState="fresh",
+            ordersState="fresh",
+            balancesAsOf=_now(),
+            positionsAsOf=_now(),
+            ordersAsOf=_now(),
+        ),
+    )
+
+
+class FakeTradeDeskRepository:
+    def __init__(self, account: TradeAccountSummary) -> None:
+        self.account = account
+        self.saved_orders = []
+        self.saved_audit_events = []
+        self.idempotency: IdempotencyRecord | None = None
+
+    def get_account_record(self, account_id: str):
+        if account_id != self.account.accountId:
+            return None
+        return TradeAccountRecord(
+            account=self.account,
+            detail=TradeAccountDetail(account=self.account),
+            providerAccountKey=None,
+        )
+
+    def list_audit_events(self, account_id: str, *, limit: int = 100):
+        raise AssertionError("not used")
+
+    def save_order(self, order, *, request_payload, response_payload, request_hash):
+        self.saved_orders.append(
+            {
+                "order": order,
+                "request_payload": request_payload,
+                "response_payload": response_payload,
+                "request_hash": request_hash,
+            }
+        )
+
+    def get_idempotency(self, account_id: str, action: str, idempotency_key: str):
+        return self.idempotency
+
+    def save_idempotency(
+        self,
+        *,
+        account_id: str,
+        action: str,
+        idempotency_key: str,
+        request_hash: str,
+        actor: str | None,
+        response_payload,
+        provider_order_id: str | None,
+    ):
+        self.idempotency = IdempotencyRecord(requestHash=request_hash, responsePayload=response_payload)
+
+    def save_audit_event(self, event):
+        self.saved_audit_events.append(event)
+
+    def get_order(self, account_id: str, order_id: str):
+        return self.saved_orders[-1]["order"] if self.saved_orders else None
+
+
+def test_trade_desk_preview_returns_blocking_risk_checks_for_stale_data() -> None:
+    stale_account = _account(
+        freshness=TradeDataFreshness(
+            balancesState="stale",
+            positionsState="fresh",
+            ordersState="fresh",
+            staleReason="Balances are older than policy.",
+        )
+    )
+    service = TradeDeskService(FakeTradeDeskRepository(stale_account), TradeDeskSettings())
+
+    response = service.preview_order(
+        "acct-paper",
+        TradeOrderPreviewRequest(
+            accountId="acct-paper",
+            environment="paper",
+            clientRequestId="client-1",
+            symbol="MSFT",
+            side="buy",
+            orderType="market",
+            quantity=1,
+        ),
+        actor="desk@example.com",
+    )
+
+    assert response.blocked is True
+    assert response.blockReason == "Balances are older than policy."
+    assert any(check.code == "balancesState" and check.blocking for check in response.riskChecks)
+
+
+def test_trade_desk_place_persists_and_replays_idempotent_response() -> None:
+    repo = FakeTradeDeskRepository(_account())
+    service = TradeDeskService(
+        repo,
+        TradeDeskSettings(paper_execution_enabled=True, simulated_execution_enabled=True),
+    )
+    payload = TradeOrderPlaceRequest(
+        accountId="acct-paper",
+        environment="paper",
+        clientRequestId="client-1",
+        idempotencyKey="idem-000000000001",
+        previewId="preview-1",
+        confirmedAt=_now(),
+        symbol="MSFT",
+        side="buy",
+        orderType="market",
+        quantity=1,
+    )
+
+    first = service.place_order("acct-paper", payload, actor="desk@example.com")
+    second = service.place_order("acct-paper", payload, actor="desk@example.com")
+
+    assert first.submitted is True
+    assert second.replayed is True
+    assert repo.idempotency is not None
+    assert repo.idempotency.requestHash == stable_hash(payload.model_dump(mode="json"))
+
+    conflicting_payload = payload.model_copy(update={"quantity": 2})
+    with pytest.raises(TradeDeskError, match="Idempotency key"):
+        service.place_order("acct-paper", conflicting_payload, actor="desk@example.com")
