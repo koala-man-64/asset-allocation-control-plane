@@ -80,6 +80,8 @@ class ProbeResult:
     status_code: int | None
     location: str
     content_type: str
+    request_body: str
+    response_body: str
     error: str
     error_description: str
     schwab_client_correlid: str
@@ -139,6 +141,61 @@ def _truncate(value: object, *, limit: int = 240) -> str:
     if len(text) <= limit:
         return text
     return f"{text[: limit - 3]}..."
+
+
+def _body_text(value: object, *, empty: str = "<empty>") -> str:
+    if value is None:
+        return empty
+    if isinstance(value, bytes):
+        text = value.decode("utf-8", errors="replace")
+    else:
+        text = str(value)
+    return text if text else empty
+
+
+def _parse_json_text(value: str) -> Any | None:
+    text = str(value or "").strip()
+    if not text or text == "<empty>":
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        return None
+
+
+def _format_body_for_display(value: str) -> str:
+    parsed = _parse_json_text(value)
+    if parsed is not None:
+        return json.dumps(parsed, indent=2, sort_keys=True)
+    return str(value or "<empty>")
+
+
+def _body_for_json(value: str) -> Any:
+    parsed = _parse_json_text(value)
+    if parsed is not None:
+        return parsed
+    text = str(value or "").strip()
+    if not text or text == "<empty>":
+        return None
+    return text
+
+
+def _print_body(label: str, value: str) -> None:
+    formatted = _format_body_for_display(value)
+    lines = formatted.splitlines() or ["<empty>"]
+    if len(lines) == 1:
+        print(f"  {label}: {lines[0]}")
+        return
+    print(f"  {label}:")
+    for line in lines:
+        print(f"    {line}")
+
+
+def _probe_result_for_json(result: ProbeResult) -> dict[str, Any]:
+    payload = dict(result.__dict__)
+    payload["request_body"] = _body_for_json(result.request_body)
+    payload["response_body"] = _body_for_json(result.response_body)
+    return payload
 
 
 def load_effective_env(paths: Sequence[Path], *, base_env: Mapping[str, str] | None = None) -> EnvSnapshot:
@@ -312,6 +369,8 @@ def probe_authorization_variant(
             status_code=None,
             location="",
             content_type="",
+            request_body="<empty>",
+            response_body="<empty>",
             error="",
             error_description="",
             schwab_client_correlid="",
@@ -339,6 +398,8 @@ def probe_authorization_variant(
         status_code=response.status_code,
         location=location,
         content_type=content_type,
+        request_body=_body_text(response.request.content if response.request is not None else b""),
+        response_body=_body_text(response.text),
         error=error,
         error_description=_truncate(error_description),
         schwab_client_correlid=response.headers.get(SCHWAB_CLIENT_CORRELATION_HEADER, ""),
@@ -464,6 +525,8 @@ def _print_probe_results(results: Sequence[ProbeResult]) -> None:
             print(f"  status: {result.status_code}")
             print(f"  content_type: {result.content_type or '<missing>'}")
             print(f"  location: {result.location or '<missing>'}")
+            _print_body("request_body", result.request_body)
+            _print_body("response_body", result.response_body)
             print(f"  error: {result.error or '<missing>'}")
             print(f"  error_description: {result.error_description or '<missing>'}")
             print(f"  {SCHWAB_CLIENT_CORRELATION_HEADER}: {result.schwab_client_correlid or '<missing>'}")
@@ -473,7 +536,7 @@ def _print_probe_results(results: Sequence[ProbeResult]) -> None:
     print(f"Summary: {summarize_probe_results(results)}")
     print()
     print("Raw probe JSON:")
-    print(json.dumps([result.__dict__ for result in results], indent=2, sort_keys=True))
+    print(json.dumps([_probe_result_for_json(result) for result in results], indent=2, sort_keys=True))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
