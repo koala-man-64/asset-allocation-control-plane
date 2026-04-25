@@ -61,6 +61,15 @@ def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     script = repo_root / "scripts" / "ops" / "data" / "apply_postgres_migrations.ps1"
     text = script.read_text(encoding="utf-8")
 
+    assert '[Alias("MigrationsDir")]' in text, (
+        "apply_postgres_migrations must keep the MigrationsDir alias used by provisioning scripts"
+    )
+    assert '$Dsn = Get-EnvValue -Path (Join-Path $RepoRoot ".env") -Key "POSTGRES_DSN"' in text, (
+        "apply_postgres_migrations must load POSTGRES_DSN from .env when the process env is empty"
+    )
+    assert "[System.IO.Path]::IsPathRooted($Path)" in text, (
+        "apply_postgres_migrations must accept absolute migration directories from callers"
+    )
     assert '$dockerArgs += "-f"' in text, (
         "apply_postgres_migrations must preserve -f when rewriting Docker psql args"
     )
@@ -70,6 +79,10 @@ def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     assert 'Get-Content -Path $dockerStdinPath -Raw -Encoding UTF8 | & docker @cmd' in text, (
         "apply_postgres_migrations must stream migration SQL into dockerized psql"
     )
+    assert text.count("if ($LASTEXITCODE -ne 0)") >= 2, (
+        "apply_postgres_migrations must fail fast on native and Dockerized psql failures"
+    )
+    assert 'throw "psql failed for migration $Path with exit code $LASTEXITCODE."' in text
 
 
 def test_gold_sync_migration_rebuilds_incompatible_gold_tables_without_backup_renames() -> None:
