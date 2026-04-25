@@ -80,6 +80,8 @@ class ProbeResult:
     status_code: int | None
     location: str
     content_type: str
+    request_body: str
+    response_body: str
     error: str
     error_description: str
     schwab_client_correlid: str
@@ -139,6 +141,16 @@ def _truncate(value: object, *, limit: int = 240) -> str:
     if len(text) <= limit:
         return text
     return f"{text[: limit - 3]}..."
+
+
+def _body_text(value: object, *, empty: str = "<empty>") -> str:
+    if value is None:
+        return empty
+    if isinstance(value, bytes):
+        text = value.decode("utf-8", errors="replace")
+    else:
+        text = str(value)
+    return text if text else empty
 
 
 def load_effective_env(paths: Sequence[Path], *, base_env: Mapping[str, str] | None = None) -> EnvSnapshot:
@@ -312,6 +324,8 @@ def probe_authorization_variant(
             status_code=None,
             location="",
             content_type="",
+            request_body="<empty>",
+            response_body="<empty>",
             error="",
             error_description="",
             schwab_client_correlid="",
@@ -339,6 +353,8 @@ def probe_authorization_variant(
         status_code=response.status_code,
         location=location,
         content_type=content_type,
+        request_body=_body_text(response.request.content if response.request is not None else b""),
+        response_body=_body_text(response.text),
         error=error,
         error_description=_truncate(error_description),
         schwab_client_correlid=response.headers.get(SCHWAB_CLIENT_CORRELATION_HEADER, ""),
@@ -464,6 +480,8 @@ def _print_probe_results(results: Sequence[ProbeResult]) -> None:
             print(f"  status: {result.status_code}")
             print(f"  content_type: {result.content_type or '<missing>'}")
             print(f"  location: {result.location or '<missing>'}")
+            print(f"  request_body: {result.request_body}")
+            print(f"  response_body: {result.response_body}")
             print(f"  error: {result.error or '<missing>'}")
             print(f"  error_description: {result.error_description or '<missing>'}")
             print(f"  {SCHWAB_CLIENT_CORRELATION_HEADER}: {result.schwab_client_correlid or '<missing>'}")
