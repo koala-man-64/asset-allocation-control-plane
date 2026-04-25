@@ -179,7 +179,35 @@ def test_probe_output_includes_raw_request_and_response_bodies(capsys):
 
     output = capsys.readouterr().out
     assert "request_body: <empty>" in output
-    assert 'response_body: {"error":"invalid_client","error_description":"Unauthorized"}' in output
+    assert "response_body:" in output
+    assert '    "error": "invalid_client"' in output
+    assert '    "error_description": "Unauthorized"' in output
+    assert '"response_body": {' in output
+    assert '"error": "invalid_client"' in output
+
+
+def test_probe_result_json_block_uses_objects_for_json_bodies():
+    result = diagnostic.ProbeResult(
+        label="minimal-effective",
+        status_code=401,
+        location="",
+        content_type="application/json",
+        request_body="<empty>",
+        response_body='{"error":"invalid_client","error_description":"Unauthorized"}',
+        error="invalid_client",
+        error_description="Unauthorized",
+        schwab_client_correlid="correlation-1",
+        request_id="request-1",
+        classification="client ID, app approval, product subscription, or exact redirect_uri rejected before login",
+    )
+
+    payload = diagnostic._probe_result_for_json(result)
+
+    assert payload["request_body"] is None
+    assert payload["response_body"] == {
+        "error": "invalid_client",
+        "error_description": "Unauthorized",
+    }
 
 
 def test_callback_inspection_checks_code_and_state_without_exchanging_tokens():
