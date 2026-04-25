@@ -8,6 +8,7 @@ from monitoring.ttl_cache import TtlCache
 from api.service.alpaca_gateway import AlpacaGateway
 from api.service.auth import AuthContext, AuthManager, summarize_auth_claims_for_logs
 from api.service.etrade_gateway import ETradeGateway
+from api.service.kalshi_gateway import KalshiGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.schwab_gateway import SchwabGateway
@@ -35,6 +36,10 @@ def get_etrade_gateway(request: Request) -> ETradeGateway:
 
 def get_alpaca_gateway(request: Request) -> AlpacaGateway:
     return request.app.state.alpaca_gateway
+
+
+def get_kalshi_gateway(request: Request) -> KalshiGateway:
+    return request.app.state.kalshi_gateway
 
 
 def get_schwab_gateway(request: Request) -> SchwabGateway:
@@ -353,6 +358,34 @@ def require_alpaca_trade_access(request: Request) -> AuthContext:
         auth_context=auth_context,
         required_roles=settings.trading_required_roles,
         log_prefix="Alpaca trade",
+    )
+    return auth_context
+
+
+def require_kalshi_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).kalshi
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Kalshi integration is disabled.")
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Kalshi",
+    )
+    return auth_context
+
+
+def require_kalshi_trade_access(request: Request) -> AuthContext:
+    auth_context = require_kalshi_access(request)
+    settings = get_settings(request).kalshi
+    if not settings.trading_enabled:
+        raise HTTPException(status_code=503, detail="Kalshi trading is disabled.")
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.trading_required_roles,
+        log_prefix="Kalshi trade",
     )
     return auth_context
 

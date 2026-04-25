@@ -591,6 +591,89 @@ class AlpacaSettings:
 
 
 @dataclass(frozen=True)
+class KalshiSettings:
+    enabled: bool = False
+    trading_enabled: bool = False
+    timeout_seconds: float = 15.0
+    read_retry_attempts: int = 2
+    read_retry_base_delay_seconds: float = 1.0
+    required_roles: list[str] = field(default_factory=list)
+    trading_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Kalshi.Trade"])
+    demo_api_key_id: Optional[str] = None
+    demo_private_key_pem: Optional[str] = None
+    demo_base_url: str = "https://demo-api.kalshi.co/trade-api/v2"
+    live_api_key_id: Optional[str] = None
+    live_private_key_pem: Optional[str] = None
+    live_base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
+
+    @property
+    def demo_configured(self) -> bool:
+        return bool(self.demo_api_key_id and self.demo_private_key_pem)
+
+    @property
+    def live_configured(self) -> bool:
+        return bool(self.live_api_key_id and self.live_private_key_pem)
+
+    @staticmethod
+    def from_env() -> "KalshiSettings":
+        settings = KalshiSettings(
+            enabled=_get_optional_bool("KALSHI_ENABLED", default=False),
+            trading_enabled=_get_optional_bool("KALSHI_TRADING_ENABLED", default=False),
+            timeout_seconds=_get_optional_float(
+                "KALSHI_TIMEOUT_SECONDS",
+                default=15.0,
+                minimum=1.0,
+                maximum=300.0,
+            ),
+            read_retry_attempts=_get_optional_int(
+                "KALSHI_READ_RETRY_ATTEMPTS",
+                default=2,
+                minimum=0,
+                maximum=10,
+            ),
+            read_retry_base_delay_seconds=_get_optional_float(
+                "KALSHI_READ_RETRY_BASE_DELAY_SECONDS",
+                default=1.0,
+                minimum=0.0,
+                maximum=30.0,
+            ),
+            required_roles=_split_csv(_get_optional_str("KALSHI_REQUIRED_ROLES")),
+            trading_required_roles=_split_csv(_get_optional_str("KALSHI_TRADING_REQUIRED_ROLES"))
+            or ["AssetAllocation.Kalshi.Trade"],
+            demo_api_key_id=_get_optional_str("KALSHI_DEMO_API_KEY_ID"),
+            demo_private_key_pem=_get_optional_str("KALSHI_DEMO_PRIVATE_KEY_PEM"),
+            demo_base_url=_get_optional_str("KALSHI_DEMO_BASE_URL") or "https://demo-api.kalshi.co/trade-api/v2",
+            live_api_key_id=_get_optional_str("KALSHI_LIVE_API_KEY_ID"),
+            live_private_key_pem=_get_optional_str("KALSHI_LIVE_PRIVATE_KEY_PEM"),
+            live_base_url=_get_optional_str("KALSHI_LIVE_BASE_URL")
+            or "https://api.elections.kalshi.com/trade-api/v2",
+        )
+
+        if settings.trading_enabled and not settings.enabled:
+            raise ValueError("KALSHI_TRADING_ENABLED requires KALSHI_ENABLED=true.")
+        if bool(settings.demo_api_key_id) != bool(settings.demo_private_key_pem):
+            raise ValueError("KALSHI_DEMO_API_KEY_ID and KALSHI_DEMO_PRIVATE_KEY_PEM are required together.")
+        if bool(settings.live_api_key_id) != bool(settings.live_private_key_pem):
+            raise ValueError("KALSHI_LIVE_API_KEY_ID and KALSHI_LIVE_PRIVATE_KEY_PEM are required together.")
+
+        return KalshiSettings(
+            enabled=settings.enabled,
+            trading_enabled=settings.trading_enabled,
+            timeout_seconds=settings.timeout_seconds,
+            read_retry_attempts=settings.read_retry_attempts,
+            read_retry_base_delay_seconds=settings.read_retry_base_delay_seconds,
+            required_roles=settings.required_roles,
+            trading_required_roles=settings.trading_required_roles,
+            demo_api_key_id=settings.demo_api_key_id,
+            demo_private_key_pem=settings.demo_private_key_pem,
+            demo_base_url=_validate_absolute_http_url(settings.demo_base_url, env_name="KALSHI_DEMO_BASE_URL"),
+            live_api_key_id=settings.live_api_key_id,
+            live_private_key_pem=settings.live_private_key_pem,
+            live_base_url=_validate_absolute_http_url(settings.live_base_url, env_name="KALSHI_LIVE_BASE_URL"),
+        )
+
+
+@dataclass(frozen=True)
 class IntradayMonitorSettings:
     enabled: bool = False
     allowed_jobs: list[str] = field(default_factory=list)
@@ -739,6 +822,7 @@ class ServiceSettings:
     quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
     alpaca: AlpacaSettings = field(default_factory=AlpacaSettings)
+    kalshi: KalshiSettings = field(default_factory=KalshiSettings)
     schwab: SchwabSettings = field(default_factory=SchwabSettings)
     schwab_callback_url: Optional[str] = None
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
@@ -847,6 +931,7 @@ class ServiceSettings:
         ai_relay = AiRelaySettings.from_env()
         quiver = QuiverSettings.from_env()
         alpaca = AlpacaSettings.from_env()
+        kalshi = KalshiSettings.from_env()
         etrade = ETradeSettings.from_env(
             api_root_prefix=api_root_prefix,
             api_public_base_url=api_public_base_url,
@@ -894,6 +979,7 @@ class ServiceSettings:
             quiver=quiver,
             etrade=etrade,
             alpaca=alpaca,
+            kalshi=kalshi,
             schwab=schwab,
             schwab_callback_url=schwab.callback_url,
             symbol_enrichment=symbol_enrichment,

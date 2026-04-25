@@ -60,6 +60,7 @@ include = [
     "api*",
     "core*",
     "etrade_provider*",
+    "kalshi*",
     "massive_provider*",
     "monitoring*",
     "quiver_provider*",

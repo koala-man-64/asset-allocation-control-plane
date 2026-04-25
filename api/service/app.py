@@ -25,6 +25,7 @@ from api.endpoints import (
     government_signals,
     intraday,
     internal,
+    kalshi,
     massive,
     portfolio_internal,
     portfolios,
@@ -44,6 +45,7 @@ from api.service.alpaca_gateway import AlpacaGateway
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
 from api.service.dependencies import validate_auth
 from api.service.etrade_gateway import ETradeGateway
+from api.service.kalshi_gateway import KalshiGateway
 from api.service.log_streaming import LogStreamManager
 from api.service.openapi_schema import stabilize_openapi_schema
 from api.service.massive_gateway import MassiveGateway
@@ -195,6 +197,8 @@ def create_app() -> FastAPI:
             app.state.etrade_gateway = ETradeGateway(settings.etrade)
         if not hasattr(app.state, "alpaca_gateway"):
             app.state.alpaca_gateway = AlpacaGateway(settings.alpaca)
+        if not hasattr(app.state, "kalshi_gateway"):
+            app.state.kalshi_gateway = KalshiGateway(settings.kalshi)
         if not hasattr(app.state, "schwab_gateway"):
             app.state.schwab_gateway = SchwabGateway(settings.schwab)
         if not hasattr(app.state, "ai_relay_gateway"):
@@ -351,6 +355,11 @@ def create_app() -> FastAPI:
 
         try:
             app.state.alpaca_gateway.close()
+        except Exception:
+            pass
+
+        try:
+            app.state.kalshi_gateway.close()
         except Exception:
             pass
 
@@ -569,6 +578,11 @@ def create_app() -> FastAPI:
             alpaca.router,
             prefix=f"{api_prefix}/providers/alpaca",
             tags=["Alpaca"],
+        )
+        app.include_router(
+            kalshi.router,
+            prefix=f"{api_prefix}/providers/kalshi",
+            tags=["Kalshi"],
         )
         app.include_router(
             etrade.router,
