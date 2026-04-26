@@ -421,6 +421,32 @@ Market-structure columns:
 | `fib_nearest_dist_atr` | number | `(close - fib_nearest_level) / atr_14d`. |
 | `fib_in_value_zone` | binary flag | `1` when close sits between the 38.2% and 61.8% retracement levels of the active swing. |
 
+Daily liquidity-analysis columns:
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `dist_prev_week_high_atr` | number | `(prev_week_high - close) / atr_14d` using the prior completed trading week only. |
+| `dist_prev_week_low_atr` | number | `(close - prev_week_low) / atr_14d` using the prior completed trading week only. |
+| `dist_prev_month_high_atr` | number | `(prev_month_high - close) / atr_14d` using the prior completed calendar month only. |
+| `dist_prev_month_low_atr` | number | `(close - prev_month_low) / atr_14d` using the prior completed calendar month only. |
+| `position_in_20d_range` | number | `(close - donchian_low_20d) / (donchian_high_20d - donchian_low_20d)` using lagged 20-day Donchian bounds. |
+| `position_in_55d_range` | number | `(close - donchian_low_55d) / (donchian_high_55d - donchian_low_55d)` using lagged 55-day Donchian bounds. |
+| `swept_sr_resistance_1` | binary flag | `1` when session high trades above the nearest confirmed resistance-zone high and close finishes back below it. |
+| `swept_sr_support_1` | binary flag | `1` when session low trades below the nearest confirmed support-zone low and close finishes back above it. |
+| `bearish_sweep_magnitude_atr` | number | `max(high - sr_resistance_1_high, 0) / atr_14d`. |
+| `bullish_sweep_magnitude_atr` | number | `max(sr_support_1_low - low, 0) / atr_14d`. |
+| `bearish_sweep_reclaim_frac` | number | Rejection fraction after an upside sweep of confirmed resistance; `0` when no upside penetration occurs. |
+| `bullish_sweep_reclaim_frac` | number | Reclaim fraction after a downside sweep of confirmed support; `0` when no downside penetration occurs. |
+| `bars_since_bearish_sweep` | nullable int | Bars elapsed since the latest `swept_sr_resistance_1` event. |
+| `bars_since_bullish_sweep` | nullable int | Bars elapsed since the latest `swept_sr_support_1` event. |
+| `bearish_confirm_after_sweep` | binary flag | `1` when close breaks below the latest bearish sweep candle low within three bars of that sweep. |
+| `bullish_confirm_after_sweep` | binary flag | `1` when close breaks above the latest bullish sweep candle high within three bars of that sweep. |
+| `amihud_20d` | number | Twenty-day rolling Amihud illiquidity proxy, `rolling_mean(abs(return_1d) / max(close * volume, 1), 20)`. |
+| `amihud_z_252d` | number | 252-day z-score of `amihud_20d`. |
+| `dollar_volume_20d` | number | Twenty-day rolling mean of `close * volume`. |
+| `dollar_volume_z_252d` | number | 252-day z-score of `dollar_volume_20d`. |
+| `liquidity_stress_score` | number | Composite regime gate, `amihud_z_252d - dollar_volume_z_252d + abs(gap_atr)`. |
+
 Candle-geometry columns:
 
 | Column | Type | Description |

@@ -7,6 +7,16 @@
       "title": "Apibaseurl",
       "type": "string"
     },
+    "authProvider": {
+      "default": "disabled",
+      "enum": [
+        "disabled",
+        "oidc",
+        "password"
+      ],
+      "title": "Authprovider",
+      "type": "string"
+    },
     "authRequired": {
       "default": false,
       "title": "Authrequired",

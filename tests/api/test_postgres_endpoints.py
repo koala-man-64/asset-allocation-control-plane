@@ -565,6 +565,46 @@ async def test_list_gold_column_lookup_rejects_unsupported_table(monkeypatch: py
 
 
 @pytest.mark.asyncio
+async def test_list_gold_column_lookup_returns_liquidity_feature_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_engine = MagicMock()
+    mock_result = MagicMock()
+    mock_result.mappings.return_value.all.return_value = [
+        {
+            "schema_name": "gold",
+            "table_name": "market_data",
+            "column_name": "liquidity_stress_score",
+            "data_type": "double precision",
+            "description": "Composite daily liquidity gate.",
+            "calculation_type": "derived_python",
+            "calculation_notes": "Combines Amihud, dollar-volume, and gap stress.",
+            "calculation_expression": "amihud_z_252d - dollar_volume_z_252d + abs(gap_atr)",
+            "calculation_dependencies": ["amihud_z_252d", "dollar_volume_z_252d", "gap_atr"],
+            "source_job": "tasks.market_data.gold_market_data",
+            "status": "reviewed",
+            "updated_at": "2026-04-25T00:00:00+00:00",
+        }
+    ]
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value = mock_result
+    mock_connect = MagicMock()
+    mock_connect.__enter__.return_value = mock_conn
+    mock_connect.__exit__.return_value = False
+    mock_engine.connect.return_value = mock_connect
+
+    _configure_discovery_env(monkeypatch)
+
+    with patch("api.endpoints.postgres.create_engine", return_value=mock_engine):
+        app = create_app()
+        async with get_test_client(app) as client:
+            resp = await client.get("/api/system/postgres/gold-column-lookup?table=market_data&q=liquidity")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["rows"][0]["column"] == "liquidity_stress_score"
+    assert payload["rows"][0]["calculation_dependencies"] == ["amihud_z_252d", "dollar_volume_z_252d", "gap_atr"]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("method", "path", "json_payload"),
     [

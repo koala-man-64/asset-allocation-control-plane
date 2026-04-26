@@ -36,6 +36,12 @@ Example usage:
 .\.venv\Scripts\python.exe scripts/ops/data/sync_gold_column_lookup.py
 ```
 
+Apply any `gold.market_data` schema migrations first. The daily liquidity rollout adds new market columns through:
+
+- `deploy/sql/postgres/migrations/0043_add_gold_market_liquidity_features.sql`
+
+Then rerun the sync script so the lookup catalog stores the curated metadata from `core/metadata/gold_column_lookup_seed.json` instead of drafting placeholder descriptions for the new liquidity columns.
+
 Dry run:
 
 ```powershell
