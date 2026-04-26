@@ -92,6 +92,17 @@ def test_release_workflow_resolves_shared_versions_before_installing_dependencie
     assert "pip-constraint-path: ${{ steps.shared.outputs.constraint_path }}" in text
 
 
+def test_release_workflow_uses_python_314_before_resolving_shared_versions() -> None:
+    text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    setup_marker = "- name: Set up release Python runtime"
+    resolve_marker = "- name: Resolve shared package versions"
+    assert setup_marker in text
+    assert "python-version: \"3.14\"" in text
+    assert text.index(setup_marker) < text.index(resolve_marker)
+    assert "source \"${versions_file}\"" not in text
+
+
 def test_normal_ci_and_release_workflows_do_not_checkout_sibling_repos() -> None:
     for path in (repo_root() / ".github" / "workflows").glob("*.yml"):
         text = path.read_text(encoding="utf-8")

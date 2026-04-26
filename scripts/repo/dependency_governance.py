@@ -21,6 +21,7 @@ from typing import Dict, List, Tuple
 import zipfile
 
 PINNED_REQ_RE = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s;#]+)$")
+EXACT_REQ_RE = re.compile(r"^([A-Za-z0-9_.-]+)\s*(?:\(\s*)?==\s*([^\s;)]+)\s*\)?$")
 QUOTED_VALUE_RE = re.compile(r'"([^"]+)"')
 FIRST_PARTY_SHARED_PREFIX = "asset-allocation-"
 
@@ -280,13 +281,39 @@ def read_wheel_metadata(wheel_path: Path) -> str:
     raise ValueError(f"Wheel metadata not found in {wheel_path}")
 
 
+def parse_exact_requirement_pin(requirement: str) -> Tuple[str, str] | None:
+    requirement = requirement.strip()
+    if requirement.startswith("Requires-Dist: "):
+        requirement = requirement[len("Requires-Dist: ") :].strip()
+    if ";" in requirement:
+        requirement = requirement.split(";", 1)[0].strip()
+
+    match = EXACT_REQ_RE.match(requirement)
+    if not match:
+        return None
+    return normalize_name(match.group(1)), match.group(2).strip()
+
+
+def resolve_pinned_version(pin_value: str | None, package_name: str) -> str | None:
+    if pin_value is None:
+        return None
+
+    parsed = parse_exact_requirement_pin(pin_value)
+    if parsed is not None:
+        parsed_name, version = parsed
+        return version if parsed_name == package_name else None
+    return pin_value.strip() or None
+
+
 def get_exact_requires_dist_version(metadata_text: str, package_name: str) -> str | None:
-    prefix = f"Requires-Dist: {package_name}=="
     for line in metadata_text.splitlines():
-        if not line.startswith(prefix):
+        if not line.startswith("Requires-Dist: "):
             continue
-        version = line[len(prefix) :].split(";", 1)[0].strip()
-        if version:
+        parsed = parse_exact_requirement_pin(line)
+        if parsed is None:
+            continue
+        parsed_name, version = parsed
+        if parsed_name == normalize_name(package_name):
             return version
     return None
 
@@ -305,14 +332,13 @@ def get_unconditional_exact_requires_dist_versions(metadata_text: str) -> Dict[s
                 continue
             requirement = requirement.strip()
 
-        if "==" not in requirement:
+        parsed = parse_exact_requirement_pin(requirement)
+        if parsed is None:
             continue
-
-        package_name, version = requirement.split("==", 1)
-        normalized_name = normalize_name(package_name)
+        normalized_name, version = parsed
         if normalized_name in requirements:
             continue
-        requirements[normalized_name] = version.strip()
+        requirements[normalized_name] = version
 
     return requirements
 
@@ -398,8 +424,14 @@ def validate_shared_dependency_compatibility(
 
 
 def build_allowed_pip_check_lines(shared_pins: Dict[str, str]) -> set[str]:
-    contracts_version = shared_pins.get("asset-allocation-contracts")
-    runtime_common_version = shared_pins.get("asset-allocation-runtime-common")
+    contracts_version = resolve_pinned_version(
+        shared_pins.get("asset-allocation-contracts"),
+        "asset-allocation-contracts",
+    )
+    runtime_common_version = resolve_pinned_version(
+        shared_pins.get("asset-allocation-runtime-common"),
+        "asset-allocation-runtime-common",
+    )
     if not contracts_version or not runtime_common_version:
         return set()
 
@@ -415,9 +447,13 @@ def build_allowed_pip_check_lines(shared_pins: Dict[str, str]) -> set[str]:
 
     required_contracts_version = None
     for requirement in runtime_common_requirements:
-        if not requirement.startswith("asset-allocation-contracts=="):
+        parsed = parse_exact_requirement_pin(requirement)
+        if parsed is None:
             continue
-        required_contracts_version = requirement.split("==", 1)[1].split(";", 1)[0].strip()
+        package_name, version = parsed
+        if package_name != "asset-allocation-contracts":
+            continue
+        required_contracts_version = version
         break
 
     if (
