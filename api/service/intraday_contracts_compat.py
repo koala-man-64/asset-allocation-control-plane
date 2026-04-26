@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 try:  # pragma: no cover - exercised after the published contracts package adds intraday models.
     from asset_allocation_contracts.intraday import (  # type: ignore[attr-defined]
+        INTRADAY_WATCHLIST_APPEND_SYMBOLS_MAX,
+        INTRADAY_WATCHLIST_SYMBOLS_MAX,
         IntradayEventSeverity,
         IntradayMarketSession,
         IntradayMonitorClaimRequest,
@@ -26,6 +28,9 @@ try:  # pragma: no cover - exercised after the published contracts package adds 
         IntradaySymbolMonitorStatus,
         IntradaySymbolStatus,
         IntradayWatchlistDetail,
+        IntradayWatchlistSymbolAppendRequest,
+        IntradayWatchlistSymbolAppendResponse,
+        IntradayWatchlistSymbolAppendRunSkippedReason,
         IntradayWatchlistSummary,
         IntradayWatchlistUpsertRequest,
     )
@@ -36,6 +41,14 @@ except Exception:  # pragma: no cover - default while control-plane depends on a
     IntradayMonitorTriggerKind = Literal["scheduled", "manual"]
     IntradayEventSeverity = Literal["info", "warning", "error"]
     IntradaySymbolMonitorStatus = Literal["idle", "observed", "refresh_queued", "refreshed", "failed"]
+    IntradayWatchlistSymbolAppendRunSkippedReason = Literal[
+        "watchlist_disabled",
+        "no_new_symbols",
+        "queue_run_disabled",
+    ]
+
+    INTRADAY_WATCHLIST_APPEND_SYMBOLS_MAX = 100
+    INTRADAY_WATCHLIST_SYMBOLS_MAX = 250
 
     def _normalize_symbol(value: object) -> str:
         symbol = str(value or "").strip().upper()
@@ -102,6 +115,24 @@ except Exception:  # pragma: no cover - default while control-plane depends on a
         _normalize_symbols_field = field_validator("symbols", mode="before")(_normalize_symbols)
 
 
+    class IntradayWatchlistSymbolAppendRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        symbols: list[str] = Field(min_length=1, max_length=INTRADAY_WATCHLIST_APPEND_SYMBOLS_MAX)
+        queueRun: bool = True
+        reason: str | None = Field(default=None, max_length=500)
+
+        _normalize_symbols_field = field_validator("symbols", mode="before")(_normalize_symbols)
+
+        @field_validator("reason", mode="before")
+        @classmethod
+        def _normalize_reason(cls, value: object) -> str | None:
+            if value is None:
+                return None
+            reason = str(value).strip()
+            return reason or None
+
+
     class IntradaySymbolStatus(BaseModel):
         model_config = ConfigDict(extra="forbid")
 
@@ -140,6 +171,19 @@ except Exception:  # pragma: no cover - default while control-plane depends on a
         claimedAt: datetime | None = None
         completedAt: datetime | None = None
         lastError: str | None = Field(default=None, max_length=2_000)
+
+
+    class IntradayWatchlistSymbolAppendResponse(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        watchlist: IntradayWatchlistDetail
+        addedSymbols: list[str] = Field(default_factory=list)
+        alreadyPresentSymbols: list[str] = Field(default_factory=list)
+        queuedRun: IntradayMonitorRunSummary | None = None
+        runSkippedReason: IntradayWatchlistSymbolAppendRunSkippedReason | None = None
+
+        _normalize_added_symbols = field_validator("addedSymbols", mode="before")(_normalize_symbols)
+        _normalize_already_present_symbols = field_validator("alreadyPresentSymbols", mode="before")(_normalize_symbols)
 
 
     class IntradayMonitorEvent(BaseModel):
@@ -245,6 +289,8 @@ except Exception:  # pragma: no cover - default while control-plane depends on a
 
 
 __all__ = [
+    "INTRADAY_WATCHLIST_APPEND_SYMBOLS_MAX",
+    "INTRADAY_WATCHLIST_SYMBOLS_MAX",
     "IntradayEventSeverity",
     "IntradayMarketSession",
     "IntradayMonitorClaimRequest",
@@ -264,6 +310,9 @@ __all__ = [
     "IntradaySymbolMonitorStatus",
     "IntradaySymbolStatus",
     "IntradayWatchlistDetail",
+    "IntradayWatchlistSymbolAppendRequest",
+    "IntradayWatchlistSymbolAppendResponse",
+    "IntradayWatchlistSymbolAppendRunSkippedReason",
     "IntradayWatchlistSummary",
     "IntradayWatchlistUpsertRequest",
 ]
