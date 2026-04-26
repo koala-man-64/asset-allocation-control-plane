@@ -2,7 +2,7 @@ import pytest
 
 from api.service.app import create_app
 from api.service.massive_gateway import MassiveError, MassiveGateway, MassiveNotConfiguredError, get_current_caller_context
-from massive_provider.errors import MassiveNotFoundError, MassiveRateLimitError
+from massive_provider.errors import MassiveAuthError, MassiveNotFoundError, MassiveRateLimitError
 from tests.api._client import get_test_client
 
 
@@ -181,6 +181,23 @@ async def test_massive_provider_bad_request_maps_to_400(monkeypatch):
         resp = await client.get("/api/providers/massive/financials/balance_sheet?symbol=AAPL")
 
     assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider_status", [401, 403])
+async def test_massive_provider_auth_errors_preserve_non_retryable_status(monkeypatch, provider_status):
+    def fake_financials(self, *, symbol, report, timeframe=None, sort=None, limit=None, pagination=True):
+        del symbol, report, timeframe, sort, limit, pagination
+        raise MassiveAuthError("Massive auth failed.", status_code=provider_status, detail="auth failed")
+
+    monkeypatch.setattr(MassiveGateway, "get_finance_report", fake_financials)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        resp = await client.get("/api/providers/massive/financials/balance_sheet?symbol=AAPL")
+
+    assert resp.status_code == provider_status
+    assert resp.json()["detail"] == "Massive auth failed."
 
 
 @pytest.mark.asyncio

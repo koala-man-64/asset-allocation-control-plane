@@ -341,3 +341,28 @@ async def test_quiver_missing_required_roles_maps_to_403(monkeypatch: pytest.Mon
 
     assert resp.status_code == 403
     assert "Missing required roles" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_quiver_disabled_logs_provider_decision(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("QUIVER_ENABLED", "false")
+    monkeypatch.delenv("QUIVER_API_KEY", raising=False)
+
+    app = create_app()
+    with caplog.at_level(logging.WARNING, logger="asset-allocation.api.auth"):
+        async with get_test_client(app) as client:
+            resp = await client.get(
+                "/api/providers/quiver/live/congress-holdings",
+                headers={"X-Caller-Job": "bronze-quiver-job"},
+            )
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Quiver integration is disabled."
+
+    messages = "\n".join(record.getMessage() for record in caplog.records if record.name == "asset-allocation.api.auth")
+    assert "Quiver integration disabled" in messages
+    assert "provider=quiver" in messages
+    assert "caller_job=bronze-quiver-job" in messages
