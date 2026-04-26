@@ -161,7 +161,7 @@ class QuiverGateway:
             payload = self.get_client().get_json(path, params=params)
         except Exception as exc:
             logger.warning(
-                "Quiver provider failure caller_job=%s caller_execution=%s path=%s status=%s latency_ms=%s error=%s",
+                "Quiver provider failure provider=quiver caller_job=%s caller_execution=%s path=%s status=%s latency_ms=%s error=%s",
                 caller_job,
                 caller_execution or "n/a",
                 path,
@@ -169,16 +169,37 @@ class QuiverGateway:
                 int((time.perf_counter() - started_at) * 1000),
                 _summarize_exception(exc),
                 exc_info=not isinstance(exc, QuiverError),
+                extra={
+                    "context": {
+                        "provider": "quiver",
+                        "provider_event": "failure",
+                        "caller_job": caller_job,
+                        "caller_execution": caller_execution or "n/a",
+                        "path": path,
+                        "status": _status_for_exception(exc),
+                    }
+                },
             )
             raise
 
         logger.info(
-            "Quiver provider success caller_job=%s caller_execution=%s path=%s status=success latency_ms=%s payload_type=%s",
+            "Quiver provider success provider=quiver caller_job=%s caller_execution=%s path=%s status=success latency_ms=%s payload_type=%s",
             caller_job,
             caller_execution or "n/a",
             path,
             int((time.perf_counter() - started_at) * 1000),
             type(payload).__name__,
+            extra={
+                "context": {
+                    "provider": "quiver",
+                    "provider_event": "success",
+                    "caller_job": caller_job,
+                    "caller_execution": caller_execution or "n/a",
+                    "path": path,
+                    "status": "success",
+                    "payload_type": type(payload).__name__,
+                }
+            },
         )
         return payload
 

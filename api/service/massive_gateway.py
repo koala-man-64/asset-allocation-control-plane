@@ -148,11 +148,12 @@ def _emit_bounded_finance_log(category: str, message: str, *, warning: bool, lim
             return
         current = seen + 1
         _FINANCE_TRACE_COUNTERS[category] = current
-    prefix = f"[finance-api:{category}#{current}] "
+    prefix = f"[finance-api:{category}#{current}] provider=massive "
+    context = {"provider": "massive", "provider_event": category, "event_count": current}
     if warning:
-        logger.warning("%s%s", prefix, message)
+        logger.warning("%s%s", prefix, message, extra={"context": context})
     else:
-        logger.info("%s%s", prefix, message)
+        logger.info("%s%s", prefix, message, extra={"context": context})
     if current == max_logs:
         logger.info("[finance-api:%s] further logs suppressed after %s entries.", category, max_logs)
 
