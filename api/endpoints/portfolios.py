@@ -12,10 +12,14 @@ from asset_allocation_contracts.portfolio import (
     PortfolioAssignment,
     PortfolioAssignmentRequest,
     PortfolioDefinitionDetailResponse,
+    PortfolioForecastAssumption,
+    PortfolioForecastHorizon,
+    PortfolioForecastResponse,
     PortfolioHistoryResponse,
     PortfolioLedgerEvent,
     PortfolioLedgerEventPayload,
     PortfolioListResponse,
+    PortfolioNextRebalanceResponse,
     PortfolioPositionListResponse,
     PortfolioRevision,
     PortfolioSnapshot,
@@ -162,6 +166,43 @@ async def get_portfolio_history(
 ) -> PortfolioHistoryResponse:
     validate_auth(request)
     return _repo(request).list_history(account_id, limit=limit)
+
+
+@router.get("/portfolio-accounts/{account_id}/forecast", response_model=PortfolioForecastResponse)
+async def get_portfolio_forecast(
+    account_id: str,
+    request: Request,
+    modelName: str = Query(default="default-regime", min_length=1),
+    modelVersion: int | None = Query(default=None, ge=1),
+    horizon: PortfolioForecastHorizon = Query(default="3M"),
+    assumption: PortfolioForecastAssumption = Query(default="current"),
+    costDragOverrideBps: float = Query(default=0.0),
+) -> PortfolioForecastResponse:
+    validate_auth(request)
+    try:
+        return _repo(request).get_forecast(
+            account_id,
+            model_name=modelName,
+            model_version=modelVersion,
+            horizon=horizon,
+            assumption=assumption,
+            cost_drag_override_bps=costDragOverrideBps,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/portfolio-accounts/{account_id}/next-rebalance", response_model=PortfolioNextRebalanceResponse)
+async def get_portfolio_next_rebalance(
+    account_id: str,
+    request: Request,
+    asOf: date | None = Query(default=None),
+) -> PortfolioNextRebalanceResponse:
+    validate_auth(request)
+    try:
+        return _repo(request).get_next_rebalance(account_id, as_of=asOf)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/portfolio-accounts/{account_id}/positions", response_model=PortfolioPositionListResponse)

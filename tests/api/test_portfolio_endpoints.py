@@ -9,9 +9,11 @@ from asset_allocation_contracts.portfolio import (
     PortfolioAccountDetailResponse,
     PortfolioAccountRevision,
     PortfolioAssignment,
+    PortfolioForecastResponse,
     PortfolioHistoryResponse,
     PortfolioSnapshot,
     PortfolioHistoryPoint,
+    PortfolioNextRebalanceResponse,
     RebalanceProposal,
 )
 
@@ -183,3 +185,78 @@ async def test_get_portfolio_history_uses_repository_response(monkeypatch: pytes
     assert response.status_code == 200
     assert response.json()["totalPoints"] == 1
     assert response.json()["points"][0]["nav"] == 275000.0
+
+
+async def test_get_portfolio_forecast_uses_repository_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    forecast = PortfolioForecastResponse(
+        accountId="acct-core",
+        asOf=date(2026, 4, 18),
+        modelName="default-regime",
+        modelVersion=3,
+        benchmarkSymbol="SPY",
+        horizon="3M",
+        assumption="current",
+        costDragOverrideBps=12,
+        expectedReturnPct=4.2,
+        expectedActiveReturnPct=1.1,
+        downsidePct=-2.3,
+        upsidePct=7.6,
+        confidence="medium",
+        confidenceLabel="Medium confidence",
+        sampleSize=11,
+        sampleMode="regime-conditioned",
+        appliedRegimeCode="trending_up",
+        notes=["Regime sample is moderately deep."],
+    )
+    monkeypatch.setattr(
+        PortfolioRepository,
+        "get_forecast",
+        lambda self, account_id, **kwargs: forecast,
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/portfolio-accounts/acct-core/forecast",
+            params={
+                "modelName": "default-regime",
+                "horizon": "3M",
+                "assumption": "current",
+                "costDragOverrideBps": 12,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["modelName"] == "default-regime"
+    assert response.json()["expectedReturnPct"] == 4.2
+
+
+async def test_get_portfolio_next_rebalance_uses_repository_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    next_rebalance = PortfolioNextRebalanceResponse(
+        accountId="acct-core",
+        asOf=date(2026, 4, 18),
+        rebalanceCadence="weekly",
+        anchorText="Monday close",
+        nextDate=date(2026, 4, 20),
+        inferred=False,
+        basis="anchor",
+        reason="Weekly cadence is anchored to the parsed weekday in the rebalance anchor.",
+    )
+    monkeypatch.setattr(
+        PortfolioRepository,
+        "get_next_rebalance",
+        lambda self, account_id, *, as_of=None: next_rebalance,
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/portfolio-accounts/acct-core/next-rebalance",
+            params={"asOf": "2026-04-18"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["anchorText"] == "Monday close"
+    assert response.json()["nextDate"] == "2026-04-20"

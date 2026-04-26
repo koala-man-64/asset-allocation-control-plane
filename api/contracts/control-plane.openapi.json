@@ -8726,6 +8726,189 @@
         "title": "PortfolioDefinitionDetailResponse",
         "type": "object"
       },
+      "PortfolioForecastResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "appliedRegimeCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Appliedregimecode",
+            "type": "string"
+          },
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "assumption": {
+            "enum": [
+              "current",
+              "trending_up",
+              "trending_down",
+              "mean_reverting",
+              "low_volatility",
+              "high_volatility",
+              "liquidity_stress",
+              "macro_alignment",
+              "unclassified"
+            ],
+            "title": "Assumption",
+            "type": "string"
+          },
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "thin"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "confidenceLabel": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Confidencelabel",
+            "type": "string"
+          },
+          "costDragOverrideBps": {
+            "default": 0.0,
+            "title": "Costdragoverridebps",
+            "type": "number"
+          },
+          "downsidePct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downsidepct"
+          },
+          "expectedActiveReturnPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedactivereturnpct"
+          },
+          "expectedReturnPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedreturnpct"
+          },
+          "horizon": {
+            "enum": [
+              "1M",
+              "3M",
+              "6M"
+            ],
+            "title": "Horizon",
+            "type": "string"
+          },
+          "modelName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Modelname",
+            "type": "string"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelversion"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "sampleMode": {
+            "enum": [
+              "regime-conditioned",
+              "fallback-history",
+              "insufficient-history"
+            ],
+            "title": "Samplemode",
+            "type": "string"
+          },
+          "sampleSize": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Samplesize",
+            "type": "integer"
+          },
+          "upsidePct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upsidepct"
+          }
+        },
+        "required": [
+          "accountId",
+          "modelName",
+          "horizon",
+          "assumption",
+          "confidence",
+          "confidenceLabel",
+          "sampleMode",
+          "appliedRegimeCode"
+        ],
+        "title": "PortfolioForecastResponse",
+        "type": "object"
+      },
       "PortfolioHistoryPoint": {
         "additionalProperties": false,
         "properties": {
@@ -9237,6 +9420,83 @@
           "claimToken"
         ],
         "title": "PortfolioMaterializationStartRequest",
+        "type": "object"
+      },
+      "PortfolioNextRebalanceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "anchorText": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Anchortext",
+            "type": "string"
+          },
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "basis": {
+            "default": "unknown",
+            "enum": [
+              "anchor",
+              "cadence",
+              "unknown"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "inferred": {
+            "default": false,
+            "title": "Inferred",
+            "type": "boolean"
+          },
+          "nextDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextdate"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "rebalanceCadence": {
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly"
+            ],
+            "title": "Rebalancecadence",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "rebalanceCadence",
+          "anchorText"
+        ],
+        "title": "PortfolioNextRebalanceResponse",
         "type": "object"
       },
       "PortfolioPosition": {
@@ -24892,6 +25152,122 @@
         ]
       }
     },
+    "/api/portfolio-accounts/{account_id}/forecast": {
+      "get": {
+        "operationId": "get_portfolio_forecast_api_portfolio_accounts__account_id__forecast_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "modelName",
+            "required": false,
+            "schema": {
+              "default": "default-regime",
+              "minLength": 1,
+              "title": "Modelname",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "modelVersion",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Modelversion"
+            }
+          },
+          {
+            "in": "query",
+            "name": "horizon",
+            "required": false,
+            "schema": {
+              "default": "3M",
+              "enum": [
+                "1M",
+                "3M",
+                "6M"
+              ],
+              "title": "Horizon",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assumption",
+            "required": false,
+            "schema": {
+              "default": "current",
+              "enum": [
+                "current",
+                "trending_up",
+                "trending_down",
+                "mean_reverting",
+                "low_volatility",
+                "high_volatility",
+                "liquidity_stress",
+                "macro_alignment",
+                "unclassified"
+              ],
+              "title": "Assumption",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "costDragOverrideBps",
+            "required": false,
+            "schema": {
+              "default": 0.0,
+              "title": "Costdragoverridebps",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioForecastResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Forecast",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
     "/api/portfolio-accounts/{account_id}/history": {
       "get": {
         "operationId": "get_portfolio_history_api_portfolio_accounts__account_id__history_get",
@@ -24993,6 +25369,65 @@
           }
         },
         "summary": "Post Portfolio Ledger Event",
+        "tags": [
+          "Portfolios"
+        ]
+      }
+    },
+    "/api/portfolio-accounts/{account_id}/next-rebalance": {
+      "get": {
+        "operationId": "get_portfolio_next_rebalance_api_portfolio_accounts__account_id__next_rebalance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asof"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioNextRebalanceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Next Rebalance",
         "tags": [
           "Portfolios"
         ]
