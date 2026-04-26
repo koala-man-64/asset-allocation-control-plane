@@ -5,8 +5,11 @@ from dataclasses import dataclass, field
 from typing import Any, List, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
-AuthMode = Literal["anonymous", "oidc"]
+from api.service.password_auth import validate_password_hash_format
+
+AuthMode = Literal["anonymous", "oidc", "password"]
 AuthSessionMode = Literal["bearer", "cookie"]
+UiAuthProvider = Literal["disabled", "oidc", "password"]
 ProviderName = Literal["etrade", "schwab"]
 _FIXED_UI_API_BASE_URL = "/api"
 _LOCAL_RUNTIME_MARKER_ENV_VARS = (
@@ -68,6 +71,16 @@ def _get_auth_session_mode() -> AuthSessionMode:
     if raw not in {"bearer", "cookie"}:
         raise ValueError("API_AUTH_SESSION_MODE must be either 'bearer' or 'cookie'.")
     return raw  # type: ignore[return-value]
+
+
+def _get_ui_auth_provider() -> UiAuthProvider | None:
+    raw = _get_optional_str("UI_AUTH_PROVIDER")
+    if raw is None:
+        return None
+    normalized = raw.lower()
+    if normalized not in {"disabled", "oidc", "password"}:
+        raise ValueError("UI_AUTH_PROVIDER must be one of: disabled, oidc, password.")
+    return normalized  # type: ignore[return-value]
 
 
 def _get_optional_float(
@@ -509,6 +522,50 @@ class SchwabSettings:
 
 
 @dataclass(frozen=True)
+class PasswordAuthSettings:
+    enabled: bool = False
+    verifier: Optional[str] = None
+    session_subject: str = "operator"
+    session_display_name: str = "Operator"
+    session_username: str = "operator"
+    rate_limit_window_seconds: int = 300
+    rate_limit_max_attempts_per_ip: int = 10
+    rate_limit_max_attempts_global: int = 200
+
+    @staticmethod
+    def from_env() -> "PasswordAuthSettings":
+        verifier = _get_optional_str("UI_SHARED_PASSWORD_HASH")
+        settings = PasswordAuthSettings(
+            enabled=bool(verifier),
+            verifier=verifier,
+            session_subject=_get_optional_str("UI_SHARED_PASSWORD_SUBJECT") or "operator",
+            session_display_name=_get_optional_str("UI_SHARED_PASSWORD_DISPLAY_NAME") or "Operator",
+            session_username=_get_optional_str("UI_SHARED_PASSWORD_USERNAME") or "operator",
+            rate_limit_window_seconds=_get_optional_int(
+                "UI_PASSWORD_RATE_LIMIT_WINDOW_SECONDS",
+                default=300,
+                minimum=1,
+                maximum=86_400,
+            ),
+            rate_limit_max_attempts_per_ip=_get_optional_int(
+                "UI_PASSWORD_RATE_LIMIT_MAX_ATTEMPTS_PER_IP",
+                default=10,
+                minimum=1,
+                maximum=1_000,
+            ),
+            rate_limit_max_attempts_global=_get_optional_int(
+                "UI_PASSWORD_RATE_LIMIT_MAX_ATTEMPTS_GLOBAL",
+                default=200,
+                minimum=1,
+                maximum=10_000,
+            ),
+        )
+        if settings.enabled and settings.verifier:
+            validate_password_hash_format(settings.verifier)
+        return settings
+
+
+@dataclass(frozen=True)
 class AlpacaSettings:
     timeout_seconds: float = 10.0
     max_retries: int = 2
@@ -809,15 +866,18 @@ class ServiceSettings:
     oidc_required_scopes: List[str]
     oidc_required_roles: List[str]
     postgres_dsn: Optional[str]
-    browser_oidc_enabled: bool
-    ui_oidc_config: dict[str, Any]
+    browser_oidc_enabled: bool = False
+    ui_oidc_config: dict[str, Any] = field(default_factory=dict)
+    ui_auth_provider: UiAuthProvider = "disabled"
     auth_session_mode: AuthSessionMode = "bearer"
     auth_session_idle_ttl_seconds: int = 2_592_000
-    auth_session_absolute_ttl_seconds: int = 7_776_000
+    auth_session_absolute_ttl_seconds: int = 2_592_000
+    auth_session_version: str = "1"
     auth_session_secret_keys: list[str] = field(default_factory=list)
     auth_session_cookie_secure: bool = True
     auth_session_cookie_name: str = "__Host-aa_session"
     auth_session_csrf_cookie_name: str = "__Host-aa_csrf"
+    password_auth: PasswordAuthSettings = field(default_factory=PasswordAuthSettings)
     ai_relay: AiRelaySettings = field(default_factory=AiRelaySettings)
     quiver: QuiverSettings = field(default_factory=QuiverSettings)
     etrade: ETradeSettings = field(default_factory=ETradeSettings)
@@ -836,7 +896,14 @@ class ServiceSettings:
 
     @property
     def auth_summary(self) -> str:
-        return "oidc" if self.oidc_auth_enabled else "anonymous-local"
+        modes: list[str] = []
+        if self.oidc_auth_enabled:
+            modes.append("oidc")
+        if self.password_auth.enabled:
+            modes.append("password")
+        if self.anonymous_local_auth_enabled:
+            modes.append("anonymous-local")
+        return "+".join(modes) if modes else "disabled"
 
     @property
     def cookie_auth_sessions_enabled(self) -> bool:
@@ -874,7 +941,7 @@ class ServiceSettings:
         )
         auth_session_absolute_ttl_seconds = _get_optional_int(
             "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS",
-            default=7_776_000,
+            default=2_592_000,
             minimum=60,
             maximum=31_536_000,
         )
@@ -884,6 +951,7 @@ class ServiceSettings:
                 "API_AUTH_SESSION_IDLE_TTL_SECONDS."
             )
         auth_session_secret_keys = _split_csv(_get_optional_str("API_AUTH_SESSION_SECRET_KEYS"))
+        auth_session_version = _get_optional_str("API_AUTH_SESSION_VERSION") or "1"
 
         oidc_inputs_present = bool(
             oidc_issuer
@@ -897,6 +965,7 @@ class ServiceSettings:
         if oidc_inputs_present and not oidc_audience:
             raise ValueError("API_OIDC_AUDIENCE is required when API OIDC auth is configured.")
         oidc_auth_enabled = bool(oidc_issuer and oidc_audience)
+        password_auth = PasswordAuthSettings.from_env()
         if auth_session_mode == "cookie" and not auth_session_secret_keys:
             raise ValueError("API_AUTH_SESSION_SECRET_KEYS is required when API_AUTH_SESSION_MODE=cookie.")
 
@@ -918,14 +987,31 @@ class ServiceSettings:
         if ui_redirect_uri:
             ui_redirect_uri = _validate_ui_redirect_uri(ui_redirect_uri)
 
+        configured_ui_auth_provider = _get_ui_auth_provider()
+        if configured_ui_auth_provider is not None:
+            ui_auth_provider = configured_ui_auth_provider
+        elif browser_oidc_enabled:
+            ui_auth_provider = "oidc"
+        elif password_auth.enabled:
+            ui_auth_provider = "password"
+        else:
+            ui_auth_provider = "disabled"
+
+        if ui_auth_provider == "oidc" and not browser_oidc_enabled:
+            raise ValueError("UI_AUTH_PROVIDER=oidc requires browser OIDC configuration.")
+        if ui_auth_provider == "password" and not password_auth.enabled:
+            raise ValueError("UI_AUTH_PROVIDER=password requires UI_SHARED_PASSWORD_HASH.")
+        if ui_auth_provider == "password" and auth_session_mode != "cookie":
+            raise ValueError("UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie.")
+
         anonymous_local_auth_enabled = False
-        if not oidc_auth_enabled:
+        if not oidc_auth_enabled and not password_auth.enabled:
             if _is_local_runtime():
                 anonymous_local_auth_enabled = True
             else:
-                raise ValueError("Deployed runtime requires API OIDC configuration.")
-        if auth_session_mode == "cookie" and not oidc_auth_enabled:
-            raise ValueError("Cookie auth sessions require API OIDC auth to be configured.")
+                raise ValueError("Deployed runtime requires API OIDC configuration or UI shared password auth.")
+        if auth_session_mode == "cookie" and not (oidc_auth_enabled or password_auth.enabled):
+            raise ValueError("Cookie auth sessions require API OIDC auth or UI shared password auth.")
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
@@ -952,6 +1038,7 @@ class ServiceSettings:
             "postLogoutRedirectUri": _derive_ui_post_logout_redirect_uri(ui_redirect_uri),
             "apiBaseUrl": _FIXED_UI_API_BASE_URL,
             "authSessionMode": auth_session_mode,
+            "authProvider": ui_auth_provider,
         }
         local_runtime = _is_local_runtime()
 
@@ -966,15 +1053,18 @@ class ServiceSettings:
             oidc_required_scopes=oidc_required_scopes,
             oidc_required_roles=oidc_required_roles,
             postgres_dsn=postgres_dsn,
+            ui_auth_provider=ui_auth_provider,
             browser_oidc_enabled=browser_oidc_enabled,
             ui_oidc_config=ui_oidc_config,
             auth_session_mode=auth_session_mode,
             auth_session_idle_ttl_seconds=auth_session_idle_ttl_seconds,
             auth_session_absolute_ttl_seconds=auth_session_absolute_ttl_seconds,
+            auth_session_version=auth_session_version,
             auth_session_secret_keys=auth_session_secret_keys,
             auth_session_cookie_secure=not local_runtime,
             auth_session_cookie_name="aa_session_dev" if local_runtime else "__Host-aa_session",
             auth_session_csrf_cookie_name="aa_csrf_dev" if local_runtime else "__Host-aa_csrf",
+            password_auth=password_auth,
             ai_relay=ai_relay,
             quiver=quiver,
             etrade=etrade,

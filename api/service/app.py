@@ -215,9 +215,10 @@ def create_app() -> FastAPI:
         settings = getattr(app.state, "settings", ServiceSettings.from_env())
         _seed_runtime_state(app, settings)
         logger.info(
-            "Resolved service capabilities: auth=%s auth_required=%s browser_oidc=%s postgres=%s",
+            "Resolved service capabilities: auth=%s auth_required=%s ui_auth_provider=%s browser_oidc=%s postgres=%s",
             settings.auth_summary,
             settings.auth_required,
+            settings.ui_auth_provider,
             settings.browser_oidc_enabled,
             bool(settings.postgres_dsn),
         )
@@ -613,25 +614,28 @@ def create_app() -> FastAPI:
 
     @app.get("/config.js")
     async def get_ui_config(request: Request):
-        _enforce_public_surface_auth(request)
         settings: ServiceSettings = app.state.settings
         cfg = UiRuntimeConfig.model_validate(
             {
                 "apiBaseUrl": settings.ui_oidc_config.get("apiBaseUrl") or "/api",
                 "authSessionMode": settings.auth_session_mode,
-                "oidcAuthority": settings.ui_oidc_config.get("authority"),
-                "oidcClientId": settings.ui_oidc_config.get("clientId"),
-                "oidcScopes": settings.ui_oidc_config.get("scope"),
-                "oidcRedirectUri": settings.ui_oidc_config.get("redirectUri"),
-                "oidcPostLogoutRedirectUri": settings.ui_oidc_config.get("postLogoutRedirectUri"),
-                "oidcAudience": settings.oidc_audience,
-                "oidcEnabled": settings.browser_oidc_enabled,
+                "authProvider": settings.ui_auth_provider,
+                "oidcAuthority": settings.ui_oidc_config.get("authority") if settings.ui_auth_provider == "oidc" else None,
+                "oidcClientId": settings.ui_oidc_config.get("clientId") if settings.ui_auth_provider == "oidc" else None,
+                "oidcScopes": settings.ui_oidc_config.get("scope") if settings.ui_auth_provider == "oidc" else [],
+                "oidcRedirectUri": settings.ui_oidc_config.get("redirectUri") if settings.ui_auth_provider == "oidc" else None,
+                "oidcPostLogoutRedirectUri": settings.ui_oidc_config.get("postLogoutRedirectUri")
+                if settings.ui_auth_provider == "oidc"
+                else None,
+                "oidcAudience": settings.oidc_audience if settings.ui_auth_provider == "oidc" else [],
+                "oidcEnabled": settings.ui_auth_provider == "oidc" and settings.browser_oidc_enabled,
                 "authRequired": settings.auth_required,
             }
         ).model_dump(mode="json")
 
         logger.info(
-            "Serving /config.js: oidcEnabled=%s authRequired=%s authSessionMode=%s apiBaseUrl=%s scopes=%s",
+            "Serving /config.js: authProvider=%s oidcEnabled=%s authRequired=%s authSessionMode=%s apiBaseUrl=%s scopes=%s",
+            cfg.get("authProvider"),
             cfg.get("oidcEnabled"),
             cfg.get("authRequired"),
             cfg.get("authSessionMode"),
