@@ -90,6 +90,10 @@ GitHub secrets:
 - `AI_RELAY_API_KEY`
 - `AI_RELAY_SMOKE_BEARER_TOKEN` optional but recommended for deploy smoke
 - `AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN` optional but recommended for deploy smoke
+- `KALSHI_DEMO_API_KEY_ID`
+- `KALSHI_DEMO_PRIVATE_KEY_PEM`
+- `KALSHI_LIVE_API_KEY_ID`
+- `KALSHI_LIVE_PRIVATE_KEY_PEM`
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `DISPATCH_APP_PRIVATE_KEY`
 - `MASSIVE_API_KEY`
@@ -115,6 +119,15 @@ GitHub variables:
 - `AI_RELAY_MAX_OUTPUT_TOKENS`
 - `AI_RELAY_REQUIRED_ROLES`
 - `CONTAINER_APPS_ENVIRONMENT_NAME`
+- `KALSHI_ENABLED`
+- `KALSHI_TRADING_ENABLED`
+- `KALSHI_TIMEOUT_SECONDS`
+- `KALSHI_READ_RETRY_ATTEMPTS`
+- `KALSHI_READ_RETRY_BASE_DELAY_SECONDS`
+- `KALSHI_REQUIRED_ROLES`
+- `KALSHI_TRADING_REQUIRED_ROLES`
+- `KALSHI_DEMO_BASE_URL`
+- `KALSHI_LIVE_BASE_URL`
 - `SERVICE_ACCOUNT_NAME`
 - `LOG_ANALYTICS_WORKSPACE_NAME`
 - `AZURE_STORAGE_ACCOUNT_NAME`
@@ -151,6 +164,7 @@ GitHub variables:
    - `/api/ai/chat/stream` returns `403` for an authenticated token that lacks `AssetAllocation.AiRelay.Use`
    - `/api/ai/chat/stream` returns a streamed `completed` event for an authorized token when AI relay is enabled and configured
    - `/api/ai/chat/stream` returns `503` for an authorized token when AI relay is still disabled or missing an API key
+   - if Kalshi is enabled, `/api/providers/kalshi/markets?environment=demo&limit=1` returns `200` for an authorized operator token and `/api/providers/kalshi/orders?environment=demo&limit=1` returns `503` when demo credentials are intentionally absent
 
 ## Rollback
 

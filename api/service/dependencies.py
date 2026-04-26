@@ -2,6 +2,7 @@ import logging
 import hmac
 from inspect import Parameter, signature
 from typing import Any, Dict
+from urllib.parse import urlparse
 from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
 
@@ -120,6 +121,7 @@ def _require_csrf_for_cookie_auth(request: Request, auth_context: AuthContext) -
     if request.method.upper() in {"GET", "HEAD", "OPTIONS", "TRACE"}:
         return
 
+    require_same_origin(request)
     settings = get_settings(request)
     header_token = str(request.headers.get("x-csrf-token") or "").strip()
     cookie_token = str(request.cookies.get(settings.auth_session_csrf_cookie_name) or "").strip()
@@ -141,6 +143,42 @@ def _require_csrf_for_cookie_auth(request: Request, auth_context: AuthContext) -
             bool(cookie_token),
         )
         raise HTTPException(status_code=403, detail="CSRF token is missing or invalid.")
+
+
+def _request_origin(request: Request) -> str:
+    forwarded_proto = str(request.headers.get("x-forwarded-proto") or request.url.scheme or "http").strip().lower()
+    forwarded_host = str(request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc).strip()
+    if not forwarded_host:
+        return ""
+    return f"{forwarded_proto}://{forwarded_host}"
+
+
+def _origin_from_absolute_url(value: str) -> str:
+    parsed = urlparse(str(value or "").strip())
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+def require_same_origin(request: Request) -> None:
+    expected_origin = _request_origin(request)
+    header_origin = _origin_from_absolute_url(request.headers.get("origin", ""))
+    referer_origin = _origin_from_absolute_url(request.headers.get("referer", ""))
+    actual_origin = header_origin or referer_origin
+
+    if expected_origin and actual_origin and hmac.compare_digest(actual_origin, expected_origin.lower()):
+        return
+
+    logger.warning(
+        "Same-origin check rejected request: request_id=%s method=%s path=%s expected_origin=%s origin=%s referer=%s",
+        _request_id(request),
+        request.method,
+        request.url.path,
+        expected_origin,
+        request.headers.get("origin", ""),
+        request.headers.get("referer", ""),
+    )
+    raise HTTPException(status_code=403, detail="Origin or Referer does not match the expected UI origin.")
 
 
 def validate_auth(request: Request) -> AuthContext:
@@ -196,7 +234,7 @@ def _require_configured_roles(
     required_roles: list[str],
     log_prefix: str,
 ) -> None:
-    if auth_context.mode == "anonymous":
+    if auth_context.mode in {"anonymous", "password"}:
         return
     granted_roles = sorted(_claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {}))
     configured_roles = sorted({role.strip() for role in required_roles if role.strip()})
