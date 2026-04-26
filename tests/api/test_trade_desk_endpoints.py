@@ -125,7 +125,7 @@ async def test_trade_desk_mutations_preserve_idempotency_and_contract_shapes(mon
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     now = _now()
 
-    def preview(self, account_id, payload, *, actor):
+    def preview(self, account_id, payload, *, actor, granted_roles=None):
         order = _order("previewed")
         return TradeOrderPreviewResponse(
             previewId="preview-1",
@@ -138,10 +138,10 @@ async def test_trade_desk_mutations_preserve_idempotency_and_contract_shapes(mon
             estimatedCost=1000,
         )
 
-    def place(self, account_id, payload, *, actor):
+    def place(self, account_id, payload, *, actor, granted_roles=None):
         return TradeOrderPlaceResponse(order=_order(), submitted=True, replayed=False, message="accepted")
 
-    def cancel(self, account_id, order_id, payload, *, actor):
+    def cancel(self, account_id, order_id, payload, *, actor, granted_roles=None):
         return TradeOrderCancelResponse(order=_order("cancel_pending"), cancelAccepted=True, replayed=False)
 
     monkeypatch.setattr(TradeDeskService, "preview_order", preview)

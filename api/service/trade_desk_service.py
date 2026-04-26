@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
+from asset_allocation_contracts.broker_accounts import BrokerAccountConfiguration, BrokerTradingPolicy
 from asset_allocation_contracts.trade_desk import (
     TradeAccountDetail,
     TradeAccountListResponse,
@@ -20,9 +21,15 @@ from asset_allocation_contracts.trade_desk import (
 )
 
 from api.service.settings import TradeDeskSettings
+from core.broker_account_configuration_repository import BrokerAccountConfigurationRepository
 from core.trade_desk_repository import TradeDeskRepository, new_trade_id, stable_hash, utc_now
 
 _TERMINAL_STATUSES = {"filled", "cancelled", "rejected", "expired"}
+
+
+class _NoopBrokerAccountConfigurationRepository:
+    def get_configuration(self, account_id: str) -> BrokerAccountConfiguration | None:
+        return None
 
 
 class TradeDeskError(RuntimeError):
@@ -33,9 +40,22 @@ class TradeDeskError(RuntimeError):
 
 
 class TradeDeskService:
-    def __init__(self, repository: TradeDeskRepository, settings: TradeDeskSettings) -> None:
+    def __init__(
+        self,
+        repository: TradeDeskRepository,
+        settings: TradeDeskSettings,
+        confirmation_release_required_roles: list[str] | None = None,
+        configuration_repository: BrokerAccountConfigurationRepository | None = None,
+    ) -> None:
         self._repo = repository
         self._settings = settings
+        if configuration_repository is not None:
+            self._configuration_repo = configuration_repository
+        elif hasattr(repository, "dsn"):
+            self._configuration_repo = BrokerAccountConfigurationRepository(repository.dsn)
+        else:
+            self._configuration_repo = _NoopBrokerAccountConfigurationRepository()
+        self._confirmation_release_required_roles = confirmation_release_required_roles or []
 
     def list_accounts(self) -> TradeAccountListResponse:
         response = self._repo.list_accounts()
@@ -71,16 +91,34 @@ class TradeDeskService:
         except LookupError as exc:
             raise TradeDeskError(404, str(exc)) from exc
 
-    def preview_order(self, account_id: str, payload: TradeOrderPreviewRequest, *, actor: str | None) -> TradeOrderPreviewResponse:
+    def preview_order(
+        self,
+        account_id: str,
+        payload: TradeOrderPreviewRequest,
+        *,
+        actor: str | None,
+        granted_roles: list[str] | None = None,
+    ) -> TradeOrderPreviewResponse:
         self._validate_path_account(account_id, payload.accountId)
         if payload.source != "manual":
             raise TradeDeskError(400, "Only manual trade desk orders can be previewed on this endpoint.")
 
         record = self._account_record(account_id)
-        checks = self._risk_checks(record.account, payload)
+        configuration = self._configuration(account_id)
+        checks = self._risk_checks(record.account, payload, configuration=configuration)
         blocked = any(check.blocking for check in checks)
         now = utc_now()
         preview_id = new_trade_id("preview")
+        order_hash = self._order_hash(payload)
+        policy_version = configuration.configurationVersion if configuration is not None else None
+        confirmation_required = bool(
+            configuration and configuration.effectivePolicy.requireOrderConfirmation
+        )
+        confirmation_token = (
+            self._confirmation_token(preview_id, order_hash, policy_version)
+            if confirmation_required
+            else None
+        )
         order = self._build_order(
             order_id=preview_id,
             payload=payload,
@@ -108,6 +146,11 @@ class TradeDeskService:
             blocked=blocked,
             blockReason=self._blocking_message(checks),
             freshness=record.account.freshness,
+            projectedPolicy=configuration.effectivePolicy if configuration is not None else None,
+            policyVersion=policy_version,
+            confirmationRequired=confirmation_required,
+            orderHash=order_hash,
+            confirmationToken=confirmation_token,
         )
         self._repo.save_order(
             order,
@@ -125,14 +168,29 @@ class TradeDeskService:
             order_id=order.orderId,
             client_request_id=payload.clientRequestId,
             idempotency_key=None,
+            preview_id=preview_id,
+            granted_roles=granted_roles or [],
             status_before=None,
             status_after=order.status,
             summary="Preview blocked by risk checks." if blocked else "Manual order preview generated.",
-            details={"blocked": blocked, "riskChecks": [check.model_dump(mode="json") for check in checks]},
+            details={
+                "blocked": blocked,
+                "riskChecks": [check.model_dump(mode="json") for check in checks],
+                "policyVersion": policy_version,
+                "confirmationRequired": confirmation_required,
+                "orderHash": order_hash,
+            },
         )
         return response
 
-    def place_order(self, account_id: str, payload: TradeOrderPlaceRequest, *, actor: str | None) -> TradeOrderPlaceResponse:
+    def place_order(
+        self,
+        account_id: str,
+        payload: TradeOrderPlaceRequest,
+        *,
+        actor: str | None,
+        granted_roles: list[str] | None = None,
+    ) -> TradeOrderPlaceResponse:
         self._validate_path_account(account_id, payload.accountId)
         if payload.source != "manual":
             raise TradeDeskError(400, "Synthetic or system-generated proposals are not executable on this endpoint.")
@@ -147,7 +205,27 @@ class TradeDeskService:
             return response.model_copy(update={"replayed": True})
 
         record = self._account_record(account_id)
-        checks = self._risk_checks(record.account, payload)
+        configuration = self._configuration(account_id)
+        checks = self._risk_checks(record.account, payload, configuration=configuration)
+        policy_version = configuration.configurationVersion if configuration is not None else None
+        confirmation_required = bool(
+            configuration and configuration.effectivePolicy.requireOrderConfirmation
+        )
+        order_hash = self._order_hash(payload)
+        confirmation_token = (
+            self._confirmation_token(payload.previewId, order_hash, policy_version)
+            if confirmation_required
+            else None
+        )
+        confirmation_check = self._confirmation_check(
+            payload=payload,
+            configuration=configuration,
+            granted_roles=granted_roles or [],
+            expected_order_hash=order_hash,
+            expected_confirmation_token=confirmation_token,
+        )
+        if confirmation_check is not None:
+            checks.append(confirmation_check)
         gate_check = self._execution_gate_check(record.account.accountId, record.account.provider, payload.environment)
         if gate_check is not None:
             checks.append(gate_check)
@@ -173,6 +251,8 @@ class TradeDeskService:
             reconciliationRequired=False,
             auditEventId=None,
             message=self._blocking_message(checks) if blocked else "Order accepted by trade desk execution gate.",
+            confirmationRequired=confirmation_required,
+            policyVersion=policy_version,
         )
         response_payload = response.model_dump(mode="json")
         self._repo.save_order(
@@ -200,10 +280,19 @@ class TradeDeskService:
             order_id=order.orderId,
             client_request_id=payload.clientRequestId,
             idempotency_key=payload.idempotencyKey,
+            preview_id=payload.previewId,
+            confirmation_token_id=(payload.confirmationToken if confirmation_required else None),
+            granted_roles=granted_roles or [],
             status_before="previewed",
             status_after=order.status,
             summary=response.message or "",
-            details={"submitted": response.submitted, "riskChecks": [check.model_dump(mode="json") for check in checks]},
+            details={
+                "submitted": response.submitted,
+                "riskChecks": [check.model_dump(mode="json") for check in checks],
+                "policyVersion": policy_version,
+                "confirmationRequired": confirmation_required,
+                "orderHash": order_hash,
+            },
         )
         return response
 
@@ -214,6 +303,7 @@ class TradeDeskService:
         payload: TradeOrderCancelRequest,
         *,
         actor: str | None,
+        granted_roles: list[str] | None = None,
     ) -> TradeOrderCancelResponse:
         self._validate_path_account(account_id, payload.accountId)
         self._validate_path_account(order_id, payload.orderId)
@@ -287,6 +377,7 @@ class TradeDeskService:
             order_id=order_id,
             client_request_id=payload.clientRequestId,
             idempotency_key=payload.idempotencyKey,
+            granted_roles=granted_roles or [],
             status_before=existing_order.status,
             status_after=updated_order.status,
             summary=response.message or "",
@@ -303,7 +394,13 @@ class TradeDeskService:
             raise TradeDeskError(403, f"Trade account '{account_id}' is not allowlisted for trade desk access.")
         return record
 
-    def _risk_checks(self, account, payload: TradeOrderPreviewRequest) -> list[TradeRiskCheck]:
+    def _risk_checks(
+        self,
+        account,
+        payload: TradeOrderPreviewRequest,
+        *,
+        configuration: BrokerAccountConfiguration | None,
+    ) -> list[TradeRiskCheck]:
         checks: list[TradeRiskCheck] = []
         if payload.environment != account.environment:
             checks.append(
@@ -375,6 +472,7 @@ class TradeDeskService:
                     message="Market order notional is unknown until priced by the provider.",
                 )
             )
+        checks.extend(self._policy_checks(account.accountId, account, payload, configuration=configuration))
         return checks
 
     def _freshness_checks(self, freshness) -> list[TradeRiskCheck]:
@@ -461,6 +559,183 @@ class TradeDeskService:
             reconciliationRequired=reconciliation_required,
         )
 
+    def _configuration(self, account_id: str) -> BrokerAccountConfiguration | None:
+        return self._configuration_repo.get_configuration(account_id)
+
+    def _policy_checks(
+        self,
+        account_id: str,
+        account,
+        payload: TradeOrderPreviewRequest,
+        *,
+        configuration: BrokerAccountConfiguration | None,
+    ) -> list[TradeRiskCheck]:
+        if configuration is None:
+            return []
+
+        policy = configuration.effectivePolicy
+        checks: list[TradeRiskCheck] = []
+        existing_position = self._has_existing_position(account_id, payload.symbol)
+        opening_order = not existing_position
+
+        if opening_order:
+            desired_side = "long" if payload.side == "buy" else "short"
+            if desired_side not in set(policy.allowedSides):
+                checks.append(
+                    self._fail_check(
+                        "account_policy_side",
+                        "Allowed side",
+                        f"{desired_side.title()} opening orders are not allowed for this account.",
+                    )
+                )
+            if payload.assetClass == "option" and "option" not in set(policy.allowedAssetClasses):
+                checks.append(
+                    self._fail_check(
+                        "account_policy_asset_class",
+                        "Allowed asset classes",
+                        "Option opening orders are not allowed for this account.",
+                    )
+                )
+            if payload.assetClass != "option" and "equity" not in set(policy.allowedAssetClasses):
+                checks.append(
+                    self._fail_check(
+                        "account_policy_asset_class",
+                        "Allowed asset classes",
+                        "Equity opening orders are not allowed for this account.",
+                    )
+                )
+            if policy.maxOpenPositions is not None:
+                projected_open_positions = int(account.positionCount) + int(account.openOrderCount) + 1
+                if projected_open_positions > policy.maxOpenPositions:
+                    checks.append(
+                        self._fail_check(
+                            "account_policy_max_open_positions",
+                            "Maximum open positions",
+                            "Submitting this order would exceed the account max-open-positions policy.",
+                        )
+                    )
+
+        estimated_notional = self._estimated_notional(payload)
+        if opening_order and estimated_notional is not None and policy.maxSinglePositionExposure is not None:
+            limit = self._policy_exposure_limit(configuration, account, policy)
+            if limit is not None and estimated_notional > limit:
+                checks.append(
+                    self._fail_check(
+                        "account_policy_max_single_position_exposure",
+                        "Maximum single-position exposure",
+                        "Submitting this order would exceed the account single-position exposure cap.",
+                    )
+                )
+        return checks
+
+    def _confirmation_check(
+        self,
+        *,
+        payload: TradeOrderPlaceRequest,
+        configuration: BrokerAccountConfiguration | None,
+        granted_roles: list[str],
+        expected_order_hash: str,
+        expected_confirmation_token: str | None,
+    ) -> TradeRiskCheck | None:
+        if configuration is None or not configuration.effectivePolicy.requireOrderConfirmation:
+            if payload.orderHash and payload.orderHash != expected_order_hash:
+                return self._fail_check(
+                    "stale_order_hash",
+                    "Order confirmation hash",
+                    "Order confirmation hash does not match the current order payload.",
+                )
+            return None
+
+        if payload.policyVersion != configuration.configurationVersion:
+            return self._fail_check(
+                "stale_policy_version",
+                "Policy version",
+                "The account policy changed after preview; re-preview before submitting.",
+            )
+        if payload.orderHash != expected_order_hash:
+            return self._fail_check(
+                "stale_order_hash",
+                "Order confirmation hash",
+                "Order confirmation hash does not match the current order payload.",
+            )
+        if payload.confirmationToken != expected_confirmation_token:
+            return self._fail_check(
+                "stale_confirmation_token",
+                "Order confirmation token",
+                "Order confirmation token is missing or stale; re-preview before submitting.",
+            )
+        missing_roles = [
+            role
+            for role in self._confirmation_release_required_roles
+            if role not in set(granted_roles)
+        ]
+        if missing_roles:
+            return self._fail_check(
+                "trade_confirmation_release",
+                "Trade confirmation release role",
+                f"Missing required roles: {', '.join(missing_roles)}.",
+            )
+        return None
+
+    def _policy_exposure_limit(
+        self,
+        configuration: BrokerAccountConfiguration,
+        account,
+        policy: BrokerTradingPolicy,
+    ) -> float | None:
+        limit = policy.maxSinglePositionExposure
+        if limit is None:
+            return None
+        if limit.mode == "notional_base_ccy":
+            return float(limit.value)
+        allocatable_capital = (
+            configuration.allocation.allocatableCapital
+            if configuration.allocation.allocatableCapital is not None
+            else (account.buyingPower or account.equity)
+        )
+        if allocatable_capital is None:
+            return None
+        return float(allocatable_capital) * float(limit.value) / 100.0
+
+    def _has_existing_position(self, account_id: str, symbol: str) -> bool:
+        try:
+            positions = self._repo.list_positions(account_id).positions
+        except (AttributeError, LookupError, NotImplementedError):
+            return False
+        normalized_symbol = str(symbol or "").strip().upper()
+        return any(position.symbol == normalized_symbol for position in positions)
+
+    @staticmethod
+    def _order_hash(payload: TradeOrderPreviewRequest) -> str:
+        return stable_hash(
+            {
+                "accountId": payload.accountId,
+                "environment": payload.environment,
+                "symbol": payload.symbol,
+                "side": payload.side,
+                "orderType": payload.orderType,
+                "timeInForce": payload.timeInForce,
+                "assetClass": payload.assetClass,
+                "quantity": payload.quantity,
+                "notional": payload.notional,
+                "limitPrice": payload.limitPrice,
+                "stopPrice": payload.stopPrice,
+                "allowExtendedHours": payload.allowExtendedHours,
+                "source": payload.source,
+            }
+        )
+
+    @staticmethod
+    def _confirmation_token(preview_id: str, order_hash: str, policy_version: int | None) -> str:
+        token = stable_hash(
+            {
+                "previewId": preview_id,
+                "orderHash": order_hash,
+                "policyVersion": policy_version,
+            }
+        )
+        return f"confirm-{token}"
+
     def _audit(
         self,
         *,
@@ -473,6 +748,9 @@ class TradeDeskService:
         order_id: str | None,
         client_request_id: str | None,
         idempotency_key: str | None,
+        preview_id: str | None = None,
+        confirmation_token_id: str | None = None,
+        granted_roles: list[str] | None = None,
         status_before: str | None,
         status_after: str | None,
         summary: str,
@@ -491,9 +769,12 @@ class TradeDeskService:
                 orderId=order_id,
                 clientRequestId=client_request_id,
                 idempotencyKey=idempotency_key,
+                previewId=preview_id,
+                confirmationTokenId=confirmation_token_id,
                 statusBefore=status_before,
                 statusAfter=status_after,
                 summary=summary,
+                grantedRoles=granted_roles or [],
                 details=details,
             )
         )

@@ -59,6 +59,10 @@ class TradeDeskRepository:
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
 
+    @property
+    def dsn(self) -> str:
+        return self._dsn
+
     def list_accounts(self) -> TradeAccountListResponse:
         with connect(self._dsn) as conn:
             with conn.cursor() as cur:

@@ -484,6 +484,30 @@ def require_trade_desk_read_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_account_policy_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).broker_account_policy
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="Account policy read",
+    )
+    return auth_context
+
+
+def require_account_policy_write_access(request: Request) -> AuthContext:
+    auth_context = require_account_policy_read_access(request)
+    settings = get_settings(request).broker_account_policy
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.write_required_roles,
+        log_prefix="Account policy write",
+    )
+    return auth_context
+
+
 def require_trade_desk_preview_access(request: Request) -> AuthContext:
     auth_context = require_trade_desk_read_access(request)
     settings = get_settings(request).trade_desk
