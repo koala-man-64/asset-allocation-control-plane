@@ -91,6 +91,31 @@ def test_symbol_enrichment_settings_parse_from_env(monkeypatch: pytest.MonkeyPat
     ]
 
 
+def test_system_access_role_defaults() -> None:
+    settings = ServiceSettings.from_env()
+
+    assert settings.system_access.read_required_roles == ["AssetAllocation.System.Read"]
+    assert settings.system_access.logs_read_required_roles == ["AssetAllocation.System.Logs.Read"]
+    assert settings.system_access.operate_required_roles == ["AssetAllocation.System.Operate"]
+    assert settings.system_access.runtime_config_write_required_roles == [
+        "AssetAllocation.RuntimeConfig.Write",
+    ]
+    assert settings.system_access.job_operate_required_roles == ["AssetAllocation.Jobs.Operate"]
+    assert settings.system_access.purge_write_required_roles == ["AssetAllocation.Purge.Write"]
+
+
+def test_system_access_roles_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYSTEM_OPERATE_REQUIRED_ROLES", "Ops.One,Ops.Two")
+    monkeypatch.setenv("JOB_OPERATE_REQUIRED_ROLES", "Jobs.One")
+    monkeypatch.setenv("PURGE_WRITE_REQUIRED_ROLES", "Purge.One")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.system_access.operate_required_roles == ["Ops.One", "Ops.Two"]
+    assert settings.system_access.job_operate_required_roles == ["Jobs.One"]
+    assert settings.system_access.purge_write_required_roles == ["Purge.One"]
+
+
 def test_quiver_requires_api_key_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("QUIVER_ENABLED", "true")
     monkeypatch.delenv("QUIVER_API_KEY", raising=False)
@@ -283,6 +308,70 @@ def test_alpaca_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.alpaca.live_configured is True
     assert settings.alpaca.paper_trading_base_url == "https://paper-api.alpaca.markets"
     assert settings.alpaca.live_trading_base_url == "https://api.alpaca.markets"
+
+
+def test_kalshi_settings_allow_unconfigured_environments(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("KALSHI_DEMO_API_KEY_ID", raising=False)
+    monkeypatch.delenv("KALSHI_DEMO_PRIVATE_KEY_PEM", raising=False)
+    monkeypatch.delenv("KALSHI_LIVE_API_KEY_ID", raising=False)
+    monkeypatch.delenv("KALSHI_LIVE_PRIVATE_KEY_PEM", raising=False)
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.kalshi.demo_configured is False
+    assert settings.kalshi.live_configured is False
+
+
+def test_kalshi_trading_requires_kalshi_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_TRADING_ENABLED", "true")
+    monkeypatch.delenv("KALSHI_ENABLED", raising=False)
+
+    with pytest.raises(ValueError, match="KALSHI_TRADING_ENABLED requires KALSHI_ENABLED=true."):
+        ServiceSettings.from_env()
+
+
+def test_kalshi_settings_require_demo_credentials_together(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_DEMO_API_KEY_ID", "demo-key")
+    monkeypatch.delenv("KALSHI_DEMO_PRIVATE_KEY_PEM", raising=False)
+
+    with pytest.raises(
+        ValueError,
+        match="KALSHI_DEMO_API_KEY_ID and KALSHI_DEMO_PRIVATE_KEY_PEM are required together.",
+    ):
+        ServiceSettings.from_env()
+
+
+def test_kalshi_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_ENABLED", "true")
+    monkeypatch.setenv("KALSHI_TRADING_ENABLED", "true")
+    monkeypatch.setenv("KALSHI_TIMEOUT_SECONDS", "20")
+    monkeypatch.setenv("KALSHI_READ_RETRY_ATTEMPTS", "3")
+    monkeypatch.setenv("KALSHI_READ_RETRY_BASE_DELAY_SECONDS", "1.5")
+    monkeypatch.setenv("KALSHI_REQUIRED_ROLES", "AssetAllocation.Kalshi.Read")
+    monkeypatch.setenv("KALSHI_TRADING_REQUIRED_ROLES", "AssetAllocation.Kalshi.Trade,AssetAllocation.Admin")
+    monkeypatch.setenv("KALSHI_DEMO_API_KEY_ID", "demo-key")
+    monkeypatch.setenv("KALSHI_DEMO_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\\ndemo\\n-----END PRIVATE KEY-----")
+    monkeypatch.setenv("KALSHI_DEMO_BASE_URL", "https://demo-api.kalshi.co/trade-api/v2")
+    monkeypatch.setenv("KALSHI_LIVE_API_KEY_ID", "live-key")
+    monkeypatch.setenv("KALSHI_LIVE_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\\nlive\\n-----END PRIVATE KEY-----")
+    monkeypatch.setenv("KALSHI_LIVE_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.kalshi.enabled is True
+    assert settings.kalshi.trading_enabled is True
+    assert settings.kalshi.timeout_seconds == pytest.approx(20.0)
+    assert settings.kalshi.read_retry_attempts == 3
+    assert settings.kalshi.read_retry_base_delay_seconds == pytest.approx(1.5)
+    assert settings.kalshi.required_roles == ["AssetAllocation.Kalshi.Read"]
+    assert settings.kalshi.trading_required_roles == [
+        "AssetAllocation.Kalshi.Trade",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.kalshi.demo_configured is True
+    assert settings.kalshi.live_configured is True
+    assert settings.kalshi.demo_base_url == "https://demo-api.kalshi.co/trade-api/v2"
+    assert settings.kalshi.live_base_url == "https://api.elections.kalshi.com/trade-api/v2"
 
 
 def test_api_public_base_url_accepts_origin_without_path(monkeypatch: pytest.MonkeyPatch) -> None:

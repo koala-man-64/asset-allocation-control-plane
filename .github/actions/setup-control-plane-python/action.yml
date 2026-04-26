@@ -25,6 +25,10 @@ inputs:
     description: Optional extra editable install path for additional local validation.
     required: false
     default: ""
+  pip-constraint-path:
+    description: Optional pip constraints file path used to force exact shared-package versions.
+    required: false
+    default: ""
   run-pip-check:
     description: Whether to run python -m pip check after installing dependencies.
     required: false
@@ -60,6 +64,13 @@ runs:
         PYTHON_PACKAGE_INDEX_URL: ${{ env.PYTHON_PACKAGE_INDEX_URL }}
         PYTHON_PACKAGE_EXTRA_INDEX_URL: ${{ env.PYTHON_PACKAGE_EXTRA_INDEX_URL }}
 
+    - name: Configure optional pip constraints
+      if: ${{ inputs.pip-constraint-path != '' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "PIP_CONSTRAINT=${{ inputs.pip-constraint-path }}" >> "$GITHUB_ENV"
+
     - name: Install control-plane Python dependencies
       shell: bash
       run: |
@@ -77,16 +88,17 @@ runs:
         import os
         import tomllib
         from pathlib import Path
+        from packaging.requirements import Requirement
 
         repo_path = Path(os.environ["REPO_PATH"])
         excluded_dependency = os.environ["SHARED_DEPS_EXCLUDE"].strip()
         pyproject = tomllib.loads((repo_path / "pyproject.toml").read_text(encoding="utf-8"))
 
         for dependency in pyproject["project"]["dependencies"]:
-            if not dependency.startswith("asset-allocation-"):
+            requirement = Requirement(dependency)
+            if not requirement.name.startswith("asset-allocation-"):
                 continue
-            package_name = dependency.split("==", 1)[0]
-            if excluded_dependency and package_name == excluded_dependency:
+            if excluded_dependency and requirement.name == excluded_dependency:
                 continue
             print(dependency)
         PY
@@ -95,8 +107,9 @@ runs:
           python "${repo_path}/scripts/repo/dependency_governance.py" \
             check-shared-compat \
             --requirements "${repo_path}/shared-python-deps.txt" \
-            --pyproject "${repo_path}/pyproject.toml"
-          python -m pip install -r "${repo_path}/shared-python-deps.txt"
+            --pyproject "${repo_path}/pyproject.toml" \
+            --allow-newer-contracts
+          python -m pip install --no-deps -r "${repo_path}/shared-python-deps.txt"
         fi
 
         if [ -n "${EXTRA_EDITABLE_PATH}" ]; then
@@ -106,7 +119,9 @@ runs:
         python -m pip install -e "${repo_path}" --no-deps
 
         if [ "${RUN_PIP_CHECK}" = "true" ]; then
-          python -m pip check
+          python "${repo_path}/scripts/repo/dependency_governance.py" \
+            pip-check \
+            --pyproject "${repo_path}/pyproject.toml"
         fi
       env:
         REPO_PATH: ${{ inputs.repo-path }}

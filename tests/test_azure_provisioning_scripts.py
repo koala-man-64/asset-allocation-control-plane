@@ -290,6 +290,15 @@ def test_shared_provisioner_supports_parallel_private_runtime_and_network_smoke(
     assert "privatelink.postgres.database.azure.com" in text, (
         "Shared Azure provisioning must create the Postgres private DNS zone"
     )
+    assert "privatelink.azurecr.io" in text, (
+        "Shared Azure provisioning must create the ACR private DNS zone"
+    )
+    assert "-GroupId \"registry\"" in text, (
+        "Shared Azure provisioning must create the ACR private endpoint with the registry group"
+    )
+    assert "--sku Premium" in text, (
+        "Shared Azure provisioning must support ACR Premium for private endpoint support"
+    )
     assert "az network private-endpoint create" in text, (
         "Shared Azure provisioning must create private endpoints for the private data plane"
     )
@@ -313,6 +322,15 @@ def test_shared_provisioner_supports_parallel_private_runtime_and_network_smoke(
     )
     assert "networkSmokeJobName" in text, (
         "Shared Azure provisioning outputs must expose the smoke job resource name"
+    )
+    assert "apiRuntimeIdentityName" in text, (
+        "Shared Azure provisioning outputs must expose the API runtime identity"
+    )
+    assert "Asset Allocation ACA Operator" in text, (
+        "Shared Azure provisioning must replace RG Contributor job-start behavior with a narrow custom role"
+    )
+    assert "Storage Blob Data Contributor granted to $AcrPullIdentityName" not in text, (
+        "ACR pull identity must not receive storage data-plane permissions"
     )
 
 
@@ -353,6 +371,15 @@ def test_infra_shared_workflow_passes_parallel_private_runtime_inputs() -> None:
     )
     assert "'-DisablePublicDataPlaneAccess'" in text, (
         "Shared infra workflow must only disable the public data plane when the explicit cutover input is enabled"
+    )
+    assert "private_runtime_verified=true is required before disabling public Storage/Postgres data-plane access." in text, (
+        "Shared infra workflow must require a private-runtime smoke confirmation before data-plane cutover"
+    )
+    assert "'-ApiRuntimeIdentityName'" in text, (
+        "Shared infra workflow must pass the API runtime identity name to the provisioner"
+    )
+    assert "'-EnableAcrPrivateLink'" in text, (
+        "Shared infra workflow must pass the ACR private link input to the provisioner"
     )
 
 

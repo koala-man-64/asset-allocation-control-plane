@@ -804,7 +804,7 @@ def build_router(
         request: Request,
         payload: domain_metadata_snapshot_response_model,
     ) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_operate_access = _runtime_attr(runtime, "require_system_operate_access")
         utc_timestamp = _runtime_attr(runtime, "_utc_timestamp")
         mdc = _runtime_attr(runtime, "mdc")
         domain_metadata_ui_cache_path = _runtime_attr(runtime, "_domain_metadata_ui_cache_path")
@@ -815,7 +815,7 @@ def build_router(
             "_extract_domain_metadata_targets_from_entries",
         )
 
-        validate_auth(request)
+        require_system_operate_access(request)
         payload_out = payload.model_dump() if hasattr(payload, "model_dump") else payload.dict()
         if not str(payload_out.get("updatedAt") or "").strip():
             payload_out["updatedAt"] = utc_timestamp()

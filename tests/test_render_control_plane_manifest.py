@@ -191,3 +191,34 @@ def test_renderer_fails_fast_when_manifest_placeholders_remain_unresolved(tmp_pa
     assert result.returncode == 1
     assert "Rendered manifest contains unresolved placeholders: API_PUBLIC_BASE_URL" in result.stderr
     assert not output.exists()
+
+
+def test_renderer_converts_configured_secrets_to_key_vault_refs(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api.yaml"
+    output = tmp_path / "rendered.yaml"
+    key_vault_url = "https://kv.vault.azure.net/secrets/postgres-dsn/version"
+    runtime_identity = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/api-runtime"
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env=_template_env(
+            template,
+            overrides={
+                "AI_RELAY_ENABLED": "false",
+                "AI_RELAY_API_KEY": "",
+                "POSTGRES_DSN_KEY_VAULT_URL": key_vault_url,
+                "API_RUNTIME_IDENTITY_RESOURCE_ID": runtime_identity,
+            },
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    doc = yaml.safe_load(output.read_text(encoding="utf-8"))
+    secrets = {
+        entry["name"]: entry
+        for entry in doc["properties"]["configuration"]["secrets"]
+    }
+    assert secrets["backtest-pg-dsn"]["keyVaultUrl"] == key_vault_url
+    assert secrets["backtest-pg-dsn"]["identity"] == runtime_identity
+    assert "value" not in secrets["backtest-pg-dsn"]

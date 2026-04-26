@@ -19,22 +19,19 @@ def shared_dependencies() -> dict[str, str]:
     return shared
 
 
-def test_pyproject_pins_shared_packages() -> None:
+def test_pyproject_declares_shared_package_specs() -> None:
     shared = shared_dependencies()
     assert shared["asset-allocation-contracts"]
     assert shared["asset-allocation-runtime-common"]
 
 
-def test_python_dependency_manifests_stay_in_sync() -> None:
-    shared = shared_dependencies()
+def test_runtime_requirement_manifests_exclude_first_party_shared_packages() -> None:
     requirements = (repo_root() / "requirements.txt").read_text(encoding="utf-8")
     lockfile = (repo_root() / "requirements.lock.txt").read_text(encoding="utf-8")
-    assert shared["asset-allocation-contracts"]
-    assert shared["asset-allocation-runtime-common"]
-    assert "asset-allocation-contracts==" not in requirements
-    assert "asset-allocation-contracts==" not in lockfile
-    assert "asset-allocation-runtime-common==" not in requirements
-    assert "asset-allocation-runtime-common==" not in lockfile
+    assert "asset-allocation-contracts" not in requirements
+    assert "asset-allocation-contracts" not in lockfile
+    assert "asset-allocation-runtime-common" not in requirements
+    assert "asset-allocation-runtime-common" not in lockfile
 
 
 def test_api_dockerfile_does_not_copy_sibling_repos() -> None:
@@ -69,6 +66,14 @@ def test_api_dockerfile_copies_first_party_packages_needed_at_boot() -> None:
         assert copy_line in text
 
 
+def test_api_dockerfile_runs_as_non_root() -> None:
+    text = (repo_root() / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
+
+    assert "useradd --system" in text
+    assert "chown -R app:app /app" in text
+    assert re.search(r"^USER app$", text, re.MULTILINE)
+
+
 def test_readme_shared_package_setup_examples_match_pyproject() -> None:
     shared = shared_dependencies()
     text = (repo_root() / "README.md").read_text(encoding="utf-8")
@@ -77,11 +82,14 @@ def test_readme_shared_package_setup_examples_match_pyproject() -> None:
     assert f"asset-allocation-runtime-common=={shared['asset-allocation-runtime-common']}" in text
 
 
-def test_release_workflow_uses_dependency_governance_for_shared_versions() -> None:
+def test_release_workflow_resolves_shared_versions_before_installing_dependencies() -> None:
     text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
-    assert "scripts/repo/dependency_governance.py" in text
-    assert "emit-shared-versions" in text
+    assert "scripts/workflows/resolve_shared_versions.py" in text
+    assert "contracts_version_override" in text
+    assert "runtime_common_version_override" in text
+    assert "shared-constraints.txt" in text
+    assert "pip-constraint-path: ${{ steps.shared.outputs.constraint_path }}" in text
 
 
 def test_normal_ci_and_release_workflows_do_not_checkout_sibling_repos() -> None:
@@ -98,6 +106,10 @@ def test_setup_action_validates_shared_package_compatibility_before_install() ->
     assert "check-shared-compat" in action
     assert '--requirements "${repo_path}/shared-python-deps.txt"' in action
     assert '--pyproject "${repo_path}/pyproject.toml"' in action
+    assert "--allow-newer-contracts" in action
+    assert 'python -m pip install --no-deps -r "${repo_path}/shared-python-deps.txt"' in action
+    assert "pip-check" in action
+    assert "pip-constraint-path" in action
 
 
 def test_control_plane_workflows_do_not_consume_shared_release_dispatches() -> None:

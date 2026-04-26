@@ -11,6 +11,7 @@ The v1 control-plane does not expose a generic `close-position` endpoint. Closin
    - E*TRADE: `GET /api/providers/etrade/accounts/{account_key}/portfolio`
    - Kalshi: `GET /api/providers/kalshi/positions`
    - Schwab: `GET /api/providers/schwab/accounts/{account_number}/positions`
+   - Kalshi is intentionally excluded from this generic close workflow. Use `GET /api/providers/kalshi/positions` plus an explicit YES/NO order decision instead of a normalized close-position helper.
 
 2. Check open orders for the same symbol or contract.
    - Alpaca: `GET /api/providers/alpaca/orders?status=open`

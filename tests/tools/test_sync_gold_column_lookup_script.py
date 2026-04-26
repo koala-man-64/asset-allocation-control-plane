@@ -78,3 +78,31 @@ def test_build_lookup_row_rejects_approved_placeholder() -> None:
             updated_by="test",
             force_metadata=False,
         )
+
+
+def test_build_lookup_row_uses_seeded_liquidity_metadata_for_new_columns() -> None:
+    row = sync._build_lookup_row(  # type: ignore[attr-defined]
+        live_row={
+            "schema_name": "gold",
+            "table_name": "market_data",
+            "column_name": "liquidity_stress_score",
+            "data_type": "double precision",
+            "is_nullable": True,
+        },
+        existing=None,
+        seed={
+            "description": "Composite daily liquidity gate.",
+            "calculation_type": "derived_python",
+            "calculation_expression": "amihud_z_252d - dollar_volume_z_252d + abs(gap_atr)",
+            "calculation_dependencies": ["amihud_z_252d", "dollar_volume_z_252d", "gap_atr"],
+            "source_job": "tasks.market_data.gold_market_data",
+            "status": "reviewed",
+        },
+        updated_by="test",
+        force_metadata=False,
+    )
+
+    assert row["description"] == "Composite daily liquidity gate."
+    assert row["calculation_type"] == "derived_python"
+    assert row["calculation_dependencies"] == ["amihud_z_252d", "dollar_volume_z_252d", "gap_atr"]
+    assert row["status"] == "reviewed"

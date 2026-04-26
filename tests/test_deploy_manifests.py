@@ -69,6 +69,19 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "ALPACA_LIVE_TRADING_BASE_URL",
         "ALPACA_LIVE_API_KEY_ID",
         "ALPACA_LIVE_SECRET_KEY",
+        "KALSHI_ENABLED",
+        "KALSHI_TRADING_ENABLED",
+        "KALSHI_TIMEOUT_SECONDS",
+        "KALSHI_READ_RETRY_ATTEMPTS",
+        "KALSHI_READ_RETRY_BASE_DELAY_SECONDS",
+        "KALSHI_REQUIRED_ROLES",
+        "KALSHI_TRADING_REQUIRED_ROLES",
+        "KALSHI_DEMO_BASE_URL",
+        "KALSHI_DEMO_API_KEY_ID",
+        "KALSHI_DEMO_PRIVATE_KEY_PEM",
+        "KALSHI_LIVE_BASE_URL",
+        "KALSHI_LIVE_API_KEY_ID",
+        "KALSHI_LIVE_PRIVATE_KEY_PEM",
         "ETRADE_ENABLED",
         "ETRADE_TRADING_ENABLED",
         "ETRADE_CALLBACK_URL",
@@ -119,6 +132,14 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "alpaca-paper-secret-key" in _secret_names(private_doc)
     assert "alpaca-live-api-key-id" in _secret_names(private_doc)
     assert "alpaca-live-secret-key" in _secret_names(private_doc)
+    assert "kalshi-demo-api-key-id" in _secret_names(public_doc)
+    assert "kalshi-demo-private-key-pem" in _secret_names(public_doc)
+    assert "kalshi-live-api-key-id" in _secret_names(public_doc)
+    assert "kalshi-live-private-key-pem" in _secret_names(public_doc)
+    assert "kalshi-demo-api-key-id" in _secret_names(private_doc)
+    assert "kalshi-demo-private-key-pem" in _secret_names(private_doc)
+    assert "kalshi-live-api-key-id" in _secret_names(private_doc)
+    assert "kalshi-live-private-key-pem" in _secret_names(private_doc)
     assert "etrade-sandbox-consumer-key" in _secret_names(public_doc)
     assert "etrade-sandbox-consumer-secret" in _secret_names(public_doc)
     assert "etrade-live-consumer-key" in _secret_names(public_doc)
@@ -143,3 +164,38 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "SCHWAB_REFRESH_TOKEN" not in _env_names(private_doc)
     assert expected_envs <= _env_names(public_doc)
     assert expected_envs <= _env_names(private_doc)
+
+
+def test_api_manifests_default_to_internal_parameterized_split_identity_runtime() -> None:
+    repo_root = _repo_root()
+    public_doc = _load_yaml(repo_root / "deploy" / "app_api_public.yaml")
+    private_doc = _load_yaml(repo_root / "deploy" / "app_api.yaml")
+
+    for doc in (public_doc, private_doc):
+        assert doc["name"] == "${API_APP_NAME}"
+        user_assigned = doc["identity"]["userAssignedIdentities"]
+        assert "${ACR_PULL_IDENTITY_RESOURCE_ID}" in user_assigned
+        assert "${API_RUNTIME_IDENTITY_RESOURCE_ID}" in user_assigned
+
+        registries = doc["properties"]["configuration"]["registries"]
+        assert registries[0]["identity"] == "${ACR_PULL_IDENTITY_RESOURCE_ID}"
+
+        env = {
+            entry["name"]: entry
+            for entry in doc["properties"]["template"]["containers"][0]["env"]
+        }
+        assert env["AZURE_CLIENT_ID"]["value"] == "${API_RUNTIME_IDENTITY_CLIENT_ID}"
+        assert "${ACR_PULL_IDENTITY_CLIENT_ID}" not in str(doc)
+
+        for name in {
+            "SYSTEM_READ_REQUIRED_ROLES",
+            "SYSTEM_LOGS_READ_REQUIRED_ROLES",
+            "SYSTEM_OPERATE_REQUIRED_ROLES",
+            "RUNTIME_CONFIG_WRITE_REQUIRED_ROLES",
+            "JOB_OPERATE_REQUIRED_ROLES",
+            "PURGE_WRITE_REQUIRED_ROLES",
+        }:
+            assert name in env
+
+    assert private_doc["properties"]["configuration"]["ingress"]["external"] is False
+    assert public_doc["properties"]["configuration"]["ingress"]["external"] is True

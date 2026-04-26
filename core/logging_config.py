@@ -41,6 +41,11 @@ class JsonFormatter(logging.Formatter):
             
         return json.dumps(redact_value(log_record))
 
+
+class RedactingFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_sensitive_text(super().format(record))
+
 def configure_logging() -> logging.Logger:
     """
     Configures the root logger based on environment variables.
@@ -87,7 +92,7 @@ def configure_logging() -> logging.Logger:
         handler.setFormatter(JsonFormatter())
     else:
         # Standard readable format
-        formatter = logging.Formatter(
+        formatter = RedactingFormatter(
             '%(asctime)s [%(levelname)s] %(module)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )

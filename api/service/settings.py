@@ -793,6 +793,33 @@ class DataDiscoverySettings:
 
 
 @dataclass(frozen=True)
+class SystemAccessSettings:
+    read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.System.Read"])
+    logs_read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.System.Logs.Read"])
+    operate_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.System.Operate"])
+    runtime_config_write_required_roles: list[str] = field(
+        default_factory=lambda: ["AssetAllocation.RuntimeConfig.Write"]
+    )
+    job_operate_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Jobs.Operate"])
+    purge_write_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Purge.Write"])
+
+    @staticmethod
+    def from_env() -> "SystemAccessSettings":
+        return SystemAccessSettings(
+            read_required_roles=_split_csv(_get_optional_str("SYSTEM_READ_REQUIRED_ROLES"))
+            or ["AssetAllocation.System.Read"],
+            logs_read_required_roles=_split_csv(_get_optional_str("SYSTEM_LOGS_READ_REQUIRED_ROLES"))
+            or ["AssetAllocation.System.Logs.Read"],
+            operate_required_roles=_split_csv(_get_optional_str("SYSTEM_OPERATE_REQUIRED_ROLES"))
+            or ["AssetAllocation.System.Operate"],
+            runtime_config_write_required_roles=_split_csv(
+                _get_optional_str("RUNTIME_CONFIG_WRITE_REQUIRED_ROLES")
+            )
+            or ["AssetAllocation.RuntimeConfig.Write"],
+            job_operate_required_roles=_split_csv(_get_optional_str("JOB_OPERATE_REQUIRED_ROLES"))
+            or ["AssetAllocation.Jobs.Operate"],
+            purge_write_required_roles=_split_csv(_get_optional_str("PURGE_WRITE_REQUIRED_ROLES"))
+            or ["AssetAllocation.Purge.Write"],
 class BrokerAccountPolicySettings:
     read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AccountPolicy.Read"])
     write_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AccountPolicy.Write"])
@@ -963,6 +990,7 @@ class ServiceSettings:
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
     data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
+    system_access: SystemAccessSettings = field(default_factory=SystemAccessSettings)
     broker_account_policy: BrokerAccountPolicySettings = field(default_factory=BrokerAccountPolicySettings)
     trade_desk: TradeDeskSettings = field(default_factory=TradeDeskSettings)
     notifications: NotificationSettings = field(default_factory=NotificationSettings)
@@ -1106,6 +1134,7 @@ class ServiceSettings:
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
         data_discovery = DataDiscoverySettings.from_env()
+        system_access = SystemAccessSettings.from_env()
         broker_account_policy = BrokerAccountPolicySettings.from_env()
         trade_desk = TradeDeskSettings.from_env()
         notifications = NotificationSettings.from_env(api_public_base_url=api_public_base_url)
@@ -1154,6 +1183,7 @@ class ServiceSettings:
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
             data_discovery=data_discovery,
+            system_access=system_access,
             broker_account_policy=broker_account_policy,
             trade_desk=trade_desk,
             notifications=notifications,

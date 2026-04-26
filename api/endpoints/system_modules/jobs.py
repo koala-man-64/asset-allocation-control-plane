@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from monitoring.log_analytics import extract_first_table_rows
+from core.redaction import redact_sensitive_text
 
 
 def _runtime_attr(runtime: ModuleType, name: str) -> Any:
@@ -87,7 +88,9 @@ def _extract_console_log_entries(payload: Dict[str, Any]) -> List[Dict[str, Opti
     for row in extract_first_table_rows(payload):
         if not isinstance(row, dict):
             continue
-        message = _coalesce_log_row_string(row, "msg", "Log_s", "Log", "LogMessage_s", "Message", "message")
+        message = redact_sensitive_text(
+            _coalesce_log_row_string(row, "msg", "Log_s", "Log", "LogMessage_s", "Message", "message")
+        )
         if not message:
             continue
         entries.append(
@@ -147,7 +150,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
 
     @router.post("/jobs/{job_name}/run")
     def trigger_job_run(job_name: str, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_job_operate_access = _runtime_attr(runtime, "require_job_operate_access")
         job_control_context = _runtime_attr(runtime, "_job_control_context")
         logger = _runtime_attr(runtime, "logger")
         os_module = _runtime_attr(runtime, "os")
@@ -160,7 +163,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         jobs_topic = _runtime_attr(runtime, "REALTIME_TOPIC_JOBS")
         system_health_topic = _runtime_attr(runtime, "REALTIME_TOPIC_SYSTEM_HEALTH")
 
-        validate_auth(request)
+        require_job_operate_access(request)
         control_context = job_control_context(request)
         logger.info(
             "Trigger job run requested: job=%s actor=%s requestId=%s",
@@ -287,7 +290,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         request: Request,
         runs: int = Query(1, ge=1, le=10),
     ) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_logs_read_access = _runtime_attr(runtime, "require_system_logs_read_access")
         os_module = _runtime_attr(runtime, "os")
         re_module = _runtime_attr(runtime, "re")
         arm_config_cls = _runtime_attr(runtime, "ArmConfig")
@@ -302,7 +305,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         escape_kql_literal = _runtime_attr(runtime, "_escape_kql_literal")
         extract_console_log_entries = _runtime_attr(runtime, "_extract_console_log_entries")
 
-        validate_auth(request)
+        require_system_logs_read_access(request)
 
         subscription_id_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID")
         subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
@@ -509,7 +512,7 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
 
 
 def _job_state_command(*, runtime: ModuleType, request: Request, job_name: str, action: str) -> JSONResponse:
-    validate_auth = _runtime_attr(runtime, "validate_auth")
+    require_job_operate_access = _runtime_attr(runtime, "require_job_operate_access")
     job_control_context = _runtime_attr(runtime, "_job_control_context")
     logger = _runtime_attr(runtime, "logger")
     os_module = _runtime_attr(runtime, "os")
@@ -526,7 +529,7 @@ def _job_state_command(*, runtime: ModuleType, request: Request, job_name: str, 
         f"{action.capitalize()}ed",
     )
 
-    validate_auth(request)
+    require_job_operate_access(request)
     control_context = job_control_context(request)
     logger.info(
         "%s job requested: job=%s actor=%s requestId=%s",
