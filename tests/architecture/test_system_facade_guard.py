@@ -7,6 +7,13 @@ from pathlib import Path
 _ALLOWED_FACADE_FUNCTIONS = {
     "_system_runtime",
     "_reject_removed_query_params",
+    "_require_system_access",
+    "require_system_read_access",
+    "require_system_logs_read_access",
+    "require_system_operate_access",
+    "require_runtime_config_write_access",
+    "require_job_operate_access",
+    "require_purge_write_access",
     "_emit_realtime",
     "_get_actor",
     "_job_control_context",

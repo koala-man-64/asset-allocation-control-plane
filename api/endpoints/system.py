@@ -25,10 +25,17 @@ from api.endpoints.system_modules import purge_runtime as system_purge_runtime
 from api.endpoints.system_modules import symbol_enrichment as system_symbol_enrichment_routes
 from api.endpoints.system_modules import status_read
 from api.service.dependencies import (
+    _require_configured_roles,
     get_auth_manager,
     get_settings,
     get_system_health_cache,
     require_data_discovery_read_access,
+    require_job_operate_access,
+    require_purge_write_access,
+    require_runtime_config_write_access,
+    require_system_logs_read_access,
+    require_system_operate_access,
+    require_system_read_access,
     validate_auth,
 )
 from api.service.realtime import manager as realtime_manager
@@ -76,6 +83,12 @@ _LEGACY_EXPORTS = (
     httpx,
     get_system_health_cache,
     require_data_discovery_read_access,
+    require_job_operate_access,
+    require_purge_write_access,
+    require_runtime_config_write_access,
+    require_system_logs_read_access,
+    require_system_operate_access,
+    require_system_read_access,
     validate_auth,
     ArmConfig,
     AzureArmClient,
@@ -123,6 +136,68 @@ def _reject_removed_query_params(request: Request, *names: str) -> None:
             status_code=400,
             detail=f"Unsupported query parameter(s): {joined}. Use the canonical request contract instead.",
         )
+
+
+def _require_system_access(request: Request, *, roles_attr: str, log_prefix: str):
+    auth_context = validate_auth(request)
+    if auth_context is None:
+        return auth_context
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=getattr(settings, roles_attr),
+        log_prefix=log_prefix,
+    )
+    return auth_context
+
+
+def require_system_read_access(request: Request):
+    return _require_system_access(
+        request,
+        roles_attr="read_required_roles",
+        log_prefix="System read",
+    )
+
+
+def require_system_logs_read_access(request: Request):
+    return _require_system_access(
+        request,
+        roles_attr="logs_read_required_roles",
+        log_prefix="System logs read",
+    )
+
+
+def require_system_operate_access(request: Request):
+    return _require_system_access(
+        request,
+        roles_attr="operate_required_roles",
+        log_prefix="System operate",
+    )
+
+
+def require_runtime_config_write_access(request: Request):
+    return _require_system_access(
+        request,
+        roles_attr="runtime_config_write_required_roles",
+        log_prefix="Runtime config write",
+    )
+
+
+def require_job_operate_access(request: Request):
+    return _require_system_access(
+        request,
+        roles_attr="job_operate_required_roles",
+        log_prefix="Job operate",
+    )
+
+
+def require_purge_write_access(request: Request):
+    return _require_system_access(
+        request,
+        roles_attr="purge_write_required_roles",
+        log_prefix="Purge write",
+    )
 
 
 

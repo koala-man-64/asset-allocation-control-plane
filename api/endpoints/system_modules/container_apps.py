@@ -360,7 +360,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         minutes: int = Query(60, ge=1, le=1440),
         tail: int = Query(50, ge=1, le=200),
     ) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_logs_read_access = _runtime_attr(runtime, "require_system_logs_read_access")
         container_app_allowlist = _runtime_attr(runtime, "_container_app_allowlist")
         os_module = _runtime_attr(runtime, "os")
         re_module = _runtime_attr(runtime, "re")
@@ -372,7 +372,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         extract_log_lines = _runtime_attr(runtime, "_extract_log_lines")
         logger = _runtime_attr(runtime, "logger")
 
-        validate_auth(request)
+        require_system_logs_read_access(request)
 
         subscription_id, resource_group, app_allowlist = container_app_allowlist()
         if not (subscription_id and resource_group and app_allowlist):
@@ -454,7 +454,7 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
 
     @router.post("/container-apps/{app_name}/start")
     def start_container_app(app_name: str, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_operate_access = _runtime_attr(runtime, "require_system_operate_access")
         container_app_allowlist = _runtime_attr(runtime, "_container_app_allowlist")
         os_module = _runtime_attr(runtime, "os")
         re_module = _runtime_attr(runtime, "re")
@@ -467,7 +467,7 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
         container_apps_topic = _runtime_attr(runtime, "REALTIME_TOPIC_CONTAINER_APPS")
         system_health_topic = _runtime_attr(runtime, "REALTIME_TOPIC_SYSTEM_HEALTH")
 
-        validate_auth(request)
+        require_system_operate_access(request)
 
         subscription_id, resource_group, app_allowlist = container_app_allowlist()
         if not (subscription_id and resource_group and app_allowlist):
@@ -531,7 +531,7 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
 
     @router.post("/container-apps/{app_name}/stop")
     def stop_container_app(app_name: str, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_operate_access = _runtime_attr(runtime, "require_system_operate_access")
         container_app_allowlist = _runtime_attr(runtime, "_container_app_allowlist")
         os_module = _runtime_attr(runtime, "os")
         re_module = _runtime_attr(runtime, "re")
@@ -544,7 +544,7 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
         container_apps_topic = _runtime_attr(runtime, "REALTIME_TOPIC_CONTAINER_APPS")
         system_health_topic = _runtime_attr(runtime, "REALTIME_TOPIC_SYSTEM_HEALTH")
 
-        validate_auth(request)
+        require_system_operate_access(request)
 
         subscription_id, resource_group, app_allowlist = container_app_allowlist()
         if not (subscription_id and resource_group and app_allowlist):

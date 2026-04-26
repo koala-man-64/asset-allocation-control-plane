@@ -1,10 +1,11 @@
 location: East US
-name: asset-allocation-api
+name: ${API_APP_NAME}
 type: Microsoft.App/containerApps
 identity:
   type: UserAssigned
   userAssignedIdentities:
     "${ACR_PULL_IDENTITY_RESOURCE_ID}": {}
+    "${API_RUNTIME_IDENTITY_RESOURCE_ID}": {}
 properties:
   managedEnvironmentId: ${CONTAINER_APPS_ENVIRONMENT_ID}
   configuration:
@@ -70,7 +71,7 @@ properties:
       - name: AZURE_STORAGE_CONNECTION_STRING
         secretRef: azure-storage-connection-string
       - name: AZURE_CLIENT_ID
-        value: "${ACR_PULL_IDENTITY_CLIENT_ID}"
+        value: "${API_RUNTIME_IDENTITY_CLIENT_ID}"
       - name: AZURE_CONTAINER_BRONZE
         value: "${AZURE_CONTAINER_BRONZE}"
       - name: AZURE_CONTAINER_SILVER
@@ -257,6 +258,18 @@ properties:
         value: "${SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN}"
       - name: SYMBOL_ENRICHMENT_ALLOWED_JOBS
         value: "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}"
+      - name: SYSTEM_READ_REQUIRED_ROLES
+        value: "${SYSTEM_READ_REQUIRED_ROLES}"
+      - name: SYSTEM_LOGS_READ_REQUIRED_ROLES
+        value: "${SYSTEM_LOGS_READ_REQUIRED_ROLES}"
+      - name: SYSTEM_OPERATE_REQUIRED_ROLES
+        value: "${SYSTEM_OPERATE_REQUIRED_ROLES}"
+      - name: RUNTIME_CONFIG_WRITE_REQUIRED_ROLES
+        value: "${RUNTIME_CONFIG_WRITE_REQUIRED_ROLES}"
+      - name: JOB_OPERATE_REQUIRED_ROLES
+        value: "${JOB_OPERATE_REQUIRED_ROLES}"
+      - name: PURGE_WRITE_REQUIRED_ROLES
+        value: "${PURGE_WRITE_REQUIRED_ROLES}"
       - name: API_CSP
         value: "${API_CSP}"
       - name: API_CORS_ALLOW_ORIGINS

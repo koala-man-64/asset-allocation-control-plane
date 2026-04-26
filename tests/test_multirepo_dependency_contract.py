@@ -69,6 +69,14 @@ def test_api_dockerfile_copies_first_party_packages_needed_at_boot() -> None:
         assert copy_line in text
 
 
+def test_api_dockerfile_runs_as_non_root() -> None:
+    text = (repo_root() / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
+
+    assert "useradd --system" in text
+    assert "chown -R app:app /app" in text
+    assert re.search(r"^USER app$", text, re.MULTILINE)
+
+
 def test_readme_shared_package_setup_examples_match_pyproject() -> None:
     shared = shared_dependencies()
     text = (repo_root() / "README.md").read_text(encoding="utf-8")

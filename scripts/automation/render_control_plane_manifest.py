@@ -27,6 +27,24 @@ _AI_RELAY_ENV_BLOCK = (
     "      - name: AI_RELAY_API_KEY",
     "        secretRef: ai-relay-api-key",
 )
+_SECRET_KEY_VAULT_URL_ENV_BY_NAME = {
+    "azure-storage-connection-string": "AZURE_STORAGE_CONNECTION_STRING_KEY_VAULT_URL",
+    "alpha-vantage-api-key": "ALPHA_VANTAGE_API_KEY_KEY_VAULT_URL",
+    "massive-api-key": "MASSIVE_API_KEY_KEY_VAULT_URL",
+    "backtest-pg-dsn": "POSTGRES_DSN_KEY_VAULT_URL",
+    "alpaca-paper-api-key-id": "ALPACA_PAPER_API_KEY_ID_KEY_VAULT_URL",
+    "alpaca-paper-secret-key": "ALPACA_PAPER_SECRET_KEY_KEY_VAULT_URL",
+    "alpaca-live-api-key-id": "ALPACA_LIVE_API_KEY_ID_KEY_VAULT_URL",
+    "alpaca-live-secret-key": "ALPACA_LIVE_SECRET_KEY_KEY_VAULT_URL",
+    "etrade-sandbox-consumer-key": "ETRADE_SANDBOX_CONSUMER_KEY_KEY_VAULT_URL",
+    "etrade-sandbox-consumer-secret": "ETRADE_SANDBOX_CONSUMER_SECRET_KEY_VAULT_URL",
+    "etrade-live-consumer-key": "ETRADE_LIVE_CONSUMER_KEY_KEY_VAULT_URL",
+    "etrade-live-consumer-secret": "ETRADE_LIVE_CONSUMER_SECRET_KEY_VAULT_URL",
+    "schwab-client-id": "SCHWAB_CLIENT_ID_KEY_VAULT_URL",
+    "schwab-client-secret": "SCHWAB_CLIENT_SECRET_KEY_VAULT_URL",
+    "ai-relay-api-key": "AI_RELAY_API_KEY_KEY_VAULT_URL",
+    "api-auth-session-secret-keys": "API_AUTH_SESSION_SECRET_KEYS_KEY_VAULT_URL",
+}
 
 
 def _remove_exact_block(lines: list[str], block: Iterable[str]) -> list[str]:
@@ -96,21 +114,70 @@ def _validate_rendered_manifest(rendered: str) -> None:
         raise ValueError("Rendered manifest must parse into a YAML mapping.")
 
 
+def _apply_key_vault_secret_refs(rendered: str, env: dict[str, str]) -> str:
+    secret_url_envs = {
+        secret_name: env_name
+        for secret_name, env_name in _SECRET_KEY_VAULT_URL_ENV_BY_NAME.items()
+        if env.get(env_name, "").strip()
+    }
+    if not secret_url_envs:
+        return rendered
+
+    runtime_identity = env.get("API_RUNTIME_IDENTITY_RESOURCE_ID", "").strip()
+    if not runtime_identity:
+        raise ValueError(
+            "API_RUNTIME_IDENTITY_RESOURCE_ID is required when Container App secrets use Key Vault refs."
+        )
+
+    loaded = yaml.safe_load(rendered)
+    if not isinstance(loaded, dict):
+        raise ValueError("Rendered manifest must parse into a YAML mapping.")
+
+    secrets = (
+        loaded.get("properties", {})
+        .get("configuration", {})
+        .get("secrets", [])
+    )
+    if not isinstance(secrets, list):
+        raise ValueError("Rendered manifest properties.configuration.secrets must be a YAML sequence.")
+
+    changed = False
+    for entry in secrets:
+        if not isinstance(entry, dict):
+            continue
+        secret_name = str(entry.get("name") or "").strip()
+        env_name = secret_url_envs.get(secret_name)
+        if not env_name:
+            continue
+        entry.pop("value", None)
+        entry["keyVaultUrl"] = _normalize_quoted_scalar_env_value(env[env_name].strip())
+        entry["identity"] = runtime_identity
+        changed = True
+
+    if not changed:
+        return rendered
+
+    dumped = yaml.safe_dump(loaded, sort_keys=False)
+    return dumped if rendered.endswith("\n") else dumped.rstrip("\n")
+
+
 def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
     ai_relay_enabled = env.get("AI_RELAY_ENABLED", "").strip().lower() == "true"
     ai_relay_api_key = env.get("AI_RELAY_API_KEY", "").strip()
+    ai_relay_key_vault_url = env.get("AI_RELAY_API_KEY_KEY_VAULT_URL", "").strip()
 
-    if ai_relay_enabled and not ai_relay_api_key:
+    if ai_relay_enabled and not (ai_relay_api_key or ai_relay_key_vault_url):
         raise ValueError("AI_RELAY_ENABLED=true but secret AI_RELAY_API_KEY is missing or empty.")
 
     lines = template.splitlines()
-    if not ai_relay_api_key:
+    if not (ai_relay_api_key or ai_relay_key_vault_url):
         lines = _remove_exact_block(lines, _AI_RELAY_SECRET_BLOCK)
         lines = _remove_exact_block(lines, _AI_RELAY_ENV_BLOCK)
 
     rendered = _render_placeholders("\n".join(lines), env)
     if template.endswith("\n"):
         rendered += "\n"
+    rendered = _apply_key_vault_secret_refs(rendered, env)
     _validate_rendered_manifest(rendered)
     return rendered
 
