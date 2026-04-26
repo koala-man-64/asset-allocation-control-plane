@@ -7995,6 +7995,23 @@
             "title": "Openalertcount",
             "type": "integer"
           },
+          "rebalanceAnchor": {
+            "default": "Strategy native cadence",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Rebalanceanchor",
+            "type": "string"
+          },
+          "rebalanceCadence": {
+            "default": "weekly",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly"
+            ],
+            "title": "Rebalancecadence",
+            "type": "string"
+          },
           "status": {
             "default": "draft",
             "enum": [
@@ -8178,6 +8195,23 @@
             "title": "Notes",
             "type": "string"
           },
+          "rebalanceAnchor": {
+            "default": "Strategy native cadence",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Rebalanceanchor",
+            "type": "string"
+          },
+          "rebalanceCadence": {
+            "default": "weekly",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly"
+            ],
+            "title": "Rebalancecadence",
+            "type": "string"
+          },
           "status": {
             "default": "draft",
             "enum": [
@@ -8263,6 +8297,35 @@
               }
             ],
             "title": "Openingcash"
+          },
+          "rebalanceAnchor": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rebalanceanchor"
+          },
+          "rebalanceCadence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "monthly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rebalancecadence"
           }
         },
         "required": [
@@ -12089,6 +12152,16 @@
             "title": "Lookbackwindow",
             "type": "integer"
           },
+          "positionPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rankingSchemaName": {
             "anyOf": [
               {
@@ -12200,6 +12273,85 @@
           "config"
         ],
         "title": "StrategyDetailResponse",
+        "type": "object"
+      },
+      "StrategyPositionPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowedAssetClasses": {
+            "items": {
+              "enum": [
+                "equity",
+                "option"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedassetclasses",
+            "type": "array"
+          },
+          "maxOpenPositions": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxopenpositions"
+          },
+          "maxPositionSize": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionSizeLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requireOrderConfirmation": {
+            "default": false,
+            "title": "Requireorderconfirmation",
+            "type": "boolean"
+          },
+          "targetPositionSize": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionSizeLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "StrategyPositionPolicy",
+        "type": "object"
+      },
+      "StrategyPositionSizeLimit": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "pct_of_allocatable_capital",
+            "enum": [
+              "pct_of_allocatable_capital",
+              "notional_base_ccy"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "StrategyPositionSizeLimit",
         "type": "object"
       },
       "StrategyReferenceInput": {
@@ -14709,6 +14861,13 @@
           "account": {
             "$ref": "#/components/schemas/TradeAccountSummary"
           },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/TradeDeskAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
           "recentAuditEvents": {
             "items": {
               "$ref": "#/components/schemas/TradeDeskAuditEvent"
@@ -14847,6 +15006,18 @@
             ],
             "title": "Lastsyncedat"
           },
+          "lastTradeAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasttradeat"
+          },
           "name": {
             "maxLength": 128,
             "minLength": 1,
@@ -14858,6 +15029,16 @@
             "minimum": 0.0,
             "title": "Openordercount",
             "type": "integer"
+          },
+          "pnl": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradePnlSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "policyVersion": {
             "anyOf": [
@@ -15316,6 +15497,128 @@
           }
         },
         "title": "TradeDataFreshness",
+        "type": "object"
+      },
+      "TradeDeskAlert": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedat"
+          },
+          "acknowledgedBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedby"
+          },
+          "alertId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Alertid",
+            "type": "string"
+          },
+          "asOfDate": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asofdate"
+          },
+          "blocking": {
+            "default": false,
+            "title": "Blocking",
+            "type": "boolean"
+          },
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "severity": {
+            "default": "warning",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "accountId",
+          "code",
+          "title",
+          "observedAt"
+        ],
+        "title": "TradeDeskAlert",
         "type": "object"
       },
       "TradeDeskAuditEvent": {
@@ -16309,6 +16612,16 @@
             ],
             "title": "Stopprice"
           },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "symbol": {
             "maxLength": 32,
             "minLength": 1,
@@ -16530,6 +16843,16 @@
             ],
             "title": "Stopprice"
           },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "symbol": {
             "maxLength": 32,
             "minLength": 1,
@@ -16743,6 +17066,80 @@
           "expiresAt"
         ],
         "title": "TradeOrderPreviewResponse",
+        "type": "object"
+      },
+      "TradePnlSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "dayPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daypnl"
+          },
+          "grossExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grossexposure"
+          },
+          "netExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Netexposure"
+          },
+          "realizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realizedpnl"
+          },
+          "unrealizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealizedpnl"
+          }
+        },
+        "title": "TradePnlSnapshot",
         "type": "object"
       },
       "TradePosition": {
