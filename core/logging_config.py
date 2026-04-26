@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from core.log_redaction import install_log_redaction, redact_exception_text, redact_value
+from core.log_redaction import install_log_redaction, redact_exception_text, redact_text, redact_value
 
 # Standard Python Log Levels
 # CRITICAL = 50
@@ -44,7 +44,7 @@ class JsonFormatter(logging.Formatter):
 
 class RedactingFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        return redact_sensitive_text(super().format(record))
+        return redact_text(super().format(record))
 
 def configure_logging() -> logging.Logger:
     """
