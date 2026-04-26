@@ -1,4 +1,5 @@
 import pytest
+import httpx
 
 from alpha_vantage import AlphaVantageInvalidSymbolError, AlphaVantageThrottleError
 from api.service.alpha_vantage_gateway import AlphaVantageGateway, get_current_caller_context
@@ -55,6 +56,38 @@ async def test_alpha_vantage_daily_time_series_maps_throttle_to_429(monkeypatch)
         resp = await client.get("/api/providers/alpha-vantage/time-series/daily?symbol=AAPL")
 
     assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_alpha_vantage_timeout_maps_to_504(monkeypatch):
+    def fake_earnings(self, *, symbol):
+        raise httpx.TimeoutException("connect timed out apikey=super-secret")
+
+    monkeypatch.setattr(AlphaVantageGateway, "get_earnings", fake_earnings)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        resp = await client.get("/api/providers/alpha-vantage/earnings?symbol=AAPL")
+
+    assert resp.status_code == 504
+    assert "super-secret" not in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_alpha_vantage_upstream_http_error_maps_to_502(monkeypatch):
+    def fake_earnings(self, *, symbol):
+        request = httpx.Request("GET", "https://www.alphavantage.co/query?apikey=super-secret")
+        response = httpx.Response(503, request=request, text="upstream unavailable")
+        raise httpx.HTTPStatusError("upstream failed apikey=super-secret", request=request, response=response)
+
+    monkeypatch.setattr(AlphaVantageGateway, "get_earnings", fake_earnings)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        resp = await client.get("/api/providers/alpha-vantage/earnings?symbol=AAPL")
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Alpha Vantage upstream error (status=503)."
 
 
 @pytest.mark.asyncio

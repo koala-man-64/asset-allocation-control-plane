@@ -114,6 +114,8 @@ _PORTFOLIO_REVISION_COLUMNS = [
     "version",
     "description",
     "benchmarkSymbol",
+    "allocationMode",
+    "allocatableCapital",
     "allocations",
     "notes",
     "publishedAt",
@@ -217,6 +219,7 @@ _PROPOSAL_COLUMNS = [
     "trades",
 ]
 _MATERIALIZATION_CLAIM_TTL = timedelta(minutes=30)
+_ALLOCATION_MODE_NOTIONAL = "notional_base_ccy"
 
 
 def _utc_now() -> datetime:
@@ -277,6 +280,56 @@ def _slugify(value: str) -> str:
 def _synthetic_symbol(strategy_name: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9]+", "_", str(strategy_name or "").upper()).strip("_")
     return (cleaned or "SLEEVE")[:32]
+
+
+def _derive_allocation_weights(
+    allocations: Any,
+    *,
+    allocation_mode: str,
+    allocatable_capital: Any,
+) -> Any:
+    if allocation_mode != _ALLOCATION_MODE_NOTIONAL:
+        return allocations
+
+    if allocatable_capital is None or float(allocatable_capital) <= 0:
+        raise ValueError("Notional portfolio allocations require positive allocatableCapital.")
+    if not isinstance(allocations, list):
+        return allocations
+
+    capital = float(allocatable_capital)
+    derived_allocations: list[Any] = []
+    for allocation in allocations:
+        if not isinstance(allocation, dict):
+            derived_allocations.append(allocation)
+            continue
+        updated = dict(allocation)
+        updated["allocationMode"] = allocation_mode
+        target_notional = allocation.get("targetNotionalBaseCcy")
+        if target_notional is None:
+            derived_allocations.append(updated)
+            continue
+        updated["derivedWeight"] = float(target_notional) / capital
+        derived_allocations.append(updated)
+    return derived_allocations
+
+
+def _portfolio_allocation_payloads(portfolio: Any) -> list[dict[str, Any]]:
+    allocations = [allocation.model_dump(mode="json") for allocation in portfolio.allocations]
+    return _derive_allocation_weights(
+        allocations,
+        allocation_mode=str(portfolio.allocationMode),
+        allocatable_capital=portfolio.allocatableCapital,
+    )
+
+
+def _target_value_for_allocation(allocation: Any, *, allocation_mode: str, nav: float) -> float:
+    if allocation_mode == _ALLOCATION_MODE_NOTIONAL:
+        if allocation.targetNotionalBaseCcy is None:
+            raise ValueError("Notional portfolio allocations require targetNotionalBaseCcy.")
+        return float(allocation.targetNotionalBaseCcy)
+    if allocation.targetWeight is None:
+        raise ValueError("Percent portfolio allocations require targetWeight.")
+    return nav * float(allocation.targetWeight)
 
 
 class PortfolioRepository:
@@ -630,6 +683,8 @@ class PortfolioRepository:
                 version,
                 description,
                 benchmark_symbol,
+                allocation_mode,
+                allocatable_capital,
                 allocations_json,
                 notes,
                 published_at,
@@ -652,6 +707,11 @@ class PortfolioRepository:
             return None
         payload = _row_to_model_payload(_PORTFOLIO_REVISION_COLUMNS, row)
         payload["allocations"] = _parse_json(payload.get("allocations"), [])
+        payload["allocations"] = _derive_allocation_weights(
+            payload["allocations"],
+            allocation_mode=str(payload.get("allocationMode") or "percent"),
+            allocatable_capital=payload.get("allocatableCapital"),
+        )
         return PortfolioRevision.model_validate(payload)
 
     def list_portfolio_revisions(self, name: str) -> list[PortfolioRevision]:
@@ -665,6 +725,8 @@ class PortfolioRepository:
                         version,
                         description,
                         benchmark_symbol,
+                        allocation_mode,
+                        allocatable_capital,
                         allocations_json,
                         notes,
                         published_at,
@@ -681,6 +743,11 @@ class PortfolioRepository:
         for row in rows:
             payload = _row_to_model_payload(_PORTFOLIO_REVISION_COLUMNS, row)
             payload["allocations"] = _parse_json(payload.get("allocations"), [])
+            payload["allocations"] = _derive_allocation_weights(
+                payload["allocations"],
+                allocation_mode=str(payload.get("allocationMode") or "percent"),
+                allocatable_capital=payload.get("allocatableCapital"),
+            )
             revisions.append(PortfolioRevision.model_validate(payload))
         return revisions
 
@@ -744,20 +811,24 @@ class PortfolioRepository:
                         version,
                         description,
                         benchmark_symbol,
+                        allocation_mode,
+                        allocatable_capital,
                         allocations_json,
                         notes,
                         published_at,
                         created_at,
                         created_by
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
                     """,
                     (
                         payload.name,
                         next_version,
                         payload.description,
                         payload.benchmarkSymbol,
-                        _json_dumps([allocation.model_dump(mode="json") for allocation in payload.allocations]),
+                        payload.allocationMode,
+                        payload.allocatableCapital,
+                        _json_dumps(_portfolio_allocation_payloads(payload)),
                         payload.notes,
                         _normalize_text(created_by),
                     ),
@@ -1202,7 +1273,11 @@ class PortfolioRepository:
                 warnings.append("Preview is sleeve-level and synthetic because look-through positions are not materialized yet.")
             for allocation in portfolio_revision.allocations:
                 current_value = actual_by_sleeve.get(allocation.sleeveId, 0.0)
-                target_value = nav * float(allocation.targetWeight)
+                target_value = _target_value_for_allocation(
+                    allocation,
+                    allocation_mode=str(portfolio_revision.allocationMode),
+                    nav=nav,
+                )
                 delta = target_value - current_value
                 if abs(delta) < max(nav * 0.0025, 1.0):
                     continue

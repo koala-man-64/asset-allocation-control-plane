@@ -9,11 +9,14 @@ from zoneinfo import ZoneInfo
 from asset_allocation_runtime_common.foundation.postgres import connect
 
 from api.service.intraday_contracts_compat import (
+    INTRADAY_WATCHLIST_SYMBOLS_MAX,
     IntradayMonitorEvent,
     IntradayMonitorRunSummary,
     IntradayRefreshBatchSummary,
     IntradaySymbolStatus,
     IntradayWatchlistDetail,
+    IntradayWatchlistSymbolAppendRequest,
+    IntradayWatchlistSymbolAppendResponse,
     IntradayWatchlistSummary,
     IntradayWatchlistUpsertRequest,
 )
@@ -21,6 +24,7 @@ from core.bronze_bucketing import bucket_letter
 
 _WATCHLISTS_TABLE = "core.intraday_watchlists"
 _WATCHLIST_SYMBOLS_TABLE = "core.intraday_watchlist_symbols"
+_WATCHLIST_EVENTS_TABLE = "core.intraday_watchlist_events"
 _MONITOR_RUNS_TABLE = "core.intraday_monitor_runs"
 _MONITOR_EVENTS_TABLE = "core.intraday_monitor_events"
 _SYMBOL_STATUS_TABLE = "core.intraday_symbol_status"
@@ -445,6 +449,192 @@ def delete_intraday_watchlist(dsn: str, watchlist_id: str) -> None:
                 raise LookupError(f"Intraday watchlist '{watchlist_id}' not found.")
 
 
+def _insert_intraday_watchlist_run(
+    conn,
+    *,
+    watchlist_id: str,
+    trigger_kind: str,
+    force_refresh: bool,
+) -> str:
+    run_id = uuid.uuid4().hex
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            INSERT INTO {_MONITOR_RUNS_TABLE} (
+                run_id,
+                watchlist_id,
+                trigger_kind,
+                status,
+                force_refresh,
+                symbol_count,
+                due_at,
+                queued_at,
+                created_at,
+                updated_at
+            )
+            SELECT
+                %s,
+                %s,
+                %s,
+                'queued',
+                %s,
+                COUNT(ws.symbol)::integer,
+                now(),
+                now(),
+                now(),
+                now()
+            FROM {_WATCHLIST_SYMBOLS_TABLE} AS ws
+            WHERE ws.watchlist_id = %s
+            """,
+            (run_id, watchlist_id, trigger_kind, force_refresh, watchlist_id),
+        )
+    return run_id
+
+
+def append_intraday_watchlist_symbols(
+    dsn: str,
+    *,
+    watchlist_id: str,
+    payload: IntradayWatchlistSymbolAppendRequest,
+    actor: str | None = None,
+    request_id: str | None = None,
+) -> IntradayWatchlistSymbolAppendResponse:
+    symbols = _normalize_symbols(payload.symbols)
+    if not symbols:
+        raise ValueError("At least one symbol is required.")
+
+    added_symbols: list[str] = []
+    already_present_symbols: list[str] = []
+    run_id: str | None = None
+    run_skipped_reason: str | None = None
+
+    with connect(dsn) as conn:
+        _assert_symbols_exist(conn, symbols)
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT watchlist_id, enabled
+                FROM {_WATCHLISTS_TABLE}
+                WHERE watchlist_id = %s
+                FOR UPDATE
+                """,
+                (watchlist_id,),
+            )
+            watchlist_row = cur.fetchone()
+            if watchlist_row is None:
+                raise LookupError(f"Intraday watchlist '{watchlist_id}' not found.")
+
+            enabled = bool(watchlist_row[1])
+            cur.execute(
+                f"""
+                SELECT symbol
+                FROM {_WATCHLIST_SYMBOLS_TABLE}
+                WHERE watchlist_id = %s
+                ORDER BY symbol
+                """,
+                (watchlist_id,),
+            )
+            existing_symbols = [str(row[0]).upper() for row in cur.fetchall()]
+
+        existing_symbol_set = set(existing_symbols)
+        for symbol in symbols:
+            if symbol in existing_symbol_set:
+                already_present_symbols.append(symbol)
+            else:
+                added_symbols.append(symbol)
+
+        final_symbol_count = len(existing_symbol_set) + len(added_symbols)
+        if final_symbol_count > INTRADAY_WATCHLIST_SYMBOLS_MAX:
+            raise ValueError(
+                "Intraday watchlists are limited to "
+                f"{INTRADAY_WATCHLIST_SYMBOLS_MAX} symbols; append would produce {final_symbol_count}."
+            )
+
+        with conn.cursor() as cur:
+            if added_symbols:
+                cur.executemany(
+                    f"""
+                    INSERT INTO {_WATCHLIST_SYMBOLS_TABLE} (watchlist_id, symbol, created_at)
+                    VALUES (%s, %s, now())
+                    ON CONFLICT (watchlist_id, symbol) DO NOTHING
+                    """,
+                    [(watchlist_id, symbol) for symbol in added_symbols],
+                )
+                cur.execute(
+                    f"""
+                    UPDATE {_WATCHLISTS_TABLE}
+                    SET updated_at = now()
+                    WHERE watchlist_id = %s
+                    """,
+                    (watchlist_id,),
+                )
+
+        if not added_symbols:
+            run_skipped_reason = "no_new_symbols"
+        elif not payload.queueRun:
+            run_skipped_reason = "queue_run_disabled"
+        elif not enabled:
+            run_skipped_reason = "watchlist_disabled"
+        else:
+            run_id = _insert_intraday_watchlist_run(
+                conn,
+                watchlist_id=watchlist_id,
+                trigger_kind="manual",
+                force_refresh=False,
+            )
+
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                INSERT INTO {_WATCHLIST_EVENTS_TABLE} (
+                    event_id,
+                    watchlist_id,
+                    event_type,
+                    actor,
+                    request_id,
+                    reason,
+                    symbols_added,
+                    symbols_already_present,
+                    symbol_count_before,
+                    symbol_count_after,
+                    event_payload,
+                    created_at
+                )
+                VALUES (%s, %s, 'symbols_appended', %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s::jsonb, now())
+                """,
+                (
+                    uuid.uuid4().hex,
+                    watchlist_id,
+                    actor,
+                    request_id,
+                    payload.reason,
+                    _json_dumps(added_symbols),
+                    _json_dumps(already_present_symbols),
+                    len(existing_symbol_set),
+                    final_symbol_count,
+                    _json_dumps(
+                        {
+                            "queueRun": payload.queueRun,
+                            "queuedRunId": run_id,
+                            "runSkippedReason": run_skipped_reason,
+                        }
+                    ),
+                ),
+            )
+
+    watchlist = get_intraday_watchlist(dsn, watchlist_id)
+    if watchlist is None:
+        raise LookupError(f"Intraday watchlist '{watchlist_id}' not found after append.")
+    queued_run = get_intraday_monitor_run(dsn, run_id) if run_id else None
+    return IntradayWatchlistSymbolAppendResponse(
+        watchlist=watchlist,
+        addedSymbols=added_symbols,
+        alreadyPresentSymbols=already_present_symbols,
+        queuedRun=queued_run,
+        runSkippedReason=run_skipped_reason,
+    )
+
+
 def enqueue_intraday_watchlist_run(
     dsn: str,
     *,
@@ -454,38 +644,12 @@ def enqueue_intraday_watchlist_run(
 ) -> IntradayMonitorRunSummary:
     with connect(dsn) as conn:
         _require_watchlist_exists(conn, watchlist_id)
-        run_id = uuid.uuid4().hex
-        with conn.cursor() as cur:
-            cur.execute(
-                f"""
-                INSERT INTO {_MONITOR_RUNS_TABLE} (
-                    run_id,
-                    watchlist_id,
-                    trigger_kind,
-                    status,
-                    force_refresh,
-                    symbol_count,
-                    due_at,
-                    queued_at,
-                    created_at,
-                    updated_at
-                )
-                SELECT
-                    %s,
-                    %s,
-                    %s,
-                    'queued',
-                    %s,
-                    COUNT(ws.symbol)::integer,
-                    now(),
-                    now(),
-                    now(),
-                    now()
-                FROM {_WATCHLIST_SYMBOLS_TABLE} AS ws
-                WHERE ws.watchlist_id = %s
-                """,
-                (run_id, watchlist_id, trigger_kind, force_refresh, watchlist_id),
-            )
+        run_id = _insert_intraday_watchlist_run(
+            conn,
+            watchlist_id=watchlist_id,
+            trigger_kind=trigger_kind,
+            force_refresh=force_refresh,
+        )
     run = get_intraday_monitor_run(dsn, run_id)
     if run is None:
         raise LookupError(f"Intraday monitor run '{run_id}' not found after enqueue.")

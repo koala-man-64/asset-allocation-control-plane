@@ -4,6 +4,7 @@ import logging
 from datetime import date
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
@@ -15,6 +16,7 @@ from api.service.alpha_vantage_gateway import (
     alpha_vantage_caller_context,
 )
 from api.service.dependencies import validate_auth
+from core.log_redaction import redact_text
 
 logger = logging.getLogger("asset-allocation.api.alpha_vantage")
 
@@ -43,14 +45,37 @@ def _get_gateway(request: Request) -> AlphaVantageGateway:
 
 def _handle_alpha_vantage_error(exc: Exception) -> None:
     if isinstance(exc, AlphaVantageNotConfiguredError):
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail=redact_text(str(exc))) from exc
     if isinstance(exc, AlphaVantageThrottleError):
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise HTTPException(status_code=429, detail=redact_text(str(exc))) from exc
     if isinstance(exc, AlphaVantageInvalidSymbolError):
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     if isinstance(exc, AlphaVantageError):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    raise HTTPException(status_code=500, detail=f"Unexpected error: {type(exc).__name__}: {exc}") from exc
+        raise HTTPException(status_code=502, detail=redact_text(str(exc))) from exc
+    if isinstance(exc, httpx.TimeoutException):
+        detail = redact_text(str(exc) or "Alpha Vantage request timed out.")
+        raise HTTPException(status_code=504, detail=detail) from exc
+    if isinstance(exc, httpx.HTTPStatusError):
+        provider_status = int(exc.response.status_code)
+        if provider_status == 429:
+            raise HTTPException(status_code=429, detail="Alpha Vantage rate limited the request.") from exc
+        if provider_status in {408, 504}:
+            raise HTTPException(status_code=504, detail=f"Alpha Vantage timed out (status={provider_status}).") from exc
+        if provider_status >= 500:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Alpha Vantage upstream error (status={provider_status}).",
+            ) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"Alpha Vantage provider rejected the request (status={provider_status}).",
+        ) from exc
+    if isinstance(exc, httpx.RequestError):
+        raise HTTPException(status_code=502, detail=redact_text(str(exc) or "Alpha Vantage request failed.")) from exc
+    raise HTTPException(
+        status_code=500,
+        detail=redact_text(f"Unexpected error: {type(exc).__name__}: {exc}"),
+    ) from exc
 
 
 def _caller_context(request: Request):

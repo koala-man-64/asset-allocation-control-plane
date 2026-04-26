@@ -61,6 +61,15 @@ def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     script = repo_root / "scripts" / "ops" / "data" / "apply_postgres_migrations.ps1"
     text = script.read_text(encoding="utf-8")
 
+    assert '[Alias("MigrationsDir")]' in text, (
+        "apply_postgres_migrations must keep the MigrationsDir alias used by provisioning scripts"
+    )
+    assert '$Dsn = Get-EnvValue -Path (Join-Path $RepoRoot ".env") -Key "POSTGRES_DSN"' in text, (
+        "apply_postgres_migrations must load POSTGRES_DSN from .env when the process env is empty"
+    )
+    assert "[System.IO.Path]::IsPathRooted($Path)" in text, (
+        "apply_postgres_migrations must accept absolute migration directories from callers"
+    )
     assert '$dockerArgs += "-f"' in text, (
         "apply_postgres_migrations must preserve -f when rewriting Docker psql args"
     )
@@ -70,6 +79,10 @@ def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     assert 'Get-Content -Path $dockerStdinPath -Raw -Encoding UTF8 | & docker @cmd' in text, (
         "apply_postgres_migrations must stream migration SQL into dockerized psql"
     )
+    assert text.count("if ($LASTEXITCODE -ne 0)") >= 2, (
+        "apply_postgres_migrations must fail fast on native and Dockerized psql failures"
+    )
+    assert 'throw "psql failed for migration $Path with exit code $LASTEXITCODE."' in text
 
 
 def test_gold_sync_migration_rebuilds_incompatible_gold_tables_without_backup_renames() -> None:
@@ -473,7 +486,7 @@ def test_portfolio_workspace_migration_creates_revisioned_domain_and_materializa
     assert "uq_core_portfolio_assignments_active_account" in text
 
 
-def test_broker_account_configuration_migration_creates_policy_and_audit_tables() -> None:
+def test_portfolio_notional_allocations_migration_adds_revision_mode_columns() -> None:
     repo_root = _repo_root()
     migration = (
         repo_root
@@ -481,14 +494,15 @@ def test_broker_account_configuration_migration_creates_policy_and_audit_tables(
         / "sql"
         / "postgres"
         / "migrations"
-        / "0043_broker_account_configuration.sql"
+        / "0043_portfolio_notional_allocations.sql"
     )
     text = migration.read_text(encoding="utf-8")
 
-    assert "CREATE TABLE IF NOT EXISTS core.broker_account_configurations" in text
-    assert "CREATE TABLE IF NOT EXISTS core.broker_account_configuration_audit" in text
-    assert "requested_policy_json JSONB" in text
-    assert "effective_policy_json JSONB" in text
-    assert "allocation_summary_json JSONB" in text
-    assert "CHECK (category IN ('trading_policy', 'allocation'))" in text
-    assert "CHECK (outcome IN ('saved', 'denied', 'warning'))" in text
+    assert "ALTER TABLE IF EXISTS core.portfolio_revisions" in text
+    assert "ADD COLUMN IF NOT EXISTS allocation_mode TEXT NOT NULL DEFAULT 'percent'" in text
+    assert "ADD COLUMN IF NOT EXISTS allocatable_capital DOUBLE PRECISION" in text
+    assert "allocation_mode IN ('percent', 'notional_base_ccy')" in text
+    assert "allocatable_capital IS NULL" in text
+    assert "allocatable_capital > 0" in text
+    assert "allocation_mode = 'percent'" in text
+    assert "allocatable_capital IS NOT NULL" in text

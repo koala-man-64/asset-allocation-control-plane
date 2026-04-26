@@ -10,6 +10,7 @@ from api.service.intraday_contracts_compat import (
     IntradayRefreshBatchSummary,
     IntradaySymbolStatus,
     IntradayWatchlistDetail,
+    IntradayWatchlistSymbolAppendResponse,
     IntradayWatchlistSummary,
 )
 from tests.api._client import get_test_client
@@ -50,6 +51,29 @@ async def test_intraday_public_routes_return_operator_payloads(monkeypatch: pyte
         eligibleRefreshCount=0,
         refreshBatchCount=0,
     )
+    append_run = IntradayMonitorRunSummary(
+        runId="run-append",
+        watchlistId="watch-1",
+        watchlistName="Tech Momentum",
+        triggerKind="manual",
+        status="queued",
+        forceRefresh=False,
+        symbolCount=3,
+        observedSymbolCount=0,
+        eligibleRefreshCount=0,
+        refreshBatchCount=0,
+    )
+    append_watchlist_payload = watchlist_summary.model_dump(mode="json")
+    append_watchlist_payload["symbolCount"] = 3
+    append_response = IntradayWatchlistSymbolAppendResponse(
+        watchlist=IntradayWatchlistDetail(
+            **append_watchlist_payload,
+            symbols=["AAPL", "MSFT", "NVDA"],
+        ),
+        addedSymbols=["NVDA"],
+        alreadyPresentSymbols=["AAPL"],
+        queuedRun=append_run,
+    )
     event = IntradayMonitorEvent(
         eventId="event-1",
         runId="run-1",
@@ -81,11 +105,27 @@ async def test_intraday_public_routes_return_operator_payloads(monkeypatch: pyte
 
     emitted: list[tuple[str, str]] = []
     deleted_watchlists: list[str] = []
+    append_calls: list[dict[str, object]] = []
 
     monkeypatch.setattr(intraday_routes, "list_intraday_watchlists", lambda dsn, limit=100, offset=0: [watchlist_summary])
     monkeypatch.setattr(intraday_routes, "upsert_intraday_watchlist", lambda dsn, watchlist_id=None, payload=None: watchlist_detail)
     monkeypatch.setattr(intraday_routes, "get_intraday_watchlist", lambda dsn, watchlist_id: watchlist_detail)
     monkeypatch.setattr(intraday_routes, "enqueue_intraday_watchlist_run", lambda dsn, watchlist_id: run)
+    monkeypatch.setattr(
+        intraday_routes,
+        "append_intraday_watchlist_symbols",
+        lambda dsn, watchlist_id, payload, actor=None, request_id=None: append_calls.append(
+            {
+                "watchlist_id": watchlist_id,
+                "symbols": payload.symbols,
+                "queueRun": payload.queueRun,
+                "reason": payload.reason,
+                "actor": actor,
+                "request_id": request_id,
+            }
+        )
+        or append_response,
+    )
     monkeypatch.setattr(intraday_routes, "list_intraday_symbol_status", lambda dsn, watchlist_id=None, q=None, limit=100, offset=0: (1, [status_item]))
     monkeypatch.setattr(
         intraday_routes,
@@ -153,6 +193,11 @@ async def test_intraday_public_routes_return_operator_payloads(monkeypatch: pyte
                 "marketSession": "us_equities_regular",
             },
         )
+        append_symbols_response = await client.post(
+            "/api/intraday/watchlists/watch-1/symbols",
+            headers={"x-request-id": "req-append-1"},
+            json={"symbols": ["nvda", " aapl "], "queueRun": True, "reason": " desk add "},
+        )
         run_response = await client.post("/api/intraday/watchlists/watch-1/run")
         status_response = await client.get("/api/intraday/status")
         runs_response = await client.get("/api/intraday/runs")
@@ -166,6 +211,9 @@ async def test_intraday_public_routes_return_operator_payloads(monkeypatch: pyte
     assert create_response.json()["symbols"] == ["AAPL", "MSFT"]
     assert detail_response.status_code == 200
     assert update_response.status_code == 200
+    assert append_symbols_response.status_code == 200
+    assert append_symbols_response.json()["addedSymbols"] == ["NVDA"]
+    assert append_symbols_response.json()["queuedRun"]["forceRefresh"] is False
     assert run_response.status_code == 200
     assert run_response.json()["runId"] == "run-1"
     assert status_response.status_code == 200
@@ -176,9 +224,20 @@ async def test_intraday_public_routes_return_operator_payloads(monkeypatch: pyte
     assert batches_response.status_code == 200
     assert delete_response.status_code == 200
     assert deleted_watchlists == ["watch-1"]
+    assert append_calls == [
+        {
+            "watchlist_id": "watch-1",
+            "symbols": ["NVDA", "AAPL"],
+            "queueRun": True,
+            "reason": "desk add",
+            "actor": None,
+            "request_id": "req-append-1",
+        }
+    ]
     assert emitted == [
         (intraday_routes.REALTIME_TOPIC_INTRADAY_MONITOR, "watchlist.created"),
         (intraday_routes.REALTIME_TOPIC_INTRADAY_MONITOR, "watchlist.updated"),
+        (intraday_routes.REALTIME_TOPIC_INTRADAY_MONITOR, "watchlist.symbols_added"),
         (intraday_routes.REALTIME_TOPIC_INTRADAY_MONITOR, "run.enqueued"),
         (intraday_routes.REALTIME_TOPIC_INTRADAY_MONITOR, "watchlist.deleted"),
     ]

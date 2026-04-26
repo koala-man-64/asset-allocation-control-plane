@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from api.service.dependencies import validate_auth
+from core.log_redaction import redact_text
 from api.service.massive_gateway import (
     FinanceReport,
     MassiveAuthError,
@@ -59,16 +60,19 @@ def _get_gateway(request: Request) -> MassiveGateway:
 
 def _handle_massive_error(exc: Exception) -> None:
     if isinstance(exc, MassiveNotConfiguredError):
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail=redact_text(str(exc))) from exc
     if isinstance(exc, MassiveRateLimitError):
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise HTTPException(status_code=429, detail=redact_text(str(exc))) from exc
     if isinstance(exc, MassiveNotFoundError):
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if isinstance(exc, MassiveError) and getattr(exc, "status_code", None) == 400:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
+    if isinstance(exc, MassiveError) and getattr(exc, "status_code", None) in {400, 401, 403}:
+        raise HTTPException(status_code=int(exc.status_code), detail=redact_text(str(exc))) from exc
     if isinstance(exc, (MassiveAuthError, MassiveServerError, MassiveError)):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    raise HTTPException(status_code=500, detail=f"Unexpected error: {type(exc).__name__}: {exc}") from exc
+        raise HTTPException(status_code=502, detail=redact_text(str(exc))) from exc
+    raise HTTPException(
+        status_code=500,
+        detail=redact_text(f"Unexpected error: {type(exc).__name__}: {exc}"),
+    ) from exc
 
 
 def _caller_context(request: Request):

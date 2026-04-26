@@ -6400,6 +6400,95 @@
         "title": "IntradayWatchlistSummary",
         "type": "object"
       },
+      "IntradayWatchlistSymbolAppendRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "queueRun": {
+            "default": true,
+            "title": "Queuerun",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbols"
+        ],
+        "title": "IntradayWatchlistSymbolAppendRequest",
+        "type": "object"
+      },
+      "IntradayWatchlistSymbolAppendResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "addedSymbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Addedsymbols",
+            "type": "array"
+          },
+          "alreadyPresentSymbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alreadypresentsymbols",
+            "type": "array"
+          },
+          "queuedRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntradayMonitorRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runSkippedReason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "watchlist_disabled",
+                  "no_new_symbols",
+                  "queue_run_disabled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runskippedreason"
+          },
+          "watchlist": {
+            "$ref": "#/components/schemas/IntradayWatchlistDetail"
+          }
+        },
+        "required": [
+          "watchlist"
+        ],
+        "title": "IntradayWatchlistSymbolAppendResponse",
+        "type": "object"
+      },
       "IntradayWatchlistUpsertRequest": {
         "additionalProperties": false,
         "properties": {
@@ -14460,6 +14549,30 @@
               }
             ],
             "title": "Clientrequestid"
+          },
+          "confirmationTokenId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtokenid"
+          },
+          "denialReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denialreason"
           },
           "confirmationTokenId": {
             "anyOf": [
@@ -23061,6 +23174,58 @@
           }
         },
         "summary": "Enqueue Intraday Watchlist Run Endpoint",
+        "tags": [
+          "Intraday"
+        ]
+      }
+    },
+    "/api/intraday/watchlists/{watchlist_id}/symbols": {
+      "post": {
+        "operationId": "append_intraday_watchlist_symbols_endpoint_api_intraday_watchlists__watchlist_id__symbols_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntradayWatchlistSymbolAppendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntradayWatchlistSymbolAppendResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Append Intraday Watchlist Symbols Endpoint",
         "tags": [
           "Intraday"
         ]
