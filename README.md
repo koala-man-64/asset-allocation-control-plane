@@ -8,8 +8,8 @@ Runtime-owned control-plane repository for:
 Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
-python -m pip install asset-allocation-contracts==3.4.0
-python -m pip install asset-allocation-runtime-common==3.4.2
+python -m pip install asset-allocation-contracts==3.5.0
+python -m pip install asset-allocation-runtime-common==3.4.3
 python -m pytest tests/api tests/monitoring -q
 ```
 

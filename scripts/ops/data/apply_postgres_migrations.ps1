@@ -48,6 +48,10 @@ function Resolve-MigrationRoot {
 }
 
 if (-not $Dsn) {
+    $Dsn = Get-EnvValue -Path (Join-Path $RepoRoot ".env") -Key "POSTGRES_DSN"
+}
+
+if (-not $Dsn) {
     $Dsn = Get-EnvValue -Path (Join-Path $RepoRoot ".env.web") -Key "POSTGRES_DSN"
 }
 

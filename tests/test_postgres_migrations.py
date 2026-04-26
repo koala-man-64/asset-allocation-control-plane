@@ -484,3 +484,25 @@ def test_portfolio_workspace_migration_creates_revisioned_domain_and_materializa
     assert "FOREIGN KEY (account_id, account_version)" in text
     assert "status IN ('dirty', 'claimed', 'failed', 'idle')" in text
     assert "uq_core_portfolio_assignments_active_account" in text
+
+
+def test_portfolio_notional_allocations_migration_adds_revision_mode_columns() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0043_portfolio_notional_allocations.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "ALTER TABLE IF EXISTS core.portfolio_revisions" in text
+    assert "ADD COLUMN IF NOT EXISTS allocation_mode TEXT NOT NULL DEFAULT 'percent'" in text
+    assert "ADD COLUMN IF NOT EXISTS allocatable_capital DOUBLE PRECISION" in text
+    assert "allocation_mode IN ('percent', 'notional_base_ccy')" in text
+    assert "allocatable_capital IS NULL" in text
+    assert "allocatable_capital > 0" in text
+    assert "allocation_mode = 'percent'" in text
+    assert "allocatable_capital IS NOT NULL" in text

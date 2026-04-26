@@ -1361,6 +1361,86 @@
         "title": "BacktestSummary",
         "type": "object"
       },
+      "BrokerPositionSizeLimit": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "pct_of_allocatable_capital",
+            "enum": [
+              "pct_of_allocatable_capital",
+              "notional_base_ccy"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "BrokerPositionSizeLimit",
+        "type": "object"
+      },
+      "BrokerTradingPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowedAssetClasses": {
+            "items": {
+              "enum": [
+                "equity",
+                "option"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedassetclasses",
+            "type": "array"
+          },
+          "allowedSides": {
+            "items": {
+              "enum": [
+                "long",
+                "short"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedsides",
+            "type": "array"
+          },
+          "maxOpenPositions": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxopenpositions"
+          },
+          "maxSinglePositionExposure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerPositionSizeLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requireOrderConfirmation": {
+            "default": false,
+            "title": "Requireorderconfirmation",
+            "type": "boolean"
+          }
+        },
+        "title": "BrokerTradingPolicy",
+        "type": "object"
+      },
       "ClosedPositionListResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7990,6 +8070,27 @@
       "PortfolioRevision": {
         "additionalProperties": false,
         "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
           "allocations": {
             "items": {
               "$ref": "#/components/schemas/PortfolioSleeveAllocation"
@@ -8081,6 +8182,28 @@
       "PortfolioSleeveAllocation": {
         "additionalProperties": false,
         "properties": {
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "derivedWeight": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derivedweight"
+          },
           "enabled": {
             "default": true,
             "title": "Enabled",
@@ -8137,17 +8260,35 @@
           "strategy": {
             "$ref": "#/components/schemas/StrategyVersionReference"
           },
+          "targetNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetnotionalbaseccy"
+          },
           "targetWeight": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Targetweight",
-            "type": "number"
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetweight"
           }
         },
         "required": [
           "sleeveId",
-          "strategy",
-          "targetWeight"
+          "strategy"
         ],
         "title": "PortfolioSleeveAllocation",
         "type": "object"
@@ -8260,6 +8401,27 @@
       "PortfolioUpsertRequest": {
         "additionalProperties": false,
         "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
           "allocations": {
             "items": {
               "$ref": "#/components/schemas/PortfolioSleeveAllocation"
@@ -13320,6 +13482,11 @@
             "title": "Cash",
             "type": "number"
           },
+          "confirmationRequired": {
+            "default": false,
+            "title": "Confirmationrequired",
+            "type": "boolean"
+          },
           "environment": {
             "enum": [
               "paper",
@@ -13366,11 +13533,33 @@
             "title": "Openordercount",
             "type": "integer"
           },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
+          },
           "positionCount": {
             "default": 0,
             "minimum": 0.0,
             "title": "Positioncount",
             "type": "integer"
+          },
+          "projectedTradingPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerTradingPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "provider": {
             "enum": [
@@ -13511,6 +13700,11 @@
           "supportsNotionalOrders": {
             "default": false,
             "title": "Supportsnotionalorders",
+            "type": "boolean"
+          },
+          "supportsOptions": {
+            "default": false,
+            "title": "Supportsoptions",
             "type": "boolean"
           },
           "supportsStopOrders": {
@@ -13664,6 +13858,30 @@
             ],
             "title": "Clientrequestid"
           },
+          "confirmationTokenId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtokenid"
+          },
+          "denialReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denialreason"
+          },
           "details": {
             "additionalProperties": true,
             "title": "Details",
@@ -13699,6 +13917,13 @@
             "title": "Eventtype",
             "type": "string"
           },
+          "grantedRoles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Grantedroles",
+            "type": "array"
+          },
           "idempotencyKey": {
             "anyOf": [
               {
@@ -13730,6 +13955,19 @@
             ],
             "title": "Orderid"
           },
+          "previewId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previewid"
+          },
           "provider": {
             "enum": [
               "alpaca",
@@ -13751,6 +13989,19 @@
               }
             ],
             "title": "Providerorderid"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
           },
           "sanitizedError": {
             "anyOf": [
@@ -14416,6 +14667,19 @@
             "title": "Clientrequestid",
             "type": "string"
           },
+          "confirmationToken": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtoken"
+          },
           "confirmedAt": {
             "format": "date-time",
             "title": "Confirmedat",
@@ -14467,6 +14731,19 @@
             ],
             "title": "Notional"
           },
+          "orderHash": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderhash"
+          },
           "orderType": {
             "enum": [
               "market",
@@ -14476,6 +14753,18 @@
             ],
             "title": "Ordertype",
             "type": "string"
+          },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
           },
           "previewId": {
             "maxLength": 128,
@@ -14575,6 +14864,11 @@
             ],
             "title": "Auditeventid"
           },
+          "confirmationRequired": {
+            "default": false,
+            "title": "Confirmationrequired",
+            "type": "boolean"
+          },
           "message": {
             "anyOf": [
               {
@@ -14588,6 +14882,18 @@
           },
           "order": {
             "$ref": "#/components/schemas/TradeOrder"
+          },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
           },
           "reconciliationRequired": {
             "default": false,
@@ -14807,6 +15113,24 @@
             ],
             "title": "Cashafter"
           },
+          "confirmationRequired": {
+            "default": false,
+            "title": "Confirmationrequired",
+            "type": "boolean"
+          },
+          "confirmationToken": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtoken"
+          },
           "environment": {
             "enum": [
               "paper",
@@ -14849,11 +15173,46 @@
           "order": {
             "$ref": "#/components/schemas/TradeOrder"
           },
+          "orderHash": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderhash"
+          },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
+          },
           "previewId": {
             "maxLength": 128,
             "minLength": 1,
             "title": "Previewid",
             "type": "string"
+          },
+          "projectedPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerTradingPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "provider": {
             "enum": [
