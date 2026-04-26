@@ -61,6 +61,15 @@ def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     script = repo_root / "scripts" / "ops" / "data" / "apply_postgres_migrations.ps1"
     text = script.read_text(encoding="utf-8")
 
+    assert '[Alias("MigrationsDir")]' in text, (
+        "apply_postgres_migrations must keep the MigrationsDir alias used by provisioning scripts"
+    )
+    assert '$Dsn = Get-EnvValue -Path (Join-Path $RepoRoot ".env") -Key "POSTGRES_DSN"' in text, (
+        "apply_postgres_migrations must load POSTGRES_DSN from .env when the process env is empty"
+    )
+    assert "[System.IO.Path]::IsPathRooted($Path)" in text, (
+        "apply_postgres_migrations must accept absolute migration directories from callers"
+    )
     assert '$dockerArgs += "-f"' in text, (
         "apply_postgres_migrations must preserve -f when rewriting Docker psql args"
     )
@@ -70,6 +79,10 @@ def test_apply_postgres_migrations_streams_file_inputs_to_docker_psql() -> None:
     assert 'Get-Content -Path $dockerStdinPath -Raw -Encoding UTF8 | & docker @cmd' in text, (
         "apply_postgres_migrations must stream migration SQL into dockerized psql"
     )
+    assert text.count("if ($LASTEXITCODE -ne 0)") >= 2, (
+        "apply_postgres_migrations must fail fast on native and Dockerized psql failures"
+    )
+    assert 'throw "psql failed for migration $Path with exit code $LASTEXITCODE."' in text
 
 
 def test_gold_sync_migration_rebuilds_incompatible_gold_tables_without_backup_renames() -> None:
@@ -396,6 +409,28 @@ def test_government_signals_migration_creates_serving_tables_and_mapping_state()
     assert "GRANT SELECT ON TABLE gold.government_signal_issuer_daily TO backtest_service;" in text
 
 
+def test_add_gold_market_liquidity_features_migration_rebuilds_view_and_adds_columns() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0043_add_gold_market_liquidity_features.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS dist_prev_week_high_atr DOUBLE PRECISION" in text
+    assert "ADD COLUMN IF NOT EXISTS position_in_20d_range DOUBLE PRECISION" in text
+    assert "ADD COLUMN IF NOT EXISTS swept_sr_resistance_1 INTEGER" in text
+    assert "ADD COLUMN IF NOT EXISTS bars_since_bearish_sweep INTEGER" in text
+    assert "ADD COLUMN IF NOT EXISTS amihud_20d DOUBLE PRECISION" in text
+    assert "ADD COLUMN IF NOT EXISTS liquidity_stress_score DOUBLE PRECISION" in text
+    assert "CREATE OR REPLACE VIEW gold.market_data_by_date AS" in text
+    assert "SELECT * FROM gold.market_data;" in text
+
+
 def test_provision_azure_postgres_uses_valid_do_block_sql_for_app_user_creation() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure_postgres.ps1"
@@ -473,7 +508,7 @@ def test_portfolio_workspace_migration_creates_revisioned_domain_and_materializa
     assert "uq_core_portfolio_assignments_active_account" in text
 
 
-def test_portfolio_schedule_fields_migration_adds_rebalance_schedule_columns() -> None:
+def test_portfolio_notional_allocations_migration_adds_revision_mode_columns() -> None:
     repo_root = _repo_root()
     migration = (
         repo_root
@@ -481,13 +516,39 @@ def test_portfolio_schedule_fields_migration_adds_rebalance_schedule_columns() -
         / "sql"
         / "postgres"
         / "migrations"
-        / "0043_portfolio_schedule_fields.sql"
+        / "0043_portfolio_notional_allocations.sql"
     )
     text = migration.read_text(encoding="utf-8")
 
-    assert "ALTER TABLE core.portfolio_accounts" in text
-    assert "ADD COLUMN IF NOT EXISTS rebalance_cadence TEXT NOT NULL DEFAULT 'weekly'" in text
-    assert "ADD COLUMN IF NOT EXISTS rebalance_anchor TEXT NOT NULL DEFAULT 'Strategy native cadence'" in text
-    assert "ALTER TABLE core.portfolio_account_revisions" in text
-    assert "chk_core_portfolio_accounts_rebalance_cadence" in text
-    assert "chk_core_portfolio_account_revisions_rebalance_cadence" in text
+    assert "ALTER TABLE IF EXISTS core.portfolio_revisions" in text
+    assert "ADD COLUMN IF NOT EXISTS allocation_mode TEXT NOT NULL DEFAULT 'percent'" in text
+    assert "ADD COLUMN IF NOT EXISTS allocatable_capital DOUBLE PRECISION" in text
+    assert "allocation_mode IN ('percent', 'notional_base_ccy')" in text
+    assert "allocatable_capital IS NULL" in text
+    assert "allocatable_capital > 0" in text
+    assert "allocation_mode = 'percent'" in text
+    assert "allocatable_capital IS NOT NULL" in text
+
+
+def test_notifications_migration_creates_request_delivery_token_and_audit_tables() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0044_notifications.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.notification_requests" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_recipients" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_delivery_attempts" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_action_tokens" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_audit_events" in text
+    assert "UNIQUE (source_repo, idempotency_key)" in text
+    assert "token_hash text NOT NULL UNIQUE" in text
+    assert "raw_token" not in text.lower()
+    assert "WHERE status = 'pending'" in text
+    assert "decision_status IN ('not_required', 'pending', 'approved', 'denied', 'expired')" in text

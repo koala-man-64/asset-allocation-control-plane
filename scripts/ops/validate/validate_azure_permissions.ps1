@@ -5,6 +5,7 @@ param(
   [string]$AcrName = "",
   [string]$StorageAccountName = "",
   [string]$AcrPullIdentityName = "",
+  [string]$ApiRuntimeIdentityName = "",
   [string]$AzureClientId = "",
   [string]$OperatorUserObjectId = "",
   [string]$EnvFile = ""
@@ -15,7 +16,7 @@ $ErrorActionPreference = "Stop"
 
 function Write-Usage {
   @"
-Usage: validate_azure_permissions.ps1 [-Scenario <Standard|Release>] [-SubscriptionId <sub>] [-ResourceGroup <rg>] [-AcrName <name>] [-StorageAccountName <name>] [-AcrPullIdentityName <name>] [-AzureClientId <clientId>] [-EnvFile <path>]
+Usage: validate_azure_permissions.ps1 [-Scenario <Standard|Release>] [-SubscriptionId <sub>] [-ResourceGroup <rg>] [-AcrName <name>] [-StorageAccountName <name>] [-AcrPullIdentityName <name>] [-ApiRuntimeIdentityName <name>] [-AzureClientId <clientId>] [-EnvFile <path>]
 
 Validates the Azure RBAC permissions required for the GitHub Actions deploy workflow and
 Container Apps managed identity operations, plus the Microsoft Graph read access needed by
@@ -302,6 +303,13 @@ if ([string]::IsNullOrWhiteSpace($AcrPullIdentityName)) {
   $AcrPullIdentityName = "asset-allocation-acr-pull-mi"
 }
 
+if ([string]::IsNullOrWhiteSpace($ApiRuntimeIdentityName)) {
+  $ApiRuntimeIdentityName = Get-EnvValueFirst -Keys @("API_RUNTIME_IDENTITY_NAME") -Lines $envLines
+}
+if ([string]::IsNullOrWhiteSpace($ApiRuntimeIdentityName)) {
+  $ApiRuntimeIdentityName = "asset-allocation-api-runtime-mi"
+}
+
 if ([string]::IsNullOrWhiteSpace($AzureClientId)) {
   $AzureClientId = Get-EnvValueFirst -Keys @("AZURE_CLIENT_ID", "CLIENT_ID") -Lines $envLines
 }
@@ -330,6 +338,7 @@ Write-Host "ResourceGroup: $ResourceGroup"
 Write-Host "ACR: $AcrName"
 Write-Host "Storage: $StorageAccountName"
 Write-Host "ACR Pull Identity: $AcrPullIdentityName"
+Write-Host "API Runtime Identity: $ApiRuntimeIdentityName"
 Write-Host "Azure Client ID: $AzureClientId"
 Write-Host "Operator User Object ID: $(if ($OperatorUserObjectId) { $OperatorUserObjectId } else { '<not set>' })"
 Write-Host "Scenario: $Scenario"
@@ -429,12 +438,30 @@ if (-not [string]::IsNullOrWhiteSpace($acrPullPrincipalId) -and -not [string]::I
   Add-Result -Name "ACR pull identity has AcrPull" -Ok $hasAcrPull -Details "principalId=$acrPullPrincipalId" -Remediation "Grant AcrPull on $AcrName to $AcrPullIdentityName."
 
   $hasContributor = Has-RoleAtScope -Assignments $assignments -RoleNames @("Contributor", "Owner") -Scope $rgId
-  Add-Result -Name "ACR pull identity has RG Contributor" -Ok $hasContributor -Details "principalId=$acrPullPrincipalId" -Remediation "Grant Contributor on $ResourceGroup to $AcrPullIdentityName for job start, API container-app wake, and system health actions." -Severity "Warning"
+  Add-Result -Name "ACR pull identity is not RG Contributor" -Ok (-not $hasContributor) -Details "principalId=$acrPullPrincipalId" -Remediation "Remove RG Contributor/Owner from $AcrPullIdentityName; runtime/job-control identities own control-plane operations." -Severity "Warning"
 
   if (-not [string]::IsNullOrWhiteSpace($storageId)) {
     $hasStorageData = Has-RoleAtScope -Assignments $assignments -RoleNames @("Storage Blob Data Contributor", "Storage Blob Data Owner") -Scope $storageId
-    Add-Result -Name "ACR pull identity has storage data access" -Ok $hasStorageData -Details "principalId=$acrPullPrincipalId" -Remediation "Grant Storage Blob Data Contributor on $StorageAccountName to $AcrPullIdentityName."
+    Add-Result -Name "ACR pull identity has no storage data access" -Ok (-not $hasStorageData) -Details "principalId=$acrPullPrincipalId" -Remediation "Remove Storage Blob Data Contributor/Owner from $AcrPullIdentityName; use $ApiRuntimeIdentityName for runtime storage access." -Severity "Warning"
   }
+}
+
+$apiRuntimeIdentityId = ""
+$apiRuntimePrincipalId = ""
+try {
+  $apiRuntimeIdentityId = (az identity show --name $ApiRuntimeIdentityName --resource-group $ResourceGroup --query id -o tsv --only-show-errors) -replace "`r", ""
+  if ([string]::IsNullOrWhiteSpace($apiRuntimeIdentityId)) { throw "Identity not found" }
+  $apiRuntimePrincipalId = (az identity show --ids $apiRuntimeIdentityId --query principalId -o tsv --only-show-errors) -replace "`r", ""
+  Add-Result -Name "API runtime identity exists" -Ok $true -Details "$ApiRuntimeIdentityName ($apiRuntimeIdentityId)" -Remediation ""
+}
+catch {
+  Add-Result -Name "API runtime identity exists" -Ok $false -Details "Managed identity '$ApiRuntimeIdentityName' not found in RG '$ResourceGroup'." -Remediation "Run scripts/ops/provision/provision_azure.ps1 to create the identity."
+}
+
+if (-not [string]::IsNullOrWhiteSpace($apiRuntimePrincipalId) -and -not [string]::IsNullOrWhiteSpace($storageId)) {
+  $runtimeAssignments = Get-RoleAssignments -PrincipalId $apiRuntimePrincipalId
+  $runtimeHasStorageData = Has-RoleAtScope -Assignments $runtimeAssignments -RoleNames @("Storage Blob Data Contributor", "Storage Blob Data Owner") -Scope $storageId
+  Add-Result -Name "API runtime identity has storage data access" -Ok $runtimeHasStorageData -Details "principalId=$apiRuntimePrincipalId" -Remediation "Grant Storage Blob Data Contributor on $StorageAccountName to $ApiRuntimeIdentityName."
 }
 
 $azureSpObjectId = ""
@@ -471,6 +498,11 @@ if (-not [string]::IsNullOrWhiteSpace($azureSpObjectId)) {
   if (-not [string]::IsNullOrWhiteSpace($identityId)) {
     $hasMiOperator = Has-RoleAtScope -Assignments $assignments -RoleNames @("Managed Identity Operator", "Owner") -Scope $identityId
     Add-Result -Name "Deploy SP can assign managed identity" -Ok $hasMiOperator -Details "clientId=$AzureClientId" -Remediation "Grant Managed Identity Operator on $AcrPullIdentityName to the deployment service principal."
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($apiRuntimeIdentityId)) {
+    $hasRuntimeMiOperator = Has-RoleAtScope -Assignments $assignments -RoleNames @("Managed Identity Operator", "Owner") -Scope $apiRuntimeIdentityId
+    Add-Result -Name "Deploy SP can assign API runtime identity" -Ok $hasRuntimeMiOperator -Details "clientId=$AzureClientId" -Remediation "Grant Managed Identity Operator on $ApiRuntimeIdentityName to the deployment service principal."
   }
 
   if (-not [string]::IsNullOrWhiteSpace($storageId)) {

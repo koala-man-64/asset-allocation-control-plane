@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 import yaml
 
 
@@ -156,10 +157,13 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert '--repository "${RELEASE_IMAGE_REPOSITORY}"' in text
     assert 'image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"' in text
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
-    assert "API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api_public.yaml' }}" in text
+    assert "API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api.yaml' }}" in text
+    assert "ALLOW_PUBLIC_API_INGRESS: ${{ vars.ALLOW_PUBLIC_API_INGRESS || 'false' }}" in text
     assert "ACA_NETWORK_SMOKE_JOB_NAME: ${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}" in text
     assert "python scripts/automation/render_control_plane_manifest.py \\" in text
     assert '--template "${API_DEPLOY_MANIFEST}" \\' in text
+    assert 'Refusing public API ingress manifest without ALLOW_PUBLIC_API_INGRESS=true.' in text
+    assert 'Unsupported API_DEPLOY_MANIFEST' in text
     assert "--output rendered-control-plane.yaml" in text
     assert 'expect_status 401 "https://${fqdn}/config.js"' in text
     assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
@@ -186,6 +190,9 @@ def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> Non
     assert "AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}" in text
     assert "CONTAINER_APPS_ENVIRONMENT_ID: ${{ steps.azure.outputs.environment_id }}" in text
     assert "ACR_PULL_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.identity_client_id }}" in text
+    assert "API_RUNTIME_IDENTITY_NAME: ${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}" in text
+    assert "API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}" in text
+    assert "API_RUNTIME_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.api_runtime_identity_client_id }}" in text
 
 
 def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> None:
@@ -215,6 +222,20 @@ def test_deploy_workflow_includes_alpaca_runtime_env_and_secrets() -> None:
 
 def test_deploy_workflow_includes_etrade_and_schwab_runtime_env_and_secrets() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
+    assert "KALSHI_ENABLED: ${{ vars.KALSHI_ENABLED || 'false' }}" in text
+    assert "KALSHI_TRADING_ENABLED: ${{ vars.KALSHI_TRADING_ENABLED || 'false' }}" in text
+    assert "KALSHI_TIMEOUT_SECONDS: ${{ vars.KALSHI_TIMEOUT_SECONDS || '15' }}" in text
+    assert "KALSHI_READ_RETRY_ATTEMPTS: ${{ vars.KALSHI_READ_RETRY_ATTEMPTS || '2' }}" in text
+    assert (
+        "KALSHI_READ_RETRY_BASE_DELAY_SECONDS: ${{ vars.KALSHI_READ_RETRY_BASE_DELAY_SECONDS || '1' }}" in text
+    )
+    assert "KALSHI_TRADING_REQUIRED_ROLES: ${{ vars.KALSHI_TRADING_REQUIRED_ROLES || 'AssetAllocation.Kalshi.Trade' }}" in text
+    assert "KALSHI_DEMO_BASE_URL: ${{ vars.KALSHI_DEMO_BASE_URL || 'https://demo-api.kalshi.co/trade-api/v2' }}" in text
+    assert "KALSHI_LIVE_BASE_URL: ${{ vars.KALSHI_LIVE_BASE_URL || 'https://api.elections.kalshi.com/trade-api/v2' }}" in text
+    assert "KALSHI_DEMO_API_KEY_ID: ${{ secrets.KALSHI_DEMO_API_KEY_ID }}" in text
+    assert "KALSHI_DEMO_PRIVATE_KEY_PEM: ${{ secrets.KALSHI_DEMO_PRIVATE_KEY_PEM }}" in text
+    assert "KALSHI_LIVE_API_KEY_ID: ${{ secrets.KALSHI_LIVE_API_KEY_ID }}" in text
+    assert "KALSHI_LIVE_PRIVATE_KEY_PEM: ${{ secrets.KALSHI_LIVE_PRIVATE_KEY_PEM }}" in text
     assert "ETRADE_ENABLED: ${{ vars.ETRADE_ENABLED || 'false' }}" in text
     assert "ETRADE_TRADING_ENABLED: ${{ vars.ETRADE_TRADING_ENABLED || 'false' }}" in text
     assert "ETRADE_TIMEOUT_SECONDS: ${{ vars.ETRADE_TIMEOUT_SECONDS || '15' }}" in text
@@ -248,7 +269,23 @@ def test_deploy_workflow_exports_manifest_runtime_env_surface() -> None:
 def test_release_workflow_smoke_tests_built_image_before_push() -> None:
     text = (repo_root() / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "DOCKER_BUILDKIT=1 docker build" in text
-    assert 'python -c "import api.service.app; import quiver_provider; import schwab"' in text
-    assert text.index('python -c "import api.service.app; import quiver_provider; import schwab"') < text.index(
+    assert 'python -c "import api.service.app; import kalshi; import quiver_provider; import schwab"' in text
+    assert text.index('python -c "import api.service.app; import kalshi; import quiver_provider; import schwab"') < text.index(
         'docker push "${image_ref}"'
     )
+
+
+def test_api_dockerfile_copies_all_packaged_roots() -> None:
+    root = repo_root()
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    package_patterns = pyproject["tool"]["setuptools"]["packages"]["find"]["include"]
+    package_roots = sorted({pattern.removesuffix("*") for pattern in package_patterns if pattern.endswith("*")})
+    dockerfile = (root / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
+
+    missing = [
+        package_root
+        for package_root in package_roots
+        if f"COPY asset-allocation-control-plane/{package_root}/ {package_root}/" not in dockerfile
+    ]
+
+    assert missing == []

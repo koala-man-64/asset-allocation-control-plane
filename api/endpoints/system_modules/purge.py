@@ -189,7 +189,7 @@ def build_router(
 
     @router.post("/purge-rules")
     def create_purge_rule_endpoint(payload: purge_rule_create_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         require_postgres_dsn = _runtime_attr(runtime, "_require_postgres_dsn")
         get_actor = _runtime_attr(runtime, "_get_actor")
         normalize_layer = _runtime_attr(runtime, "_normalize_layer")
@@ -200,7 +200,7 @@ def build_router(
         logger = _runtime_attr(runtime, "logger")
         serialize_purge_rule = _runtime_attr(runtime, "_serialize_purge_rule")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         dsn = require_postgres_dsn(request)
         actor = get_actor(request)
         normalized_layer = normalize_layer(payload.layer)
@@ -236,7 +236,7 @@ def build_router(
         payload: purge_rule_update_request_model,
         request: Request,
     ) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         require_postgres_dsn = _runtime_attr(runtime, "_require_postgres_dsn")
         get_actor = _runtime_attr(runtime, "_get_actor")
         normalize_layer = _runtime_attr(runtime, "_normalize_layer")
@@ -247,7 +247,7 @@ def build_router(
         logger = _runtime_attr(runtime, "logger")
         serialize_purge_rule = _runtime_attr(runtime, "_serialize_purge_rule")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         dsn = require_postgres_dsn(request)
         actor = get_actor(request)
         if all(
@@ -291,13 +291,13 @@ def build_router(
 
     @router.delete("/purge-rules/{rule_id}", status_code=200)
     def delete_purge_rule_endpoint(rule_id: int, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         require_postgres_dsn = _runtime_attr(runtime, "_require_postgres_dsn")
         delete_purge_rule_row = _runtime_attr(runtime, "delete_purge_rule_row")
         postgres_error = _runtime_attr(runtime, "PostgresError")
         logger = _runtime_attr(runtime, "logger")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         dsn = require_postgres_dsn(request)
         deleted = False
         try:
@@ -317,14 +317,14 @@ def build_router(
         request: Request,
         payload: purge_rule_preview_request_model,
     ) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         require_postgres_dsn = _runtime_attr(runtime, "_require_postgres_dsn")
         get_purge_rule = _runtime_attr(runtime, "get_purge_rule")
         collect_rule_symbol_values = _runtime_attr(runtime, "_collect_rule_symbol_values")
         logger = _runtime_attr(runtime, "logger")
         serialize_purge_rule = _runtime_attr(runtime, "_serialize_purge_rule")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         dsn = require_postgres_dsn(request)
         rule = get_purge_rule(dsn=dsn, rule_id=rule_id)
         if not rule:
@@ -358,7 +358,7 @@ def build_router(
 
     @router.post("/purge-rules/{rule_id}/run")
     def run_purge_rule_now(rule_id: int, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         require_postgres_dsn = _runtime_attr(runtime, "_require_postgres_dsn")
         get_actor = _runtime_attr(runtime, "_get_actor")
         get_purge_rule = _runtime_attr(runtime, "get_purge_rule")
@@ -370,7 +370,7 @@ def build_router(
         datetime_cls = _runtime_attr(runtime, "datetime")
         timezone_obj = _runtime_attr(runtime, "timezone")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         dsn = require_postgres_dsn(request)
         actor = get_actor(request)
         now = datetime_cls.now(timezone_obj.utc)
@@ -430,7 +430,7 @@ def build_router(
 
     @router.post("/purge")
     def purge_data(payload: purge_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         get_actor = _runtime_attr(runtime, "_get_actor")
         logger = _runtime_attr(runtime, "logger")
         create_purge_operation = _runtime_attr(runtime, "_create_purge_operation")
@@ -438,7 +438,7 @@ def build_router(
         threading = _runtime_attr(runtime, "threading")
         utc_timestamp = _runtime_attr(runtime, "_utc_timestamp")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         if not payload.confirm:
             raise HTTPException(status_code=400, detail="Confirmation required to purge data.")
 
@@ -534,7 +534,7 @@ def build_router(
 
     @router.post("/domain-lists/reset")
     def reset_domain_lists(payload: domain_list_reset_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         normalize_layer = _runtime_attr(runtime, "_normalize_layer")
         normalize_domain = _runtime_attr(runtime, "_normalize_domain")
         resolve_container = _runtime_attr(runtime, "_resolve_container")
@@ -543,7 +543,7 @@ def build_router(
         get_actor = _runtime_attr(runtime, "_get_actor")
         logger = _runtime_attr(runtime, "logger")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         if not payload.confirm:
             raise HTTPException(status_code=400, detail="Confirmation required to reset blacklist/whitelist lists.")
 
@@ -570,12 +570,12 @@ def build_router(
 
     @router.post("/domain-checkpoints/reset")
     def reset_domain_checkpoints(payload: domain_checkpoint_reset_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         reset_domain_checkpoints_impl = _runtime_attr(runtime, "_reset_domain_checkpoints")
         get_actor = _runtime_attr(runtime, "_get_actor")
         logger = _runtime_attr(runtime, "logger")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         if not payload.confirm:
             raise HTTPException(status_code=400, detail="Confirmation required to reset checkpoint gates.")
 
@@ -645,14 +645,14 @@ def build_router(
 
     @router.post("/purge-candidates")
     def create_purge_candidates_operation(payload: purge_candidates_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         get_actor = _runtime_attr(runtime, "_get_actor")
         create_purge_candidates_operation_impl = _runtime_attr(runtime, "_create_purge_candidates_operation")
         execute_purge_candidates_operation = _runtime_attr(runtime, "_execute_purge_candidates_operation")
         get_purge_operation_state = _runtime_attr(runtime, "_get_purge_operation")
         threading = _runtime_attr(runtime, "threading")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         actor = get_actor(request)
         operation_id = create_purge_candidates_operation_impl(payload, actor)
         thread = threading.Thread(
@@ -694,7 +694,7 @@ def build_router(
 
     @router.post("/purge-symbols")
     def purge_symbols(payload: purge_symbols_batch_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         get_actor = _runtime_attr(runtime, "_get_actor")
         normalize_candidate_symbols = _runtime_attr(runtime, "_normalize_candidate_symbols")
         require_postgres_dsn = _runtime_attr(runtime, "_require_postgres_dsn")
@@ -705,7 +705,7 @@ def build_router(
         threading = _runtime_attr(runtime, "threading")
         logger = _runtime_attr(runtime, "logger")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         if not payload.confirm:
             raise HTTPException(status_code=400, detail="Confirmation required to purge symbols.")
 
@@ -754,7 +754,7 @@ def build_router(
 
     @router.post("/purge-symbol")
     def purge_symbol(payload: purge_symbol_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_purge_write_access = _runtime_attr(runtime, "require_purge_write_access")
         get_actor = _runtime_attr(runtime, "_get_actor")
         normalize_purge_symbol = _runtime_attr(runtime, "_normalize_purge_symbol")
         create_purge_symbol_operation = _runtime_attr(runtime, "_create_purge_symbol_operation")
@@ -762,7 +762,7 @@ def build_router(
         threading = _runtime_attr(runtime, "threading")
         utc_timestamp = _runtime_attr(runtime, "_utc_timestamp")
 
-        validate_auth(request)
+        require_purge_write_access(request)
         if not payload.confirm:
             raise HTTPException(status_code=400, detail="Confirmation required to purge a symbol.")
 

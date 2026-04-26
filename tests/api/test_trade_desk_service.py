@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
+from asset_allocation_contracts.broker_accounts import BrokerAccountConfiguration, BrokerTradingPolicy
 from asset_allocation_contracts.trade_desk import (
     TradeAccountDetail,
     TradeAccountSummary,
@@ -107,6 +108,14 @@ class FakeTradeDeskRepository:
         return self.saved_orders[-1]["order"] if self.saved_orders else None
 
 
+class FakeConfigurationRepository:
+    def __init__(self, configuration: BrokerAccountConfiguration | None) -> None:
+        self.configuration = configuration
+
+    def get_configuration(self, account_id: str) -> BrokerAccountConfiguration | None:
+        return self.configuration
+
+
 def test_trade_desk_preview_returns_blocking_risk_checks_for_stale_data() -> None:
     stale_account = _account(
         freshness=TradeDataFreshness(
@@ -167,3 +176,47 @@ def test_trade_desk_place_persists_and_replays_idempotent_response() -> None:
     conflicting_payload = payload.model_copy(update={"quantity": 2})
     with pytest.raises(TradeDeskError, match="Idempotency key"):
         service.place_order("acct-paper", conflicting_payload, actor="desk@example.com")
+
+
+def test_trade_desk_place_blocks_when_confirmation_policy_is_not_satisfied() -> None:
+    repo = FakeTradeDeskRepository(_account())
+    configuration = BrokerAccountConfiguration(
+        accountId="acct-paper",
+        configurationVersion=3,
+        requestedPolicy=BrokerTradingPolicy(requireOrderConfirmation=True, allowedSides=["long"]),
+        effectivePolicy=BrokerTradingPolicy(requireOrderConfirmation=True, allowedSides=["long"]),
+        allocation={"allocatableCapital": 100000.0},
+    )
+    service = TradeDeskService(
+        repo,
+        TradeDeskSettings(paper_execution_enabled=True, simulated_execution_enabled=True),
+        confirmation_release_required_roles=["AssetAllocation.TradeConfirmation.Release"],
+        configuration_repository=FakeConfigurationRepository(configuration),
+    )
+    payload = TradeOrderPlaceRequest(
+        accountId="acct-paper",
+        environment="paper",
+        clientRequestId="client-1",
+        idempotencyKey="idem-000000000001",
+        previewId="preview-1",
+        confirmedAt=_now(),
+        symbol="MSFT",
+        side="buy",
+        orderType="market",
+        quantity=1,
+        policyVersion=2,
+        orderHash="stale-hash",
+        confirmationToken="stale-token",
+    )
+
+    response = service.place_order(
+        "acct-paper",
+        payload,
+        actor="desk@example.com",
+        granted_roles=[],
+    )
+
+    assert response.submitted is False
+    assert response.confirmationRequired is True
+    assert response.policyVersion == 3
+    assert response.message == "The account policy changed after preview; re-preview before submitting."

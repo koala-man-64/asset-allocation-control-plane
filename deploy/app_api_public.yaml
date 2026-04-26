@@ -1,10 +1,11 @@
 location: East US
-name: asset-allocation-api
+name: ${API_APP_NAME}
 type: Microsoft.App/containerApps
 identity:
   type: UserAssigned
   userAssignedIdentities:
     "${ACR_PULL_IDENTITY_RESOURCE_ID}": {}
+    "${API_RUNTIME_IDENTITY_RESOURCE_ID}": {}
 properties:
   managedEnvironmentId: ${CONTAINER_APPS_ENVIRONMENT_ID}
   configuration:
@@ -34,6 +35,14 @@ properties:
       value: "${ALPACA_LIVE_API_KEY_ID}"
     - name: alpaca-live-secret-key
       value: "${ALPACA_LIVE_SECRET_KEY}"
+    - name: kalshi-demo-api-key-id
+      value: "${KALSHI_DEMO_API_KEY_ID}"
+    - name: kalshi-demo-private-key-pem
+      value: "${KALSHI_DEMO_PRIVATE_KEY_PEM}"
+    - name: kalshi-live-api-key-id
+      value: "${KALSHI_LIVE_API_KEY_ID}"
+    - name: kalshi-live-private-key-pem
+      value: "${KALSHI_LIVE_PRIVATE_KEY_PEM}"
     - name: etrade-sandbox-consumer-key
       value: "${ETRADE_SANDBOX_CONSUMER_KEY}"
     - name: etrade-sandbox-consumer-secret
@@ -62,7 +71,7 @@ properties:
       - name: AZURE_STORAGE_CONNECTION_STRING
         secretRef: azure-storage-connection-string
       - name: AZURE_CLIENT_ID
-        value: "${ACR_PULL_IDENTITY_CLIENT_ID}"
+        value: "${API_RUNTIME_IDENTITY_CLIENT_ID}"
       - name: AZURE_CONTAINER_BRONZE
         value: "${AZURE_CONTAINER_BRONZE}"
       - name: AZURE_CONTAINER_SILVER
@@ -119,6 +128,32 @@ properties:
         secretRef: alpaca-live-api-key-id
       - name: ALPACA_LIVE_SECRET_KEY
         secretRef: alpaca-live-secret-key
+      - name: KALSHI_ENABLED
+        value: "${KALSHI_ENABLED}"
+      - name: KALSHI_TRADING_ENABLED
+        value: "${KALSHI_TRADING_ENABLED}"
+      - name: KALSHI_TIMEOUT_SECONDS
+        value: "${KALSHI_TIMEOUT_SECONDS}"
+      - name: KALSHI_READ_RETRY_ATTEMPTS
+        value: "${KALSHI_READ_RETRY_ATTEMPTS}"
+      - name: KALSHI_READ_RETRY_BASE_DELAY_SECONDS
+        value: "${KALSHI_READ_RETRY_BASE_DELAY_SECONDS}"
+      - name: KALSHI_REQUIRED_ROLES
+        value: "${KALSHI_REQUIRED_ROLES}"
+      - name: KALSHI_TRADING_REQUIRED_ROLES
+        value: "${KALSHI_TRADING_REQUIRED_ROLES}"
+      - name: KALSHI_DEMO_BASE_URL
+        value: "${KALSHI_DEMO_BASE_URL}"
+      - name: KALSHI_DEMO_API_KEY_ID
+        secretRef: kalshi-demo-api-key-id
+      - name: KALSHI_DEMO_PRIVATE_KEY_PEM
+        secretRef: kalshi-demo-private-key-pem
+      - name: KALSHI_LIVE_BASE_URL
+        value: "${KALSHI_LIVE_BASE_URL}"
+      - name: KALSHI_LIVE_API_KEY_ID
+        secretRef: kalshi-live-api-key-id
+      - name: KALSHI_LIVE_PRIVATE_KEY_PEM
+        secretRef: kalshi-live-private-key-pem
       - name: POSTGRES_DSN
         secretRef: backtest-pg-dsn
       - name: API_ROOT_PREFIX
@@ -223,6 +258,18 @@ properties:
         value: "${SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN}"
       - name: SYMBOL_ENRICHMENT_ALLOWED_JOBS
         value: "${SYMBOL_ENRICHMENT_ALLOWED_JOBS}"
+      - name: SYSTEM_READ_REQUIRED_ROLES
+        value: "${SYSTEM_READ_REQUIRED_ROLES}"
+      - name: SYSTEM_LOGS_READ_REQUIRED_ROLES
+        value: "${SYSTEM_LOGS_READ_REQUIRED_ROLES}"
+      - name: SYSTEM_OPERATE_REQUIRED_ROLES
+        value: "${SYSTEM_OPERATE_REQUIRED_ROLES}"
+      - name: RUNTIME_CONFIG_WRITE_REQUIRED_ROLES
+        value: "${RUNTIME_CONFIG_WRITE_REQUIRED_ROLES}"
+      - name: JOB_OPERATE_REQUIRED_ROLES
+        value: "${JOB_OPERATE_REQUIRED_ROLES}"
+      - name: PURGE_WRITE_REQUIRED_ROLES
+        value: "${PURGE_WRITE_REQUIRED_ROLES}"
       - name: API_CSP
         value: "${API_CSP}"
       - name: API_CORS_ALLOW_ORIGINS

@@ -5,8 +5,11 @@ import pytest
 from api.service.app import create_app
 from api.service.auth import AuthContext, AuthError
 from tests.api._client import get_test_client
+from tests.api._password_auth import password_verifier_for
 
 SESSION_SECRET = "test-session-secret-key-value-at-least-32-chars"
+PASSWORD_SECRET = "operator-secret"
+TEST_ORIGIN = "http://test"
 
 
 @pytest.mark.asyncio
@@ -109,7 +112,10 @@ async def test_auth_session_post_sets_cookie_session(monkeypatch: pytest.MonkeyP
                 },
             ),
         )
-        create_resp = await client.post("/api/auth/session", headers={"Authorization": "Bearer token"})
+        create_resp = await client.post(
+            "/api/auth/session",
+            headers={"Authorization": "Bearer token", "Origin": TEST_ORIGIN},
+        )
         get_resp = await client.get("/api/auth/session")
 
     assert create_resp.status_code == 200
@@ -161,13 +167,16 @@ async def test_cookie_auth_unsafe_request_requires_csrf(monkeypatch: pytest.Monk
                 },
             ),
         )
-        create_resp = await client.post("/api/auth/session", headers={"Authorization": "Bearer token"})
+        create_resp = await client.post(
+            "/api/auth/session",
+            headers={"Authorization": "Bearer token", "Origin": TEST_ORIGIN},
+        )
         csrf_token = create_resp.cookies.get("aa_csrf_dev")
 
-        missing_csrf_resp = await client.post("/api/realtime/ticket")
+        missing_csrf_resp = await client.post("/api/realtime/ticket", headers={"Origin": TEST_ORIGIN})
         valid_csrf_resp = await client.post(
             "/api/realtime/ticket",
-            headers={"X-CSRF-Token": csrf_token or ""},
+            headers={"Origin": TEST_ORIGIN, "X-CSRF-Token": csrf_token or ""},
         )
 
     assert missing_csrf_resp.status_code == 403
@@ -192,3 +201,110 @@ async def test_auth_session_delete_clears_session_cookies(monkeypatch: pytest.Mo
     set_cookie = resp.headers.get_list("set-cookie")
     assert any("aa_session_dev=" in value and "Max-Age=0" in value for value in set_cookie)
     assert any("aa_csrf_dev=" in value and "Max-Age=0" in value for value in set_cookie)
+
+
+@pytest.mark.asyncio
+async def test_password_auth_session_sets_cookie_and_returns_password_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+
+    app = create_app()
+
+    async with get_test_client(app) as client:
+        create_resp = await client.post(
+            "/api/auth/session",
+            json={"password": PASSWORD_SECRET},
+            headers={"Origin": TEST_ORIGIN},
+        )
+        get_resp = await client.get("/api/auth/session")
+
+    assert create_resp.status_code == 200
+    assert create_resp.json()["authMode"] == "password"
+    assert create_resp.json()["subject"] == "operator"
+    assert create_resp.cookies.get("aa_session_dev")
+    assert create_resp.cookies.get("aa_csrf_dev")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["authMode"] == "password"
+    assert get_resp.json()["requiredRoles"] == []
+    assert get_resp.json()["username"] == "operator"
+
+
+@pytest.mark.asyncio
+async def test_password_auth_requires_same_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+
+    app = create_app()
+
+    async with get_test_client(app) as client:
+        resp = await client.post(
+            "/api/auth/session",
+            json={"password": PASSWORD_SECRET},
+            headers={"Origin": "https://evil.example.com"},
+        )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"detail": "Origin or Referer does not match the expected UI origin."}
+
+
+@pytest.mark.asyncio
+async def test_password_auth_rate_limits_failed_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+    monkeypatch.setenv("UI_PASSWORD_RATE_LIMIT_MAX_ATTEMPTS_PER_IP", "2")
+    monkeypatch.setenv("UI_PASSWORD_RATE_LIMIT_MAX_ATTEMPTS_GLOBAL", "2")
+
+    app = create_app()
+
+    async with get_test_client(app) as client:
+        first = await client.post(
+            "/api/auth/session",
+            json={"password": "wrong-one"},
+            headers={"Origin": TEST_ORIGIN},
+        )
+        second = await client.post(
+            "/api/auth/session",
+            json={"password": "wrong-two"},
+            headers={"Origin": TEST_ORIGIN},
+        )
+        third = await client.post(
+            "/api/auth/session",
+            json={"password": "wrong-three"},
+            headers={"Origin": TEST_ORIGIN},
+        )
+
+    assert first.status_code == 401
+    assert second.status_code == 401
+    assert third.status_code == 429
+    assert third.json() == {"detail": "Too many failed login attempts. Try again later."}
+
+
+@pytest.mark.asyncio
+async def test_password_auth_deployed_cookie_uses_host_prefix_and_secure_attributes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+
+    app = create_app()
+
+    async with get_test_client(app) as client:
+        resp = await client.post(
+            "/api/auth/session",
+            json={"password": PASSWORD_SECRET},
+            headers={"Origin": TEST_ORIGIN},
+        )
+
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get_list("set-cookie")
+    assert any("__Host-aa_session=" in value and "HttpOnly" in value and "SameSite=lax" in value for value in set_cookie)
+    assert any("__Host-aa_session=" in value and "Secure" in value and "Path=/" in value for value in set_cookie)

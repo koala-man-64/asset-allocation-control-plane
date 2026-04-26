@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from asset_allocation_contracts.ui_config import UiRuntimeConfig
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.openapi.utils import get_openapi
@@ -20,12 +20,15 @@ from api.endpoints import (
     auth,
     alpha_vantage,
     backtests,
+    broker_accounts,
     data,
     etrade,
     government_signals,
     intraday,
     internal,
+    kalshi,
     massive,
+    notifications,
     portfolio_internal,
     portfolios,
     postgres,
@@ -44,18 +47,23 @@ from api.service.alpaca_gateway import AlpacaGateway
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
 from api.service.dependencies import validate_auth
 from api.service.etrade_gateway import ETradeGateway
+from api.service.kalshi_gateway import KalshiGateway
 from api.service.log_streaming import LogStreamManager
 from api.service.openapi_schema import stabilize_openapi_schema
 from api.service.massive_gateway import MassiveGateway
+from api.service.notification_delivery import build_notification_delivery_client
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.quiver_gateway import QuiverGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.schwab_gateway import SchwabGateway
 from api.service.settings import ServiceSettings
+from core.log_redaction import install_log_redaction, redact_text
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
 from asset_allocation_runtime_common.market_data.delta_core import get_delta_storage_auth_diagnostics
+from core.redaction import redact_sensitive_value, summarize_query_params
 
+install_log_redaction()
 logger = logging.getLogger("asset-allocation.api")
 
 
@@ -195,10 +203,14 @@ def create_app() -> FastAPI:
             app.state.etrade_gateway = ETradeGateway(settings.etrade)
         if not hasattr(app.state, "alpaca_gateway"):
             app.state.alpaca_gateway = AlpacaGateway(settings.alpaca)
+        if not hasattr(app.state, "kalshi_gateway"):
+            app.state.kalshi_gateway = KalshiGateway(settings.kalshi)
         if not hasattr(app.state, "schwab_gateway"):
             app.state.schwab_gateway = SchwabGateway(settings.schwab)
         if not hasattr(app.state, "ai_relay_gateway"):
             app.state.ai_relay_gateway = OpenAIResponsesGateway(settings.ai_relay)
+        if not hasattr(app.state, "notification_delivery_client"):
+            app.state.notification_delivery_client = build_notification_delivery_client(settings.notifications)
         if not hasattr(app.state, "log_stream_manager"):
             app.state.log_stream_manager = log_stream_manager
         if not hasattr(app.state, "websocket_ticket_store"):
@@ -209,9 +221,10 @@ def create_app() -> FastAPI:
         settings = getattr(app.state, "settings", ServiceSettings.from_env())
         _seed_runtime_state(app, settings)
         logger.info(
-            "Resolved service capabilities: auth=%s auth_required=%s browser_oidc=%s postgres=%s",
+            "Resolved service capabilities: auth=%s auth_required=%s ui_auth_provider=%s browser_oidc=%s postgres=%s",
             settings.auth_summary,
             settings.auth_required,
+            settings.ui_auth_provider,
             settings.browser_oidc_enabled,
             bool(settings.postgres_dsn),
         )
@@ -355,6 +368,11 @@ def create_app() -> FastAPI:
             pass
 
         try:
+            app.state.kalshi_gateway.close()
+        except Exception:
+            pass
+
+        try:
             app.state.schwab_gateway.close()
         except Exception:
             pass
@@ -374,6 +392,14 @@ def create_app() -> FastAPI:
 
     content_security_policy = (os.environ.get("API_CSP") or "").strip()
 
+    @app.exception_handler(HTTPException)
+    async def _redacted_http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
+        return JSONResponse(
+            {"detail": redact_sensitive_value(exc.detail)},
+            status_code=exc.status_code,
+            headers=exc.headers,
+        )
+
     @app.middleware("http")
     async def _http_middleware(request: Request, call_next):
         try:
@@ -382,17 +408,24 @@ def create_app() -> FastAPI:
             request_id = str(request.headers.get("x-request-id") or "").strip() or str(uuid.uuid4())
             request.state.request_id = request_id
             auth_header = str(request.headers.get("authorization") or "").strip()
+            query_keys = sorted({str(key) for key in request.query_params.keys()})
+            try:
+                query_param_count = len(request.query_params.multi_items())
+            except Exception:
+                query_param_count = len(request.query_params)
 
+            query_summary = summarize_query_params(request.url.query)
             logger.info(
-                "HTTP request: request_id=%s method=%s path=%s query=%s host=%s origin=%s referer=%s forwarded_for=%s auth_present=%s",
+                "HTTP request: request_id=%s method=%s path=%s query_param_count=%s query_keys=%s host=%s origin=%s referer=%s forwarded_for=%s auth_present=%s",
                 request_id,
                 request.method,
                 path,
-                request.url.query,
-                request.headers.get("host", ""),
-                request.headers.get("origin", ""),
-                request.headers.get("referer", ""),
-                request.headers.get("x-forwarded-for", ""),
+                query_param_count,
+                query_keys,
+                redact_text(request.headers.get("host", "")),
+                redact_text(request.headers.get("origin", "")),
+                redact_text(request.headers.get("referer", "")),
+                redact_text(request.headers.get("x-forwarded-for", "")),
                 auth_header.lower().startswith("bearer "),
             )
 
@@ -531,6 +564,7 @@ def create_app() -> FastAPI:
         app.include_router(ai.router, prefix=f"{api_prefix}/ai", tags=["AI"])
         app.include_router(data.router, prefix=f"{api_prefix}/data", tags=["Data"])
         app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Auth"])
+        app.include_router(broker_accounts.router, prefix=api_prefix, tags=["Broker Accounts"])
         app.include_router(intraday.router, prefix=f"{api_prefix}/intraday", tags=["Intraday"])
         app.include_router(system.router, prefix=f"{api_prefix}/system", tags=["System"])
         app.include_router(postgres.router, prefix=f"{api_prefix}/system/postgres", tags=["Postgres"])
@@ -538,6 +572,7 @@ def create_app() -> FastAPI:
         app.include_router(strategies.router, prefix=f"{api_prefix}/strategies", tags=["Strategies"])
         app.include_router(portfolios.router, prefix=api_prefix, tags=["Portfolios"])
         app.include_router(trade_desk.router, prefix=api_prefix, tags=["Trade Desk"])
+        app.include_router(notifications.router, prefix=api_prefix, tags=["Notifications"])
         app.include_router(rankings.router, prefix=f"{api_prefix}/rankings", tags=["Rankings"])
         app.include_router(regimes.router, prefix=f"{api_prefix}/regimes", tags=["Regimes"])
         app.include_router(backtests.router, prefix=f"{api_prefix}/backtests", tags=["Backtests"])
@@ -571,6 +606,11 @@ def create_app() -> FastAPI:
             tags=["Alpaca"],
         )
         app.include_router(
+            kalshi.router,
+            prefix=f"{api_prefix}/providers/kalshi",
+            tags=["Kalshi"],
+        )
+        app.include_router(
             etrade.router,
             prefix=f"{api_prefix}/providers/etrade",
             tags=["ETrade"],
@@ -591,25 +631,28 @@ def create_app() -> FastAPI:
 
     @app.get("/config.js")
     async def get_ui_config(request: Request):
-        _enforce_public_surface_auth(request)
         settings: ServiceSettings = app.state.settings
         cfg = UiRuntimeConfig.model_validate(
             {
                 "apiBaseUrl": settings.ui_oidc_config.get("apiBaseUrl") or "/api",
                 "authSessionMode": settings.auth_session_mode,
-                "oidcAuthority": settings.ui_oidc_config.get("authority"),
-                "oidcClientId": settings.ui_oidc_config.get("clientId"),
-                "oidcScopes": settings.ui_oidc_config.get("scope"),
-                "oidcRedirectUri": settings.ui_oidc_config.get("redirectUri"),
-                "oidcPostLogoutRedirectUri": settings.ui_oidc_config.get("postLogoutRedirectUri"),
-                "oidcAudience": settings.oidc_audience,
-                "oidcEnabled": settings.browser_oidc_enabled,
+                "authProvider": settings.ui_auth_provider,
+                "oidcAuthority": settings.ui_oidc_config.get("authority") if settings.ui_auth_provider == "oidc" else None,
+                "oidcClientId": settings.ui_oidc_config.get("clientId") if settings.ui_auth_provider == "oidc" else None,
+                "oidcScopes": settings.ui_oidc_config.get("scope") if settings.ui_auth_provider == "oidc" else [],
+                "oidcRedirectUri": settings.ui_oidc_config.get("redirectUri") if settings.ui_auth_provider == "oidc" else None,
+                "oidcPostLogoutRedirectUri": settings.ui_oidc_config.get("postLogoutRedirectUri")
+                if settings.ui_auth_provider == "oidc"
+                else None,
+                "oidcAudience": settings.oidc_audience if settings.ui_auth_provider == "oidc" else [],
+                "oidcEnabled": settings.ui_auth_provider == "oidc" and settings.browser_oidc_enabled,
                 "authRequired": settings.auth_required,
             }
         ).model_dump(mode="json")
 
         logger.info(
-            "Serving /config.js: oidcEnabled=%s authRequired=%s authSessionMode=%s apiBaseUrl=%s scopes=%s",
+            "Serving /config.js: authProvider=%s oidcEnabled=%s authRequired=%s authSessionMode=%s apiBaseUrl=%s scopes=%s",
+            cfg.get("authProvider"),
             cfg.get("oidcEnabled"),
             cfg.get("authRequired"),
             cfg.get("authSessionMode"),

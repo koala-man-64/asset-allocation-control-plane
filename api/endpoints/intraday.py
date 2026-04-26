@@ -14,11 +14,14 @@ from api.service.intraday_contracts_compat import (
     IntradayRefreshBatchSummary,
     IntradaySymbolStatus,
     IntradayWatchlistDetail,
+    IntradayWatchlistSymbolAppendRequest,
+    IntradayWatchlistSymbolAppendResponse,
     IntradayWatchlistSummary,
     IntradayWatchlistUpsertRequest,
 )
 from api.service.realtime import manager as realtime_manager
 from core.intraday_monitor_repository import (
+    append_intraday_watchlist_symbols,
     delete_intraday_watchlist,
     enqueue_intraday_watchlist_run,
     get_intraday_health_summary,
@@ -63,6 +66,14 @@ def _require_postgres_dsn(request: Request) -> str:
     if not dsn:
         raise HTTPException(status_code=503, detail="Postgres is required for intraday monitoring.")
     return dsn
+
+
+def _request_id(request: Request) -> str | None:
+    request_id = str(
+        getattr(getattr(request, "state", object()), "request_id", "")
+        or request.headers.get("x-request-id", "")
+    ).strip()
+    return request_id or None
 
 
 def _emit_realtime(topic: str, event_type: str, payload: dict[str, Any] | None = None) -> None:
@@ -139,6 +150,34 @@ def update_intraday_watchlist_endpoint(
         {"watchlist": watchlist.model_dump(mode="json")},
     )
     return watchlist
+
+
+@router.post("/watchlists/{watchlist_id}/symbols", response_model=IntradayWatchlistSymbolAppendResponse)
+def append_intraday_watchlist_symbols_endpoint(
+    watchlist_id: str,
+    payload: IntradayWatchlistSymbolAppendRequest,
+    request: Request,
+) -> IntradayWatchlistSymbolAppendResponse:
+    auth_context = require_intraday_operator_access(request)
+    try:
+        result = append_intraday_watchlist_symbols(
+            _require_postgres_dsn(request),
+            watchlist_id=watchlist_id,
+            payload=payload,
+            actor=getattr(auth_context, "subject", None),
+            request_id=_request_id(request),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    _emit_realtime(
+        REALTIME_TOPIC_INTRADAY_MONITOR,
+        "watchlist.symbols_added",
+        result.model_dump(mode="json"),
+    )
+    return result
 
 
 @router.delete("/watchlists/{watchlist_id}")

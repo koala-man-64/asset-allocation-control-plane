@@ -6,6 +6,9 @@ RESOURCE_GROUP,deploy_var,var,deploy_config,true,Shared runtime resource group. 
 AZURE_LOCATION,deploy_var,var,deploy_config,true,Azure region used by shared runtime provisioning.
 ACR_NAME,deploy_var,var,deploy_config,true,Shared Azure Container Registry name.
 ACR_PULL_IDENTITY_NAME,deploy_var,var,deploy_config,true,User-assigned identity used by Container Apps to pull from ACR.
+API_RUNTIME_IDENTITY_NAME,deploy_var,var,deploy_config,true,User-assigned identity used by the API runtime for Azure SDK and data-plane access.
+JOB_CONTROL_IDENTITY_NAME,deploy_var,var,deploy_config,true,User-assigned identity reserved for narrow Container Apps and job control operations.
+ENABLE_ACR_PRIVATE_LINK,deploy_var,var,deploy_config,true,Provision ACR Premium private endpoint and privatelink.azurecr.io private DNS support during infra reconcile.
 CONTAINER_APPS_ENVIRONMENT_NAME,deploy_var,var,deploy_config,true,Shared Container Apps environment name.
 CONTAINER_APPS_ENVIRONMENT_VNET_NAME,deploy_var,var,deploy_config,true,Parallel workload-profiles Container Apps environment name for the VNet-backed private runtime.
 SERVICE_ACCOUNT_NAME,deploy_var,var,deploy_config,true,Shared workload identity or service account name.
@@ -31,7 +34,8 @@ AZURE_FOLDER_FINANCE,deploy_var,var,deploy_config,true,Canonical finance folder 
 AZURE_FOLDER_EARNINGS,deploy_var,var,deploy_config,true,Canonical earnings folder name.
 AZURE_FOLDER_TARGETS,deploy_var,var,deploy_config,true,Canonical price-target folder name.
 API_APP_NAME,deploy_var,var,deploy_config,true,Control-plane Container App name.
-API_DEPLOY_MANIFEST,deploy_var,var,deploy_config,true,Manifest path used by deploy-prod.yml. Use deploy/app_api_public.yaml for the transitional public edge and deploy/app_api.yaml after internal-only cutover.
+API_DEPLOY_MANIFEST,deploy_var,var,deploy_config,true,Manifest path used by deploy-prod.yml. Default is deploy/app_api.yaml for internal-only API; deploy/app_api_public.yaml is break-glass only.
+ALLOW_PUBLIC_API_INGRESS,deploy_var,var,deploy_config,true,Break-glass guard that must be true before deploy-prod.yml accepts deploy/app_api_public.yaml.
 API_ROOT_PREFIX,deploy_var,var,deploy_config,true,Optional API root prefix.
 API_PUBLIC_BASE_URL,deploy_var,var,deploy_config,true,Absolute public API origin used to derive provider OAuth callback URLs when provider-specific callback overrides are unset.
 API_CSP,deploy_var,var,deploy_config,true,Control-plane CSP header.
@@ -50,6 +54,20 @@ DATA_DISCOVERY_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-spec
 DATA_DISCOVERY_VISIBLE_SCHEMAS,deploy_var,var,deploy_config,true,Comma-separated schema allowlist exposed by the data discovery surface and raw Postgres explorer.
 DATA_DISCOVERY_SAMPLE_MAX_LIMIT,deploy_var,var,deploy_config,true,Maximum row count accepted by the discovery sample preview endpoint.
 DATA_DISCOVERY_CACHE_TTL_SECONDS,deploy_var,var,deploy_config,true,In-process TTL in seconds for cached discovery catalog and dataset detail responses.
+SYSTEM_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for elevated system read endpoints when configured.
+SYSTEM_LOGS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for job and Container App log retrieval endpoints.
+SYSTEM_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to start and stop Container Apps.
+RUNTIME_CONFIG_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to modify runtime config and debug-symbol state.
+JOB_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to run suspend stop or resume Container Apps jobs.
+PURGE_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for purge rule mutation and purge execution endpoints.
+NOTIFICATIONS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification read access.
+NOTIFICATIONS_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification write access.
+NOTIFICATIONS_DELIVERY_PROVIDER,deploy_var,var,deploy_config,true,Notification delivery provider. Use log by default and acs for Azure Communication Services delivery.
+NOTIFICATIONS_APP_BASE_URL,deploy_var,var,deploy_config,true,Absolute app origin used to build notification action links.
+NOTIFICATIONS_ACTION_PATH_TEMPLATE,deploy_var,var,deploy_config,true,Path template used to build notification action links and must include the token placeholder.
+NOTIFICATIONS_DEFAULT_TRADE_APPROVAL_TTL_SECONDS,deploy_var,var,deploy_config,true,Default notification trade approval token lifetime in seconds.
+NOTIFICATIONS_ACS_EMAIL_SENDER,deploy_var,var,deploy_config,true,Azure Communication Services email sender address for notifications.
+NOTIFICATIONS_ACS_SMS_FROM,deploy_var,var,deploy_config,true,Azure Communication Services SMS sender number for notifications.
 AI_RELAY_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the control-plane AI relay endpoint.
 AI_RELAY_MODEL,deploy_var,var,deploy_config,true,Deploy-time fixed OpenAI model used by the AI relay.
 AI_RELAY_REASONING_EFFORT,deploy_var,var,deploy_config,true,Reasoning effort passed to reasoning-capable OpenAI models.
@@ -93,6 +111,15 @@ ALPACA_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific 
 ALPACA_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Alpaca submit, replace, and cancel access.
 ALPACA_PAPER_TRADING_BASE_URL,deploy_var,var,deploy_config,true,Optional paper Alpaca Trading API base URL override.
 ALPACA_LIVE_TRADING_BASE_URL,deploy_var,var,deploy_config,true,Optional live Alpaca Trading API base URL override.
+KALSHI_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the repo-local Kalshi integration routes.
+KALSHI_TRADING_ENABLED,deploy_var,var,deploy_config,true,Separately enable or disable Kalshi create amend and cancel operations.
+KALSHI_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound Kalshi API requests.
+KALSHI_READ_RETRY_ATTEMPTS,deploy_var,var,deploy_config,true,Maximum retry attempts for retryable Kalshi read requests.
+KALSHI_READ_RETRY_BASE_DELAY_SECONDS,deploy_var,var,deploy_config,true,Base backoff in seconds between retryable Kalshi read requests.
+KALSHI_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific roles required for Kalshi read access.
+KALSHI_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Kalshi create amend and cancel access.
+KALSHI_DEMO_BASE_URL,deploy_var,var,deploy_config,true,Optional Kalshi demo API base URL override.
+KALSHI_LIVE_BASE_URL,deploy_var,var,deploy_config,true,Optional Kalshi live API base URL override.
 SYMBOL_ENRICHMENT_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the symbol cleanup and AI enrichment workflow.
 SYMBOL_ENRICHMENT_MODEL,deploy_var,var,deploy_config,true,Deploy-time fixed OpenAI model used by symbol enrichment resolve.
 SYMBOL_ENRICHMENT_CONFIDENCE_MIN,deploy_var,var,deploy_config,true,Minimum AI confidence accepted by internal symbol enrichment resolve.
@@ -142,6 +169,8 @@ ALPHA_VANTAGE_API_KEY,secret,secret,secret_store,true,Alpha Vantage API key. Nev
 AI_RELAY_API_KEY,secret,secret,secret_store,true,OpenAI API key used by the control-plane AI relay. Never auto-discovered.
 AI_RELAY_SMOKE_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify an authorized AI relay stream.
 AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify AI relay role-denied behavior.
+NOTIFICATIONS_TOKEN_HASH_SECRET,secret,secret,secret_store,true,Secret used to hash notification action tokens.
+NOTIFICATIONS_ACS_CONNECTION_STRING,secret,secret,secret_store,true,Azure Communication Services connection string for notification delivery.
 QUIVER_API_KEY,secret,secret,secret_store,true,Quiver API key. Never auto-discovered.
 ETRADE_SANDBOX_CONSUMER_KEY,secret,secret,secret_store,true,E*TRADE sandbox consumer key for OAuth 1.0a login and sandbox API calls.
 ETRADE_SANDBOX_CONSUMER_SECRET,secret,secret,secret_store,true,E*TRADE sandbox consumer secret for OAuth 1.0a login and sandbox API calls.
@@ -151,7 +180,27 @@ ALPACA_PAPER_API_KEY_ID,secret,secret,secret_store,true,Alpaca paper Trading API
 ALPACA_PAPER_SECRET_KEY,secret,secret,secret_store,true,Alpaca paper Trading API secret key for simulated trading requests.
 ALPACA_LIVE_API_KEY_ID,secret,secret,secret_store,true,Alpaca live Trading API key id for live brokerage requests.
 ALPACA_LIVE_SECRET_KEY,secret,secret,secret_store,true,Alpaca live Trading API secret key for live brokerage requests.
+KALSHI_DEMO_API_KEY_ID,secret,secret,secret_store,true,Kalshi demo API key id for signed requests against the demo exchange environment.
+KALSHI_DEMO_PRIVATE_KEY_PEM,secret,secret,secret_store,true,Kalshi demo RSA private key in PEM format for signing demo requests.
+KALSHI_LIVE_API_KEY_ID,secret,secret,secret_store,true,Kalshi live API key id for signed requests against the production exchange environment.
+KALSHI_LIVE_PRIVATE_KEY_PEM,secret,secret,secret_store,true,Kalshi live RSA private key in PEM format for signing production requests.
 AZURE_STORAGE_CONNECTION_STRING,secret,secret,secret_store,true,Storage connection string. Never auto-discovered.
+AZURE_STORAGE_CONNECTION_STRING_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the storage connection string Container App secret.
+ALPHA_VANTAGE_API_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Alpha Vantage API key Container App secret.
+MASSIVE_API_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Massive API key Container App secret.
+POSTGRES_DSN_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Postgres DSN Container App secret.
+ALPACA_PAPER_API_KEY_ID_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Alpaca paper API key id Container App secret.
+ALPACA_PAPER_SECRET_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Alpaca paper secret key Container App secret.
+ALPACA_LIVE_API_KEY_ID_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Alpaca live API key id Container App secret.
+ALPACA_LIVE_SECRET_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Alpaca live secret key Container App secret.
+ETRADE_SANDBOX_CONSUMER_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the E*TRADE sandbox consumer key Container App secret.
+ETRADE_SANDBOX_CONSUMER_SECRET_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the E*TRADE sandbox consumer secret Container App secret.
+ETRADE_LIVE_CONSUMER_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the E*TRADE live consumer key Container App secret.
+ETRADE_LIVE_CONSUMER_SECRET_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the E*TRADE live consumer secret Container App secret.
+SCHWAB_CLIENT_ID_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Schwab client id Container App secret.
+SCHWAB_CLIENT_SECRET_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the Schwab client secret Container App secret.
+AI_RELAY_API_KEY_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for the AI relay API key Container App secret.
+API_AUTH_SESSION_SECRET_KEYS_KEY_VAULT_URL,deploy_var,var,deploy_config,true,Optional Key Vault secret URL for API auth session secret keys.
 DISPATCH_APP_PRIVATE_KEY,secret,secret,secret_store,true,GitHub App private key with literal newline escapes or base64 encoding.
 RUN_LIVE_MASSIVE_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in for live Massive integration tests. Keep false unless intentionally exercising live Massive APIs.
 RUN_LIVE_QUIVER_TESTS,deploy_var,var,deploy_config,true,Optional local opt-in for live Quiver integration tests. Keep false unless intentionally exercising live Quiver APIs.

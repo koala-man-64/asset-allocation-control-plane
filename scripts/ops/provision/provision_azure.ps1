@@ -10,7 +10,11 @@ param(
   [string]$AcrName = "assetallocationacr",
   # User-assigned managed identity used by Container Apps/Jobs to pull from ACR on first create.
   [string]$AcrPullIdentityName = "asset-allocation-acr-pull-mi",
+  [string]$ApiRuntimeIdentityName = "asset-allocation-api-runtime-mi",
+  [string]$JobControlIdentityName = "asset-allocation-job-control-mi",
   [switch]$EnableAcrAdmin,
+  [switch]$EnableAcrPrivateLink,
+  [switch]$DisableAcrPublicNetworkAccess,
   [switch]$EmitSecrets,
   [switch]$GrantAcrPullToAcaResources,
   # Best-effort: assign the ACR pull user-assigned identity to existing apps/jobs and configure
@@ -291,6 +295,124 @@ function Get-AzTsvOrEmpty {
   }
 }
 
+function Ensure-UserAssignedIdentity {
+  param(
+    [Parameter(Mandatory = $true)][string]$IdentityName,
+    [Parameter(Mandatory = $true)][string]$ResourceGroupName,
+    [Parameter(Mandatory = $true)][string]$LocationName
+  )
+
+  $identity = $null
+  try {
+    $identity = az identity show --name $IdentityName --resource-group $ResourceGroupName --only-show-errors -o json 2>$null | ConvertFrom-Json
+  }
+  catch {
+    $identity = $null
+  }
+
+  if ($null -eq $identity) {
+    $identity = az identity create --name $IdentityName --resource-group $ResourceGroupName --location $LocationName --only-show-errors -o json | ConvertFrom-Json
+  }
+
+  if (-not $identity.id -or -not $identity.principalId) {
+    throw "Failed to resolve managed identity details for '$IdentityName'."
+  }
+
+  return $identity
+}
+
+function Ensure-RoleAssignment {
+  param(
+    [Parameter(Mandatory = $true)][string]$PrincipalId,
+    [Parameter(Mandatory = $true)][string]$RoleName,
+    [Parameter(Mandatory = $true)][string]$Scope,
+    [string]$PrincipalType = "ServicePrincipal"
+  )
+
+  if ([string]::IsNullOrWhiteSpace($PrincipalId) -or [string]::IsNullOrWhiteSpace($Scope)) {
+    return $false
+  }
+
+  $existing = "0"
+  try {
+    $existing = az role assignment list `
+      --assignee-object-id $PrincipalId `
+      --scope $Scope `
+      --query "[?roleDefinitionName=='$RoleName'] | length(@)" -o tsv --only-show-errors 2>$null
+    if (-not $existing) { $existing = "0" }
+  }
+  catch {
+    $existing = "0"
+  }
+
+  if ([int]$existing -gt 0) {
+    return $false
+  }
+
+  az role assignment create `
+    --assignee-object-id $PrincipalId `
+    --assignee-principal-type $PrincipalType `
+    --role $RoleName `
+    --scope $Scope `
+    --only-show-errors 1>$null
+  return $true
+}
+
+function Ensure-AcaOperatorRoleDefinition {
+  param(
+    [Parameter(Mandatory = $true)][string]$RoleName,
+    [Parameter(Mandatory = $true)][string]$Scope
+  )
+
+  $definition = [ordered]@{
+    Name             = $RoleName
+    IsCustom         = $true
+    Description      = "Start, stop, and read Azure Container Apps resources used by the asset-allocation control plane."
+    Actions          = @(
+      "Microsoft.App/containerApps/read",
+      "Microsoft.App/containerApps/start/action",
+      "Microsoft.App/containerApps/stop/action",
+      "Microsoft.App/jobs/read",
+      "Microsoft.App/jobs/start/action",
+      "Microsoft.App/jobs/stop/action",
+      "Microsoft.App/jobs/suspend/action",
+      "Microsoft.App/jobs/resume/action",
+      "Microsoft.App/jobs/executions/read",
+      "Microsoft.OperationalInsights/workspaces/query/read"
+    )
+    NotActions       = @()
+    DataActions      = @()
+    NotDataActions   = @()
+    AssignableScopes = @($Scope)
+  }
+
+  $tempPath = Join-Path $env:TEMP ("aca-operator-role-{0}.json" -f ([Guid]::NewGuid().ToString("N")))
+  try {
+    $definition | ConvertTo-Json -Depth 8 | Set-Content -Path $tempPath -Encoding utf8
+    $existingRole = Get-AzTsvOrEmpty -Arguments @(
+      "role", "definition", "list",
+      "--name", $RoleName,
+      "--query", "[0].name",
+      "-o", "tsv",
+      "--only-show-errors"
+    )
+
+    if ([string]::IsNullOrWhiteSpace($existingRole)) {
+      az role definition create --role-definition $tempPath --only-show-errors 1>$null
+    }
+    else {
+      az role definition update --role-definition $tempPath --only-show-errors 1>$null
+    }
+  }
+  finally {
+    if (Test-Path $tempPath) {
+      Remove-Item -LiteralPath $tempPath -Force
+    }
+  }
+
+  return $RoleName
+}
+
 function Ensure-PrivateDnsZoneLink {
   param(
     [Parameter(Mandatory = $true)][string]$ResourceGroupName,
@@ -389,6 +511,7 @@ function Ensure-NetworkSmokeJob {
     [Parameter(Mandatory = $true)][string]$JobName,
     [Parameter(Mandatory = $true)][string]$ApiInternalAppName,
     [Parameter(Mandatory = $true)][string]$StorageAccount,
+    [string]$AcrNameValue = "",
     [string]$PostgresServer = ""
   )
 
@@ -399,6 +522,10 @@ nslookup "${STORAGE_ACCOUNT_NAME}.blob.core.windows.net" > /dev/null
 nslookup "${STORAGE_ACCOUNT_NAME}.dfs.core.windows.net" > /dev/null
 nc -z "${STORAGE_ACCOUNT_NAME}.blob.core.windows.net" 443
 nc -z "${STORAGE_ACCOUNT_NAME}.dfs.core.windows.net" 443
+if [ -n "${ACR_NAME}" ]; then
+  nslookup "${ACR_NAME}.azurecr.io" > /dev/null
+  nc -z "${ACR_NAME}.azurecr.io" 443
+fi
 if [ -n "${POSTGRES_SERVER_NAME}" ]; then
   nslookup "${POSTGRES_SERVER_NAME}.postgres.database.azure.com" > /dev/null
   nc -z "${POSTGRES_SERVER_NAME}.postgres.database.azure.com" 5432
@@ -408,6 +535,7 @@ fi
   $jobEnvVars = @(
     "API_BASE_URL=http://$ApiInternalAppName",
     "STORAGE_ACCOUNT_NAME=$StorageAccount",
+    "ACR_NAME=$AcrNameValue",
     "POSTGRES_SERVER_NAME=$PostgresServer"
   )
 
@@ -477,7 +605,10 @@ function Ensure-ParallelPrivateRuntime {
     [Parameter(Mandatory = $true)][string]$WorkspaceCustomerId,
     [Parameter(Mandatory = $true)][string]$WorkspaceSharedKey,
     [Parameter(Mandatory = $true)][string]$StorageAccount,
+    [string]$AcrNameValue = "",
     [string]$PostgresServer = "",
+    [switch]$EnableAcrPrivateLink,
+    [switch]$DisableAcrPublicNetworkAccess,
     [switch]$DisablePublicDataPlane
   )
 
@@ -605,6 +736,9 @@ function Ensure-ParallelPrivateRuntime {
   Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.blob.core.windows.net" -VnetId $vnetId -LinkName "$VnetNameValue-blob"
   Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.dfs.core.windows.net" -VnetId $vnetId -LinkName "$VnetNameValue-dfs"
   Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.postgres.database.azure.com" -VnetId $vnetId -LinkName "$VnetNameValue-postgres"
+  if ($EnableAcrPrivateLink -and -not [string]::IsNullOrWhiteSpace($AcrNameValue)) {
+    Ensure-PrivateDnsZoneLink -ResourceGroupName $ResourceGroupName -ZoneName "privatelink.azurecr.io" -VnetId $vnetId -LinkName "$VnetNameValue-acr"
+  }
 
   $storageAccountId = Get-AzTsvOrEmpty -Arguments @(
     "storage", "account", "show",
@@ -697,12 +831,65 @@ function Ensure-ParallelPrivateRuntime {
     }
   }
 
+  $acrPrivateEndpointName = ""
+  if ($EnableAcrPrivateLink -and -not [string]::IsNullOrWhiteSpace($AcrNameValue)) {
+    $acrResourceId = Get-AzTsvOrEmpty -Arguments @(
+      "acr", "show",
+      "--resource-group", $ResourceGroupName,
+      "--name", $AcrNameValue,
+      "--query", "id",
+      "-o", "tsv",
+      "--only-show-errors"
+    )
+    if ([string]::IsNullOrWhiteSpace($acrResourceId)) {
+      throw "ACR '$AcrNameValue' was not found in resource group '$ResourceGroupName'. Create it before enabling ACR private link."
+    }
+
+    $acrSku = Get-AzTsvOrEmpty -Arguments @(
+      "acr", "show",
+      "--resource-group", $ResourceGroupName,
+      "--name", $AcrNameValue,
+      "--query", "sku.name",
+      "-o", "tsv",
+      "--only-show-errors"
+    )
+    if ($acrSku -ne "Premium") {
+      Write-Host "Upgrading ACR '$AcrNameValue' to Premium for private endpoint support." -ForegroundColor Cyan
+      az acr update `
+        --resource-group $ResourceGroupName `
+        --name $AcrNameValue `
+        --sku Premium `
+        --only-show-errors 1>$null
+    }
+
+    $acrPrivateEndpointName = "$AcrNameValue-registry-pe"
+    Ensure-PrivateEndpointConnection `
+      -ResourceGroupName $ResourceGroupName `
+      -LocationName $LocationName `
+      -EndpointName $acrPrivateEndpointName `
+      -ConnectionName "$AcrNameValue-registry-link" `
+      -PrivateConnectionResourceId $acrResourceId `
+      -GroupId "registry" `
+      -VnetNameValue $VnetNameValue `
+      -SubnetNameValue $PeSubnetName `
+      -PrivateDnsZoneName "privatelink.azurecr.io"
+
+    if ($DisableAcrPublicNetworkAccess) {
+      az acr update `
+        --resource-group $ResourceGroupName `
+        --name $AcrNameValue `
+        --public-network-enabled false `
+        --only-show-errors 1>$null
+    }
+  }
+
   Ensure-NetworkSmokeJob `
     -ResourceGroupName $ResourceGroupName `
     -EnvironmentName $EnvironmentName `
     -JobName $NetworkSmokeJobNameValue `
     -ApiInternalAppName $ApiInternalAppName `
     -StorageAccount $StorageAccount `
+    -AcrNameValue $AcrNameValue `
     -PostgresServer $PostgresServer
 
   return [pscustomobject]@{
@@ -724,6 +911,10 @@ function Ensure-ParallelPrivateRuntime {
     StoragePrivateDnsZone          = "privatelink.blob.core.windows.net"
     StorageDfsPrivateDnsZone       = "privatelink.dfs.core.windows.net"
     PostgresPrivateDnsZone         = "privatelink.postgres.database.azure.com"
+    AcrPrivateDnsZone              = if ($EnableAcrPrivateLink) { "privatelink.azurecr.io" } else { "" }
+    AcrPrivateEndpointName         = $acrPrivateEndpointName
+    EnableAcrPrivateLink           = [bool]$EnableAcrPrivateLink
+    DisableAcrPublicNetworkAccess  = [bool]$DisableAcrPublicNetworkAccess
     DisablePublicDataPlaneAccess   = [bool]$DisablePublicDataPlane
   }
 }
@@ -801,6 +992,30 @@ if ((-not $PSBoundParameters.ContainsKey("AcrPullIdentityName")) -or [string]::I
   if ($acrPullIdentityNameFromEnv) {
     Write-Host "Using ACR_PULL_IDENTITY_NAME from ${envLabel}: $acrPullIdentityNameFromEnv"
     $AcrPullIdentityName = $acrPullIdentityNameFromEnv
+  }
+}
+
+if ((-not $PSBoundParameters.ContainsKey("ApiRuntimeIdentityName")) -or [string]::IsNullOrWhiteSpace($ApiRuntimeIdentityName)) {
+  $apiRuntimeIdentityNameFromEnv = Get-EnvValueFirst -Keys @("API_RUNTIME_IDENTITY_NAME")
+  if ($apiRuntimeIdentityNameFromEnv) {
+    Write-Host "Using API_RUNTIME_IDENTITY_NAME from ${envLabel}: $apiRuntimeIdentityNameFromEnv"
+    $ApiRuntimeIdentityName = $apiRuntimeIdentityNameFromEnv
+  }
+}
+
+if ((-not $PSBoundParameters.ContainsKey("JobControlIdentityName")) -or [string]::IsNullOrWhiteSpace($JobControlIdentityName)) {
+  $jobControlIdentityNameFromEnv = Get-EnvValueFirst -Keys @("JOB_CONTROL_IDENTITY_NAME")
+  if ($jobControlIdentityNameFromEnv) {
+    Write-Host "Using JOB_CONTROL_IDENTITY_NAME from ${envLabel}: $jobControlIdentityNameFromEnv"
+    $JobControlIdentityName = $jobControlIdentityNameFromEnv
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey("EnableAcrPrivateLink")) {
+  $enableAcrPrivateLinkFromEnv = Get-EnvBool -Key "ENABLE_ACR_PRIVATE_LINK"
+  if ($enableAcrPrivateLinkFromEnv -ne $null) {
+    Write-Host "Using ENABLE_ACR_PRIVATE_LINK from ${envLabel}: $enableAcrPrivateLinkFromEnv"
+    $EnableAcrPrivateLink = $enableAcrPrivateLinkFromEnv
   }
 }
 
@@ -1234,6 +1449,12 @@ $acrId = ""
 $acrPullIdentityId = ""
 $acrPullIdentityClientId = ""
 $acrPullIdentityPrincipalId = ""
+$apiRuntimeIdentityId = ""
+$apiRuntimeIdentityClientId = ""
+$apiRuntimeIdentityPrincipalId = ""
+$jobControlIdentityId = ""
+$jobControlIdentityClientId = ""
+$jobControlIdentityPrincipalId = ""
 
 if (-not $NonInteractive -and $PromptForResources) {
   Write-Host ""
@@ -1502,11 +1723,12 @@ $doAcr = Get-YesNo "Ensure ACR exists: ${AcrName}?" $true
 if ($doAcr) {
   Write-Host "Ensuring ACR exists: $AcrName"
   $acrAdmin = if ($EnableAcrAdmin) { "true" } else { "false" }
+  $acrSkuName = if ($EnableAcrPrivateLink) { "Premium" } else { "Basic" }
   az acr create `
     --name $AcrName `
     --resource-group $ResourceGroup `
     --location $Location `
-    --sku Basic `
+    --sku $acrSkuName `
     --admin-enabled $acrAdmin `
     --only-show-errors 1>$null
 
@@ -1594,7 +1816,10 @@ if ($doParallelPrivateRuntime) {
     -WorkspaceCustomerId $lawCustomerId `
     -WorkspaceSharedKey $lawSharedKey `
     -StorageAccount $StorageAccountName `
+    -AcrNameValue $AcrName `
     -PostgresServer $PostgresServerName `
+    -EnableAcrPrivateLink:$EnableAcrPrivateLink `
+    -DisableAcrPublicNetworkAccess:$DisableAcrPublicNetworkAccess `
     -DisablePublicDataPlane:$DisablePublicDataPlaneAccess
 
   Write-Host ("Parallel private runtime ready: environment={0} vnet={1} natPublicIp={2} smokeJob={3}" -f `
@@ -1694,6 +1919,24 @@ if ($doManagedIdentity) {
     throw "Failed to resolve AcrPull identity details for '$AcrPullIdentityName'."
   }
 
+  Write-Host "Ensuring user-assigned managed identity exists (for API runtime): $ApiRuntimeIdentityName"
+  $apiRuntimeIdentity = Ensure-UserAssignedIdentity `
+    -IdentityName $ApiRuntimeIdentityName `
+    -ResourceGroupName $ResourceGroup `
+    -LocationName $Location
+  $apiRuntimeIdentityId = $apiRuntimeIdentity.id
+  $apiRuntimeIdentityClientId = $apiRuntimeIdentity.clientId
+  $apiRuntimeIdentityPrincipalId = $apiRuntimeIdentity.principalId
+
+  Write-Host "Ensuring user-assigned managed identity exists (for job/control operations): $JobControlIdentityName"
+  $jobControlIdentity = Ensure-UserAssignedIdentity `
+    -IdentityName $JobControlIdentityName `
+    -ResourceGroupName $ResourceGroup `
+    -LocationName $Location
+  $jobControlIdentityId = $jobControlIdentity.id
+  $jobControlIdentityClientId = $jobControlIdentity.clientId
+  $jobControlIdentityPrincipalId = $jobControlIdentity.principalId
+
   if ($doAcr) {
     $doAcrPullRole = Get-YesNo "Assign AcrPull role to identity on ACR?" $true
     if ($doAcrPullRole) {
@@ -1730,39 +1973,39 @@ if ($doManagedIdentity) {
 }
 
 if ($doManagedIdentity) {
-  if ($storageAccountId -and $acrPullIdentityPrincipalId) {
+  if ($storageAccountId -and $apiRuntimeIdentityPrincipalId) {
     Write-Host ""
-    Write-Host "Ensuring ACR pull identity can access storage data (Storage Blob Data Contributor)..."
-    $storageDataAcrExisting = "0"
+    Write-Host "Ensuring API runtime identity can access storage data (Storage Blob Data Contributor)..."
+    $storageDataRuntimeExisting = "0"
     try {
-      $storageDataAcrExisting = az role assignment list `
-        --assignee-object-id $acrPullIdentityPrincipalId `
+      $storageDataRuntimeExisting = az role assignment list `
+        --assignee-object-id $apiRuntimeIdentityPrincipalId `
         --scope $storageAccountId `
         --query "[?roleDefinitionName=='Storage Blob Data Contributor'] | length(@)" -o tsv --only-show-errors 2>$null
-      if (-not $storageDataAcrExisting) { $storageDataAcrExisting = "0" }
+      if (-not $storageDataRuntimeExisting) { $storageDataRuntimeExisting = "0" }
     }
     catch {
-      $storageDataAcrExisting = "0"
+      $storageDataRuntimeExisting = "0"
     }
 
-    if ([int]$storageDataAcrExisting -eq 0) {
+    if ([int]$storageDataRuntimeExisting -eq 0) {
       az role assignment create `
-        --assignee-object-id $acrPullIdentityPrincipalId `
+        --assignee-object-id $apiRuntimeIdentityPrincipalId `
         --assignee-principal-type ServicePrincipal `
         --role "Storage Blob Data Contributor" `
         --scope $storageAccountId `
         --only-show-errors 1>$null
-      Write-Host "  Storage Blob Data Contributor granted to $AcrPullIdentityName on $StorageAccountName."
+      Write-Host "  Storage Blob Data Contributor granted to $ApiRuntimeIdentityName on $StorageAccountName."
     }
     else {
-      Write-Host "  Storage Blob Data Contributor already assigned to $AcrPullIdentityName on $StorageAccountName."
+      Write-Host "  Storage Blob Data Contributor already assigned to $ApiRuntimeIdentityName on $StorageAccountName."
     }
   }
 }
 
 if ($AzureClientId -and $doManagedIdentity) {
   Write-Host ""
-  Write-Host "Ensuring GitHub Actions principal can assign the ACR pull identity..."
+  Write-Host "Ensuring GitHub Actions principal can assign deployment managed identities..."
   if (-not $githubSpObjectId) {
     try {
       $githubSpObjectId = az ad sp show --id $AzureClientId --query id -o tsv --only-show-errors 2>$null
@@ -1773,29 +2016,25 @@ if ($AzureClientId -and $doManagedIdentity) {
   }
 
   if ($githubSpObjectId) {
-    $miOperatorExisting = "0"
-    try {
-      $miOperatorExisting = az role assignment list `
-        --assignee-object-id $githubSpObjectId `
-        --scope $acrPullIdentityId `
-        --query "[?roleDefinitionName=='Managed Identity Operator'] | length(@)" -o tsv --only-show-errors 2>$null
-      if (-not $miOperatorExisting) { $miOperatorExisting = "0" }
-    }
-    catch {
-      $miOperatorExisting = "0"
-    }
-
-    if ([int]$miOperatorExisting -eq 0) {
-      az role assignment create `
-        --assignee-object-id $githubSpObjectId `
-        --assignee-principal-type ServicePrincipal `
-        --role "Managed Identity Operator" `
-        --scope $acrPullIdentityId `
-        --only-show-errors 1>$null
-      Write-Host "  Managed Identity Operator granted to $AzureClientId on $AcrPullIdentityName."
-    }
-    else {
-      Write-Host "  Managed Identity Operator already assigned to $AzureClientId on $AcrPullIdentityName."
+    $identityScopes = @(
+      @{ Name = $AcrPullIdentityName; Id = $acrPullIdentityId },
+      @{ Name = $ApiRuntimeIdentityName; Id = $apiRuntimeIdentityId },
+      @{ Name = $JobControlIdentityName; Id = $jobControlIdentityId }
+    )
+    foreach ($identityScope in $identityScopes) {
+      if ([string]::IsNullOrWhiteSpace([string]$identityScope.Id)) {
+        continue
+      }
+      $created = Ensure-RoleAssignment `
+        -PrincipalId $githubSpObjectId `
+        -RoleName "Managed Identity Operator" `
+        -Scope ([string]$identityScope.Id)
+      if ($created) {
+        Write-Host "  Managed Identity Operator granted to $AzureClientId on $($identityScope.Name)."
+      }
+      else {
+        Write-Host "  Managed Identity Operator already assigned to $AzureClientId on $($identityScope.Name)."
+      }
     }
   }
   else {
@@ -1808,6 +2047,9 @@ Write-Host "ACR Pull identity resource ID:"
 if ($doManagedIdentity) {
   Write-Host "  $acrPullIdentityId"
   Write-Host "Set ACR_PULL_IDENTITY_NAME to '$AcrPullIdentityName' (workflow default) or supply the resource ID as ACR_PULL_IDENTITY_RESOURCE_ID for deployments."
+  Write-Host "API runtime identity resource ID:"
+  Write-Host "  $apiRuntimeIdentityId"
+  Write-Host "Set API_RUNTIME_IDENTITY_NAME to '$ApiRuntimeIdentityName' and render API_RUNTIME_IDENTITY_CLIENT_ID as the runtime AZURE_CLIENT_ID."
 }
 else {
   Write-Host "  <not_created>"
@@ -1928,41 +2170,40 @@ if ($GrantJobStartToAcaResources) {
   }
   else {
     Write-Host ""
-    Write-Host "Granting Container App job/container-app start permissions to the ACR pull identity (best-effort)..."
-    Write-Host "  Assignee: $AcrPullIdentityName ($acrPullIdentityPrincipalId)"
-    Write-Host "  Scope: Resource group $ResourceGroup"
-    Write-Host "  Role: Contributor (resource group scope, covers jobs/start and containerApps/start)"
-
     $rgScope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup"
-    $existing = "0"
-    try {
-      $existing = az role assignment list `
-        --assignee-object-id $acrPullIdentityPrincipalId `
-        --scope $rgScope `
-        --query "[?roleDefinitionName=='Contributor'] | length(@)" -o tsv --only-show-errors 2>$null
-      if (-not $existing) { $existing = "0" }
-    }
-    catch {
-      $existing = "0"
-    }
+    $acaOperatorRoleName = Ensure-AcaOperatorRoleDefinition `
+      -RoleName "Asset Allocation ACA Operator" `
+      -Scope $rgScope
 
-    if ([int]$existing -eq 0) {
+    Write-Host "Granting narrow Container Apps/job operator permissions (best-effort)..."
+    Write-Host "  Scope: Resource group $ResourceGroup"
+    Write-Host "  Role: $acaOperatorRoleName"
+
+    $operatorIdentities = @(
+      @{ Name = $ApiRuntimeIdentityName; PrincipalId = $apiRuntimeIdentityPrincipalId },
+      @{ Name = $JobControlIdentityName; PrincipalId = $jobControlIdentityPrincipalId }
+    )
+    foreach ($identity in $operatorIdentities) {
+      if ([string]::IsNullOrWhiteSpace([string]$identity.PrincipalId)) {
+        continue
+      }
       try {
-        az role assignment create `
-          --assignee-object-id $acrPullIdentityPrincipalId `
-          --assignee-principal-type ServicePrincipal `
-          --role "Contributor" `
-          --scope $rgScope `
-          --only-show-errors 1>$null
-        $jobStartAssignmentsCreated += 1
-        Write-Host "  Job start role granted at resource group scope." -ForegroundColor Cyan
+        $created = Ensure-RoleAssignment `
+          -PrincipalId ([string]$identity.PrincipalId) `
+          -RoleName $acaOperatorRoleName `
+          -Scope $rgScope
+        if ($created) {
+          $jobStartAssignmentsCreated += 1
+          Write-Host "  $acaOperatorRoleName granted to $($identity.Name)." -ForegroundColor Cyan
+        }
+        else {
+          $jobStartAssignmentsSkipped += 1
+          Write-Host "  $acaOperatorRoleName already assigned to $($identity.Name)."
+        }
       }
       catch {
-        Write-Warning "Failed to grant job start role at RG scope: $($_.Exception.Message)"
+        Write-Warning "Failed to grant $acaOperatorRoleName to $($identity.Name): $($_.Exception.Message)"
       }
-    }
-    else {
-      $jobStartAssignmentsSkipped += 1
     }
 
     Write-Host "Job start role assignment summary: created=$jobStartAssignmentsCreated skipped=$jobStartAssignmentsSkipped"
@@ -1971,7 +2212,7 @@ if ($GrantJobStartToAcaResources) {
 else {
   Write-Host ""
   Write-Host "NOTE: Jobs may trigger downstream jobs and wake API container apps via ARM."
-  Write-Host "To grant the required permissions, re-run this script after deployment with -GrantJobStartToAcaResources."
+  Write-Host "To grant the required narrow permissions, re-run this script with -GrantJobStartToAcaResources."
 }
 
 if ($ConfigureAcrPullIdentityOnAcaResources) {
@@ -2088,6 +2329,16 @@ $outputs = [ordered]@{
   acrPullUserAssignedIdentityResourceId   = $acrPullIdentityId
   acrPullUserAssignedIdentityClientId     = $acrPullIdentityClientId
   acrPullUserAssignedIdentityPrincipalId  = $acrPullIdentityPrincipalId
+  apiRuntimeIdentityName                  = $ApiRuntimeIdentityName
+  apiRuntimeIdentityId                    = $apiRuntimeIdentityId
+  apiRuntimeIdentityResourceId            = $apiRuntimeIdentityId
+  apiRuntimeIdentityClientId              = $apiRuntimeIdentityClientId
+  apiRuntimeIdentityPrincipalId           = $apiRuntimeIdentityPrincipalId
+  jobControlIdentityName                  = $JobControlIdentityName
+  jobControlIdentityId                    = $jobControlIdentityId
+  jobControlIdentityResourceId            = $jobControlIdentityId
+  jobControlIdentityClientId              = $jobControlIdentityClientId
+  jobControlIdentityPrincipalId           = $jobControlIdentityPrincipalId
   acrPullIdentityOperatorAssigneeObjectId = $githubSpObjectId
   acrPullAssignmentsCreated               = $acrPullAssignmentsCreated
   acrPullAssignmentsSkipped               = $acrPullAssignmentsSkipped
@@ -2112,6 +2363,10 @@ $outputs = [ordered]@{
   natPublicIpName                         = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NatPublicIpName } else { $NatPublicIpName }
   natPublicIpAddress                      = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NatPublicIpAddress } else { "" }
   networkSmokeJobName                     = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.NetworkSmokeJobName } else { $NetworkSmokeJobName }
+  acrPrivateDnsZone                       = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.AcrPrivateDnsZone } else { "" }
+  acrPrivateEndpointName                  = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.AcrPrivateEndpointName } else { "" }
+  enableAcrPrivateLink                    = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.EnableAcrPrivateLink } else { [bool]$EnableAcrPrivateLink }
+  disableAcrPublicNetworkAccess           = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.DisableAcrPublicNetworkAccess } else { [bool]$DisableAcrPublicNetworkAccess }
   apiVnetContainerAppName                 = if ($null -ne $parallelPrivateRuntime) { $parallelPrivateRuntime.ApiInternalAppName } else { $VnetApiAppName }
   uiVnetContainerAppName                  = $VnetUiAppName
   uiPublicHostname                        = $UiPublicHostname

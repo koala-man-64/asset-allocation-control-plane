@@ -20,6 +20,8 @@ dependencies = [
     "requests-oauthlib==2.0.0",
     "azure-storage-blob==12.28.0",
     "azure-identity==1.25.2",
+    "azure-communication-email==1.1.0",
+    "azure-communication-sms==1.1.0",
     "deltalake==1.4.2",
     "python-dotenv==1.2.2",
     "python-dateutil==2.9.0.post0",
@@ -39,8 +41,8 @@ dependencies = [
     "pydantic-settings==2.13.1",
     "PyYAML==6.0.3",
     "pydantic==2.12.5",
-    "asset-allocation-contracts==3.5.0",
-    "asset-allocation-runtime-common==3.4.2",
+    "asset-allocation-contracts==3.10.0",
+    "asset-allocation-runtime-common==3.4.5",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +62,7 @@ include = [
     "api*",
     "core*",
     "etrade_provider*",
+    "kalshi*",
     "massive_provider*",
     "monitoring*",
     "quiver_provider*",

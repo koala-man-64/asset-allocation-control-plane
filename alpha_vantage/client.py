@@ -205,7 +205,8 @@ class AlphaVantageClient:
                 return {k: sanitize(v) for k, v in value.items()}
             return redact(str(value))
 
-        safe_context = {k: sanitize(v) for k, v in context.items() if v is not None}
+        safe_context = {"provider": "alpha_vantage"}
+        safe_context.update({k: sanitize(v) for k, v in context.items() if v is not None})
         try:
             logger.log(level, message, extra={"context": safe_context})
         except Exception:

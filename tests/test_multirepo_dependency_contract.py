@@ -69,6 +69,14 @@ def test_api_dockerfile_copies_first_party_packages_needed_at_boot() -> None:
         assert copy_line in text
 
 
+def test_api_dockerfile_runs_as_non_root() -> None:
+    text = (repo_root() / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
+
+    assert "useradd --system" in text
+    assert "chown -R app:app /app" in text
+    assert re.search(r"^USER app$", text, re.MULTILINE)
+
+
 def test_readme_shared_package_setup_examples_match_pyproject() -> None:
     shared = shared_dependencies()
     text = (repo_root() / "README.md").read_text(encoding="utf-8")
@@ -98,6 +106,9 @@ def test_setup_action_validates_shared_package_compatibility_before_install() ->
     assert "check-shared-compat" in action
     assert '--requirements "${repo_path}/shared-python-deps.txt"' in action
     assert '--pyproject "${repo_path}/pyproject.toml"' in action
+    assert "--allow-newer-contracts" in action
+    assert 'python -m pip install --no-deps -r "${repo_path}/shared-python-deps.txt"' in action
+    assert "pip-check" in action
 
 
 def test_control_plane_workflows_do_not_consume_shared_release_dispatches() -> None:

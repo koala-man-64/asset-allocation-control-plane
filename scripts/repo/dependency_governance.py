@@ -9,6 +9,7 @@ for CI gates.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import re
 import subprocess
@@ -300,10 +301,31 @@ def get_unconditional_exact_requires_dist_versions(metadata_text: str) -> Dict[s
     return requirements
 
 
+def parse_numeric_version(version: str) -> Tuple[int, ...] | None:
+    numeric = version.split("+", 1)[0].split("-", 1)[0]
+    parts = numeric.split(".")
+    if not parts or any(not part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def is_version_at_least(candidate: str, baseline: str) -> bool:
+    candidate_parts = parse_numeric_version(candidate)
+    baseline_parts = parse_numeric_version(baseline)
+    if candidate_parts is None or baseline_parts is None:
+        return False
+
+    width = max(len(candidate_parts), len(baseline_parts))
+    padded_candidate = candidate_parts + (0,) * (width - len(candidate_parts))
+    padded_baseline = baseline_parts + (0,) * (width - len(baseline_parts))
+    return padded_candidate >= padded_baseline
+
+
 def validate_shared_dependency_compatibility(
     shared_pins: Dict[str, str],
     runtime_common_metadata: str,
     runtime_pins: Dict[str, str] | None = None,
+    allow_newer_contracts: bool = False,
 ) -> str | None:
     contracts_version = shared_pins.get("asset-allocation-contracts")
     runtime_common_version = shared_pins.get("asset-allocation-runtime-common")
@@ -324,7 +346,9 @@ def validate_shared_dependency_compatibility(
 
     findings: List[str] = []
 
-    if required_contracts_version != contracts_version:
+    if required_contracts_version != contracts_version and not (
+        allow_newer_contracts and is_version_at_least(contracts_version, required_contracts_version)
+    ):
         findings.append(
             "Shared package compatibility check failed: "
             f"pyproject pins asset-allocation-contracts=={contracts_version}, "
@@ -355,6 +379,43 @@ def validate_shared_dependency_compatibility(
         return "\n".join(findings)
 
     return None
+
+
+def build_allowed_pip_check_lines(shared_pins: Dict[str, str]) -> set[str]:
+    contracts_version = shared_pins.get("asset-allocation-contracts")
+    runtime_common_version = shared_pins.get("asset-allocation-runtime-common")
+    if not contracts_version or not runtime_common_version:
+        return set()
+
+    try:
+        installed_contracts_version = importlib.metadata.version("asset-allocation-contracts")
+        installed_runtime_common_version = importlib.metadata.version("asset-allocation-runtime-common")
+        runtime_common_requirements = importlib.metadata.requires("asset-allocation-runtime-common") or []
+    except importlib.metadata.PackageNotFoundError:
+        return set()
+
+    if installed_contracts_version != contracts_version or installed_runtime_common_version != runtime_common_version:
+        return set()
+
+    required_contracts_version = None
+    for requirement in runtime_common_requirements:
+        if not requirement.startswith("asset-allocation-contracts=="):
+            continue
+        required_contracts_version = requirement.split("==", 1)[1].split(";", 1)[0].strip()
+        break
+
+    if (
+        required_contracts_version is None
+        or required_contracts_version == contracts_version
+        or not is_version_at_least(contracts_version, required_contracts_version)
+    ):
+        return set()
+
+    return {
+        f"asset-allocation-runtime-common {runtime_common_version} has requirement "
+        f"asset-allocation-contracts=={required_contracts_version}, "
+        f"but you have asset-allocation-contracts {contracts_version}."
+    }
 
 
 def download_exact_wheel_metadata(requirement: str) -> str:
@@ -420,16 +481,73 @@ def command_check_shared_compat(args: argparse.Namespace) -> int:
         shared_pins,
         runtime_common_metadata,
         runtime_pins=pyproject_pinned,
+        allow_newer_contracts=args.allow_newer_contracts,
     )
     if incompatibility:
         print(incompatibility)
         return 1
+
+    if args.allow_newer_contracts:
+        required_contracts_version = get_exact_requires_dist_version(
+            runtime_common_metadata,
+            "asset-allocation-contracts",
+        )
+        if required_contracts_version and required_contracts_version != contracts_version:
+            print(
+                "Accepted shared package metadata lag: "
+                f"asset-allocation-runtime-common=={runtime_common_version} declares "
+                f"asset-allocation-contracts=={required_contracts_version}, "
+                f"while pyproject pins asset-allocation-contracts=={contracts_version}."
+            )
+            return 0
 
     print(
         "Verified shared package compatibility: "
         f"asset-allocation-runtime-common=={runtime_common_version} requires "
         f"asset-allocation-contracts=={contracts_version}."
     )
+    return 0
+
+
+def command_pip_check(args: argparse.Namespace) -> int:
+    _, pyproject_pinned, pyproject_duplicates, pyproject_malformed = parse_pyproject_runtime_dependencies(args.pyproject)
+    findings: List[str] = []
+    findings.extend(pyproject_duplicates)
+    findings.extend(pyproject_malformed)
+    if findings:
+        print("Cannot run governed pip check due to pyproject issues:")
+        for finding in findings:
+            print(f"- {finding}")
+        return 1
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "pip", "check"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    output = "\n".join(part for part in (completed.stdout.strip(), completed.stderr.strip()) if part)
+    if completed.returncode == 0:
+        if output:
+            print(output)
+        return 0
+
+    allowed_lines = build_allowed_pip_check_lines(pyproject_pinned)
+    observed_lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not observed_lines:
+        return completed.returncode
+
+    unexpected_lines = [line for line in observed_lines if line not in allowed_lines]
+    accepted_lines = [line for line in observed_lines if line in allowed_lines]
+
+    for line in accepted_lines:
+        print(f"Accepted expected first-party shared package metadata lag: {line}")
+
+    if unexpected_lines:
+        for line in unexpected_lines:
+            print(line)
+        return completed.returncode
+
     return 0
 
 
@@ -612,7 +730,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("pyproject.toml"),
         help="Path to pyproject.toml containing the repo runtime pins to validate against runtime-common metadata",
     )
+    shared_compat.add_argument(
+        "--allow-newer-contracts",
+        action="store_true",
+        help="Allow pyproject to pin a newer contracts package than the runtime-common wheel metadata declares.",
+    )
     shared_compat.set_defaults(func=command_check_shared_compat)
+
+    pip_check = check_parser.add_parser(
+        "pip-check",
+        help="Run pip check while allowing intentional first-party shared package metadata lag.",
+    )
+    pip_check.add_argument(
+        "--pyproject",
+        type=Path,
+        default=Path("pyproject.toml"),
+        help="Path to pyproject.toml containing the repo runtime pins to validate against installed packages",
+    )
+    pip_check.set_defaults(func=command_pip_check)
 
     emit_shared_versions = check_parser.add_parser(
         "emit-shared-versions",

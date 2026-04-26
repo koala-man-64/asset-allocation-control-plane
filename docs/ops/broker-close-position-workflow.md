@@ -9,11 +9,14 @@ The v1 control-plane does not expose a generic `close-position` endpoint. Closin
 1. Read the current position and metadata.
    - Alpaca: `GET /api/providers/alpaca/positions`
    - E*TRADE: `GET /api/providers/etrade/accounts/{account_key}/portfolio`
+   - Kalshi: `GET /api/providers/kalshi/positions`
    - Schwab: `GET /api/providers/schwab/accounts/{account_number}/positions`
+   - Kalshi is intentionally excluded from this generic close workflow. Use `GET /api/providers/kalshi/positions` plus an explicit YES/NO order decision instead of a normalized close-position helper.
 
 2. Check open orders for the same symbol or contract.
    - Alpaca: `GET /api/providers/alpaca/orders?status=open`
    - E*TRADE: `GET /api/providers/etrade/orders`
+   - Kalshi: `GET /api/providers/kalshi/orders`
    - Schwab: `GET /api/providers/schwab/accounts/{account_number}/orders`
 
 3. Determine the closing instruction.
@@ -21,11 +24,13 @@ The v1 control-plane does not expose a generic `close-position` endpoint. Closin
    - Short equity: buy to cover
    - Long option: sell to close
    - Short option: buy to close
+   - Prediction market: use the same Kalshi market ticker and make the reduce-versus-offset decision explicitly; prefer `reduce_only` when the intent is to flatten existing exposure instead of opening new opposite-side exposure
 
 4. Preview when supported.
    - E*TRADE: `POST /api/providers/etrade/orders/preview`, then `POST /api/providers/etrade/orders/place`
    - Schwab: `POST /api/providers/schwab/accounts/{account_number}/orders/preview`, then `POST /api/providers/schwab/accounts/{account_number}/orders`
    - Alpaca: no preview route; submit with a unique `client_order_id`
+   - Kalshi: no preview route; submit with a unique `client_order_id` and `reduce_only` when flattening an existing position
 
 5. Reconcile.
    - Fetch order status.

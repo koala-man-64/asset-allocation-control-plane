@@ -2,12 +2,14 @@ import logging
 import hmac
 from inspect import Parameter, signature
 from typing import Any, Dict
+from urllib.parse import urlparse
 from fastapi import HTTPException, Request
 from monitoring.ttl_cache import TtlCache
 
 from api.service.alpaca_gateway import AlpacaGateway
 from api.service.auth import AuthContext, AuthManager, summarize_auth_claims_for_logs
 from api.service.etrade_gateway import ETradeGateway
+from api.service.kalshi_gateway import KalshiGateway
 from api.service.openai_responses_gateway import OpenAIResponsesGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.schwab_gateway import SchwabGateway
@@ -35,6 +37,10 @@ def get_etrade_gateway(request: Request) -> ETradeGateway:
 
 def get_alpaca_gateway(request: Request) -> AlpacaGateway:
     return request.app.state.alpaca_gateway
+
+
+def get_kalshi_gateway(request: Request) -> KalshiGateway:
+    return request.app.state.kalshi_gateway
 
 
 def get_schwab_gateway(request: Request) -> SchwabGateway:
@@ -115,6 +121,7 @@ def _require_csrf_for_cookie_auth(request: Request, auth_context: AuthContext) -
     if request.method.upper() in {"GET", "HEAD", "OPTIONS", "TRACE"}:
         return
 
+    require_same_origin(request)
     settings = get_settings(request)
     header_token = str(request.headers.get("x-csrf-token") or "").strip()
     cookie_token = str(request.cookies.get(settings.auth_session_csrf_cookie_name) or "").strip()
@@ -136,6 +143,42 @@ def _require_csrf_for_cookie_auth(request: Request, auth_context: AuthContext) -
             bool(cookie_token),
         )
         raise HTTPException(status_code=403, detail="CSRF token is missing or invalid.")
+
+
+def _request_origin(request: Request) -> str:
+    forwarded_proto = str(request.headers.get("x-forwarded-proto") or request.url.scheme or "http").strip().lower()
+    forwarded_host = str(request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc).strip()
+    if not forwarded_host:
+        return ""
+    return f"{forwarded_proto}://{forwarded_host}"
+
+
+def _origin_from_absolute_url(value: str) -> str:
+    parsed = urlparse(str(value or "").strip())
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+def require_same_origin(request: Request) -> None:
+    expected_origin = _request_origin(request)
+    header_origin = _origin_from_absolute_url(request.headers.get("origin", ""))
+    referer_origin = _origin_from_absolute_url(request.headers.get("referer", ""))
+    actual_origin = header_origin or referer_origin
+
+    if expected_origin and actual_origin and hmac.compare_digest(actual_origin, expected_origin.lower()):
+        return
+
+    logger.warning(
+        "Same-origin check rejected request: request_id=%s method=%s path=%s expected_origin=%s origin=%s referer=%s",
+        _request_id(request),
+        request.method,
+        request.url.path,
+        expected_origin,
+        request.headers.get("origin", ""),
+        request.headers.get("referer", ""),
+    )
+    raise HTTPException(status_code=403, detail="Origin or Referer does not match the expected UI origin.")
 
 
 def validate_auth(request: Request) -> AuthContext:
@@ -191,7 +234,7 @@ def _require_configured_roles(
     required_roles: list[str],
     log_prefix: str,
 ) -> None:
-    if auth_context.mode == "anonymous":
+    if auth_context.mode in {"anonymous", "password"}:
         return
     granted_roles = sorted(_claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {}))
     configured_roles = sorted({role.strip() for role in required_roles if role.strip()})
@@ -258,10 +301,97 @@ def require_data_discovery_write_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_system_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="System read",
+    )
+    return auth_context
+
+
+def require_system_logs_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.logs_read_required_roles,
+        log_prefix="System logs read",
+    )
+    return auth_context
+
+
+def require_system_operate_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.operate_required_roles,
+        log_prefix="System operate",
+    )
+    return auth_context
+
+
+def require_runtime_config_write_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.runtime_config_write_required_roles,
+        log_prefix="Runtime config write",
+    )
+    return auth_context
+
+
+def require_job_operate_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.job_operate_required_roles,
+        log_prefix="Job operate",
+    )
+    return auth_context
+
+
+def require_purge_write_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.purge_write_required_roles,
+        log_prefix="Purge write",
+    )
+    return auth_context
+
+
 def require_quiver_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
     auth_context = validate_auth(request)
     settings = get_settings(request).quiver
     if require_enabled and not settings.enabled:
+        logger.warning(
+            "Quiver integration disabled: provider=quiver request_id=%s path=%s caller_job=%s",
+            _request_id(request),
+            request.url.path,
+            request.headers.get("X-Caller-Job", "") or "n/a",
+            extra={
+                "context": {
+                    "provider": "quiver",
+                    "provider_event": "disabled",
+                    "request_id": _request_id(request),
+                    "path": request.url.path,
+                    "caller_job": request.headers.get("X-Caller-Job", "") or "n/a",
+                }
+            },
+        )
         raise HTTPException(status_code=503, detail="Quiver integration is disabled.")
 
     _require_configured_roles(
@@ -357,6 +487,34 @@ def require_alpaca_trade_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_kalshi_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).kalshi
+    if require_enabled and not settings.enabled:
+        raise HTTPException(status_code=503, detail="Kalshi integration is disabled.")
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Kalshi",
+    )
+    return auth_context
+
+
+def require_kalshi_trade_access(request: Request) -> AuthContext:
+    auth_context = require_kalshi_access(request)
+    settings = get_settings(request).kalshi
+    if not settings.trading_enabled:
+        raise HTTPException(status_code=503, detail="Kalshi trading is disabled.")
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.trading_required_roles,
+        log_prefix="Kalshi trade",
+    )
+    return auth_context
+
+
 def require_symbol_enrichment_job_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
     auth_context = validate_auth(request)
     settings = get_settings(request).symbol_enrichment
@@ -436,6 +594,30 @@ def require_trade_desk_read_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_account_policy_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).broker_account_policy
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="Account policy read",
+    )
+    return auth_context
+
+
+def require_account_policy_write_access(request: Request) -> AuthContext:
+    auth_context = require_account_policy_read_access(request)
+    settings = get_settings(request).broker_account_policy
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.write_required_roles,
+        log_prefix="Account policy write",
+    )
+    return auth_context
+
+
 def require_trade_desk_preview_access(request: Request) -> AuthContext:
     auth_context = require_trade_desk_read_access(request)
     settings = get_settings(request).trade_desk
@@ -480,6 +662,30 @@ def require_trade_desk_live_access(request: Request) -> AuthContext:
         auth_context=auth_context,
         required_roles=settings.live_required_roles,
         log_prefix="Trade desk live",
+    )
+    return auth_context
+
+
+def require_notification_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).notifications
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="Notifications read",
+    )
+    return auth_context
+
+
+def require_notification_write_access(request: Request) -> AuthContext:
+    auth_context = require_notification_read_access(request)
+    settings = get_settings(request).notifications
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.write_required_roles,
+        log_prefix="Notifications write",
     )
     return auth_context
 

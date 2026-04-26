@@ -36,6 +36,11 @@
       "source_job": "tasks.regime_data.gold_regime_data",
       "status": "reviewed"
     },
+    "regime_macro_inputs_daily": {
+      "schema_name": "gold",
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "reviewed"
+    },
     "regime_latest": {
       "schema_name": "gold",
       "source_job": "tasks.regime_data.gold_regime_data",
@@ -3390,6 +3395,893 @@
       "calculation_expression": null,
       "calculation_dependencies": [],
       "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "rsi_14d",
+      "description": "Momentum oscillator measuring the 14-day balance of average gains versus losses.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from canonical domain inputs; see DATA.md for lineage context.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "dist_prev_week_high_atr",
+      "description": "ATR-normalized distance from close to the prior completed trading week's high.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from completed weekly OHLCV history with no current-week look-ahead.",
+      "calculation_expression": "(prev_week_high - close) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "high",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "dist_prev_week_low_atr",
+      "description": "ATR-normalized distance from close to the prior completed trading week's low.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from completed weekly OHLCV history with no current-week look-ahead.",
+      "calculation_expression": "(close - prev_week_low) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "low",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "dist_prev_month_high_atr",
+      "description": "ATR-normalized distance from close to the prior completed month's high.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from completed monthly OHLCV history with no current-month look-ahead.",
+      "calculation_expression": "(prev_month_high - close) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "high",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "dist_prev_month_low_atr",
+      "description": "ATR-normalized distance from close to the prior completed month's low.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed by the gold ETL pipeline from completed monthly OHLCV history with no current-month look-ahead.",
+      "calculation_expression": "(close - prev_month_low) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "low",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "position_in_20d_range",
+      "description": "Normalized close location inside the prior 20-day Donchian range; values above 1 or below 0 indicate breakout extension.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed from lagged Donchian bounds so the feature reflects only completed 20-day history.",
+      "calculation_expression": "(close - donchian_low_20d) / (donchian_high_20d - donchian_low_20d)",
+      "calculation_dependencies": [
+        "close",
+        "donchian_high_20d",
+        "donchian_low_20d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "position_in_55d_range",
+      "description": "Normalized close location inside the prior 55-day Donchian range; values above 1 or below 0 indicate breakout extension.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed from lagged Donchian bounds so the feature reflects only completed 55-day history.",
+      "calculation_expression": "(close - donchian_low_55d) / (donchian_high_55d - donchian_low_55d)",
+      "calculation_dependencies": [
+        "close",
+        "donchian_high_55d",
+        "donchian_low_55d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "swept_sr_resistance_1",
+      "description": "Binary bearish liquidity-sweep flag set when price trades above the nearest confirmed resistance zone but closes back below it.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed from confirmed support/resistance zones and same-bar rejection logic to approximate stop-run behavior from daily bars.",
+      "calculation_expression": "high > sr_resistance_1_high and close < sr_resistance_1_high",
+      "calculation_dependencies": [
+        "high",
+        "close",
+        "sr_resistance_1_high"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "swept_sr_support_1",
+      "description": "Binary bullish liquidity-sweep flag set when price trades below the nearest confirmed support zone but closes back above it.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Computed from confirmed support/resistance zones and same-bar reclaim logic to approximate downside stop-runs from daily bars.",
+      "calculation_expression": "low < sr_support_1_low and close > sr_support_1_low",
+      "calculation_dependencies": [
+        "low",
+        "close",
+        "sr_support_1_low"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bearish_sweep_magnitude_atr",
+      "description": "ATR-normalized amount by which the session high pierced the nearest confirmed resistance zone.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Zero when price does not trade above the confirmed resistance boundary on the session.",
+      "calculation_expression": "max(high - sr_resistance_1_high, 0) / atr_14d",
+      "calculation_dependencies": [
+        "high",
+        "sr_resistance_1_high",
+        "atr_14d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bullish_sweep_magnitude_atr",
+      "description": "ATR-normalized amount by which the session low pierced the nearest confirmed support zone.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Zero when price does not trade below the confirmed support boundary on the session.",
+      "calculation_expression": "max(sr_support_1_low - low, 0) / atr_14d",
+      "calculation_dependencies": [
+        "low",
+        "sr_support_1_low",
+        "atr_14d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bearish_sweep_reclaim_frac",
+      "description": "Fraction of an upside sweep reclaimed back below confirmed resistance by the close; larger values imply stronger rejection.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Set to zero when no upside penetration occurs, then scaled by the size of the session's resistance overshoot.",
+      "calculation_expression": "case when high > sr_resistance_1_high then (sr_resistance_1_high - close) / (high - sr_resistance_1_high) else 0 end",
+      "calculation_dependencies": [
+        "high",
+        "close",
+        "sr_resistance_1_high"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bullish_sweep_reclaim_frac",
+      "description": "Fraction of a downside sweep reclaimed back above confirmed support by the close; larger values imply stronger rejection.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Set to zero when no downside penetration occurs, then scaled by the size of the session's support overshoot.",
+      "calculation_expression": "case when low < sr_support_1_low then (close - sr_support_1_low) / (sr_support_1_low - low) else 0 end",
+      "calculation_dependencies": [
+        "low",
+        "close",
+        "sr_support_1_low"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bars_since_bearish_sweep",
+      "description": "Bars elapsed since the most recent bearish liquidity sweep above confirmed resistance.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Stateful rolling counter derived from prior `swept_sr_resistance_1` events for post-sweep confirmation logic.",
+      "calculation_expression": "rows since last swept_sr_resistance_1 = 1",
+      "calculation_dependencies": [
+        "swept_sr_resistance_1"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bars_since_bullish_sweep",
+      "description": "Bars elapsed since the most recent bullish liquidity sweep below confirmed support.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Stateful rolling counter derived from prior `swept_sr_support_1` events for post-sweep confirmation logic.",
+      "calculation_expression": "rows since last swept_sr_support_1 = 1",
+      "calculation_dependencies": [
+        "swept_sr_support_1"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bearish_confirm_after_sweep",
+      "description": "Binary post-sweep confirmation flag set when close breaks below the most recent bearish sweep candle's low within three bars.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Separates the liquidity event from the follow-through confirmation phase so ranking or gating logic can weight them independently.",
+      "calculation_expression": "bars_since_bearish_sweep <= 3 and close < last_bearish_sweep_low",
+      "calculation_dependencies": [
+        "bars_since_bearish_sweep",
+        "close",
+        "swept_sr_resistance_1",
+        "low"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "bullish_confirm_after_sweep",
+      "description": "Binary post-sweep confirmation flag set when close breaks above the most recent bullish sweep candle's high within three bars.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Separates the liquidity event from the follow-through confirmation phase so ranking or gating logic can weight them independently.",
+      "calculation_expression": "bars_since_bullish_sweep <= 3 and close > last_bullish_sweep_high",
+      "calculation_dependencies": [
+        "bars_since_bullish_sweep",
+        "close",
+        "swept_sr_support_1",
+        "high"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "amihud_20d",
+      "description": "Twenty-day rolling Amihud illiquidity proxy measuring absolute return per dollar of traded volume.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Built from daily return and dollar volume only, using a guarded denominator so zero-volume days do not produce infinities.",
+      "calculation_expression": "rolling_mean(abs(return_1d) / max(close * volume, 1), 20)",
+      "calculation_dependencies": [
+        "return_1d",
+        "close",
+        "volume"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "amihud_z_252d",
+      "description": "One-year z-score of the rolling Amihud illiquidity proxy.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Normalizes the rolling Amihud series against its own 252-day history to detect abnormal thin-liquidity regimes.",
+      "calculation_expression": "(amihud_20d - mean_252d(amihud_20d)) / std_252d(amihud_20d)",
+      "calculation_dependencies": [
+        "amihud_20d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "dollar_volume_20d",
+      "description": "Twenty-day rolling average of daily dollar volume.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Uses close multiplied by share volume as the daily execution-capacity proxy for daily bars.",
+      "calculation_expression": "rolling_mean(close * volume, 20)",
+      "calculation_dependencies": [
+        "close",
+        "volume"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "dollar_volume_z_252d",
+      "description": "One-year z-score of the rolling dollar-volume proxy.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Normalizes rolling dollar volume against its own 252-day history to capture abnormally weak or strong trading participation.",
+      "calculation_expression": "(dollar_volume_20d - mean_252d(dollar_volume_20d)) / std_252d(dollar_volume_20d)",
+      "calculation_dependencies": [
+        "dollar_volume_20d"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "market_data",
+      "column_name": "liquidity_stress_score",
+      "description": "Composite daily liquidity gate that rises when price impact is elevated, participation is weak, and opening gaps are large.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Intended primarily as a no-trade or down-size regime feature rather than a directional alpha signal.",
+      "calculation_expression": "amihud_z_252d - dollar_volume_z_252d + abs(gap_atr)",
+      "calculation_dependencies": [
+        "amihud_z_252d",
+        "dollar_volume_z_252d",
+        "gap_atr"
+      ],
+      "status": "reviewed"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "qqq_close",
+      "description": "Regime model input value for QQQ close.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "iwm_close",
+      "description": "Regime model input value for IWM close.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "acwi_close",
+      "description": "Regime model input value for ACWI close.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "spy_return_20d",
+      "description": "Regime model input value for SPY return 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "qqq_return_20d",
+      "description": "Regime model input value for QQQ return 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "iwm_return_20d",
+      "description": "Regime model input value for IWM return 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "acwi_return_20d",
+      "description": "Regime model input value for ACWI return 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "sma_20d",
+      "description": "Regime model input value for SMA 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "sma_50d",
+      "description": "Regime model input value for SMA 50d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "sma_200d",
+      "description": "Regime model input value for SMA 200d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "rsi_14d",
+      "description": "Regime model input value for RSI 14d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "bb_width_20d",
+      "description": "Regime model input value for bb width 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "atr_14d",
+      "description": "Regime model input value for ATR 14d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "atr_14d_pct_of_close",
+      "description": "Regime model input value for ATR 14d percent of close.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "gap_atr",
+      "description": "Regime model input value for gap ATR.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "volume_pct_rank_252d",
+      "description": "Regime model input value for volume percent rank 252d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "rate_2y",
+      "description": "Regime model input value for rate 2y.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "rate_10y",
+      "description": "Regime model input value for rate 10y.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "curve_2s10s",
+      "description": "Regime model input value for curve 2s10s.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "hy_oas",
+      "description": "Regime model input value for high-yield OAS.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "hy_oas_z_20d",
+      "description": "Regime model input value for high-yield OAS z 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_inputs_daily",
+      "column_name": "rates_event_flag",
+      "description": "Regime model input value for rates event flag.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as model input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "as_of_date",
+      "description": "Regime macro input value for as of date.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "rate_2y",
+      "description": "Regime macro input value for rate 2y.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "rate_10y",
+      "description": "Regime macro input value for rate 10y.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "curve_2s10s",
+      "description": "Regime macro input value for curve 2s10s.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "hy_oas",
+      "description": "Regime macro input value for high-yield OAS.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "hy_oas_z_20d",
+      "description": "Regime macro input value for high-yield OAS z 20d.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "rates_event_flag",
+      "description": "Regime macro input value for rates event flag.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_macro_inputs_daily",
+      "column_name": "computed_at",
+      "description": "Regime macro input value for computed at.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Prepared by the gold regime job as macro input telemetry.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_history",
+      "column_name": "display_name",
+      "description": "Regime signal output value for display name.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model history output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_history",
+      "column_name": "signal_state",
+      "description": "Regime signal output value for signal state.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model history output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_history",
+      "column_name": "score",
+      "description": "Regime signal output value for score.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model history output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_history",
+      "column_name": "activation_threshold",
+      "description": "Regime signal output value for activation threshold.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model history output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_history",
+      "column_name": "is_active",
+      "description": "Regime signal output value for is active.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model history output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_history",
+      "column_name": "evidence_json",
+      "description": "Regime signal output value for evidence json.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model history output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_latest",
+      "column_name": "display_name",
+      "description": "Regime signal output value for display name.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model latest snapshot output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_latest",
+      "column_name": "signal_state",
+      "description": "Regime signal output value for signal state.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model latest snapshot output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_latest",
+      "column_name": "score",
+      "description": "Regime signal output value for score.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model latest snapshot output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_latest",
+      "column_name": "activation_threshold",
+      "description": "Regime signal output value for activation threshold.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model latest snapshot output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_latest",
+      "column_name": "is_active",
+      "description": "Regime signal output value for is active.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model latest snapshot output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_latest",
+      "column_name": "evidence_json",
+      "description": "Regime signal output value for evidence json.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model latest snapshot output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_transitions",
+      "column_name": "regime_code",
+      "description": "Regime transition output value for regime code.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model transition output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_transitions",
+      "column_name": "transition_type",
+      "description": "Regime transition output value for transition type.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model transition output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_transitions",
+      "column_name": "prior_score",
+      "description": "Regime transition output value for prior score.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model transition output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_transitions",
+      "column_name": "new_score",
+      "description": "Regime transition output value for new score.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model transition output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
+    },
+    {
+      "schema_name": "gold",
+      "table_name": "regime_transitions",
+      "column_name": "activation_threshold",
+      "description": "Regime transition output value for activation threshold.",
+      "calculation_type": "derived_python",
+      "calculation_notes": "Emitted by the multi-signal regime model transition output.",
+      "calculation_expression": null,
+      "calculation_dependencies": [],
+      "source_job": "tasks.regime_data.gold_regime_data",
+      "status": "draft"
     }
   ]
 }

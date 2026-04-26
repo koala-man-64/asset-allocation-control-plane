@@ -16,6 +16,11 @@ API Root
     |   `-- /chat/stream [POST] (ai.stream_chat) - Authenticated SSE relay to the OpenAI Responses API; accepts JSON or multipart with optional files :: api/endpoints/ai.py
     |-- /realtime/ticket [POST] (realtime.issue_realtime_ticket) - Issues a single-use websocket ticket for authenticated clients :: api/endpoints/realtime.py <== ui/src/hooks/useRealtime.ts
     |-- /ws/updates [WebSocket] (realtime.websocket_updates) - Real-time updates (system health/jobs/container apps/runtime config/debug symbols) :: api/endpoints/realtime.py <== ui/src/hooks/useRealtime.ts
+    |
+    # Broker Account Configuration (Matches ui/src/features/accounts/AccountOperationsPage.tsx)
+    |-- /broker-accounts/{account_id}/configuration [GET] (broker_accounts.get_broker_account_configuration) - Returns the persisted broker-account trading policy, allocation summary, capabilities, warnings, and recent audit activity :: api/endpoints/broker_accounts.py
+    |-- /broker-accounts/{account_id}/trading-policy [PUT] (broker_accounts.save_broker_account_trading_policy) - Saves requested trading-policy controls with optimistic concurrency and audit capture :: api/endpoints/broker_accounts.py
+    |-- /broker-accounts/{account_id}/allocation [PUT] (broker_accounts.save_broker_account_allocation) - Saves account-scoped strategy allocation through active-portfolio orchestration, including clone-on-edit when the active portfolio is shared :: api/endpoints/broker_accounts.py
 
     # System & Health (Matches ui/src/hooks/useDataQueries.ts)
     |-- /system
@@ -61,6 +66,20 @@ API Root
     |   |   |-- /time-series/daily [GET] (alpha_vantage.get_daily_time_series) - Alpha Vantage TIME_SERIES_DAILY CSV :: api/endpoints/alpha_vantage.py
     |   |   |-- /earnings [GET] (alpha_vantage.get_earnings) - Alpha Vantage EARNINGS payload :: api/endpoints/alpha_vantage.py
     |   |   `-- /earnings-calendar [GET] (alpha_vantage.get_earnings_calendar) - Alpha Vantage earnings calendar CSV :: api/endpoints/alpha_vantage.py
+    |   |-- /kalshi
+    |   |   |-- /markets [GET] (kalshi.kalshi_markets) - Returns Kalshi market metadata with filtering and pagination :: api/endpoints/kalshi.py
+    |   |   |-- /markets/{ticker} [GET] (kalshi.kalshi_market) - Returns one Kalshi market :: api/endpoints/kalshi.py
+    |   |   |-- /markets/{ticker}/orderbook [GET] (kalshi.kalshi_orderbook) - Returns the Kalshi yes/no bid book for one market :: api/endpoints/kalshi.py
+    |   |   |-- /balance [GET] (kalshi.kalshi_balance) - Returns Kalshi available balance and portfolio value :: api/endpoints/kalshi.py
+    |   |   |-- /positions [GET] (kalshi.kalshi_positions) - Returns Kalshi market and event positions :: api/endpoints/kalshi.py
+    |   |   |-- /orders [GET] (kalshi.kalshi_orders) - Returns Kalshi orders with provider filters :: api/endpoints/kalshi.py
+    |   |   |-- /orders [POST] (kalshi.kalshi_create_order) - Creates a Kalshi order using explicit side/action semantics :: api/endpoints/kalshi.py
+    |   |   |-- /orders/{order_id} [GET] (kalshi.kalshi_order) - Returns one Kalshi order :: api/endpoints/kalshi.py
+    |   |   |-- /orders/{order_id} [DELETE] (kalshi.kalshi_cancel_order) - Cancels a Kalshi order and returns the reduced quantity :: api/endpoints/kalshi.py
+    |   |   |-- /orders/{order_id}/amend [POST] (kalshi.kalshi_amend_order) - Amends a Kalshi order price and/or quantity :: api/endpoints/kalshi.py
+    |   |   |-- /orders/{order_id}/queue-position [GET] (kalshi.kalshi_order_queue_position) - Returns the queue position for one resting Kalshi order :: api/endpoints/kalshi.py
+    |   |   |-- /orders/queue-positions [GET] (kalshi.kalshi_queue_positions) - Returns queue positions for matching Kalshi resting orders :: api/endpoints/kalshi.py
+    |   |   `-- /account/limits [GET] (kalshi.kalshi_account_limits) - Returns Kalshi API tier and read/write limits :: api/endpoints/kalshi.py
     |   |-- /etrade
     |   |   |-- /connect/start [POST] (etrade.etrade_connect_start) - Starts E*TRADE OAuth and returns the authorize URL plus callback metadata when configured :: api/endpoints/etrade.py
     |   |   |-- /connect/complete [POST] (etrade.etrade_connect_complete) - Completes manual E*TRADE OAuth verifier exchange :: api/endpoints/etrade.py

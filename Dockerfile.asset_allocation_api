@@ -3,16 +3,18 @@
 FROM python:3.14-slim-bookworm
 
 WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-ARG CONTRACTS_VERSION=3.4.0
-ARG RUNTIME_COMMON_VERSION=3.4.2
+ARG CONTRACTS_VERSION=3.10.0
+ARG RUNTIME_COMMON_VERSION=3.4.5
 
 COPY asset-allocation-control-plane/requirements.lock.txt ./
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.lock.txt
 
 RUN --mount=type=secret,id=pipconfig,target=/etc/pip.conf,required=false \
-    pip install --no-cache-dir \
+    pip install --no-cache-dir --no-deps \
     "asset-allocation-contracts==${CONTRACTS_VERSION}" \
     "asset-allocation-runtime-common==${RUNTIME_COMMON_VERSION}"
 
@@ -21,12 +23,18 @@ COPY asset-allocation-control-plane/alpaca/ alpaca/
 COPY asset-allocation-control-plane/alpha_vantage/ alpha_vantage/
 COPY asset-allocation-control-plane/core/ core/
 COPY asset-allocation-control-plane/etrade_provider/ etrade_provider/
+COPY asset-allocation-control-plane/kalshi/ kalshi/
 COPY asset-allocation-control-plane/massive_provider/ massive_provider/
 COPY asset-allocation-control-plane/monitoring/ monitoring/
 COPY asset-allocation-control-plane/quiver_provider/ quiver_provider/
 COPY asset-allocation-control-plane/schwab/ schwab/
 COPY asset-allocation-control-plane/api/ api/
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir . --no-deps
+
+RUN groupadd --system app && \
+    useradd --system --gid app --home-dir /app --no-create-home app && \
+    chown -R app:app /app
+USER app
 
 EXPOSE 8000
 
