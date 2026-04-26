@@ -75,6 +75,31 @@ def test_symbol_enrichment_settings_parse_from_env(monkeypatch: pytest.MonkeyPat
     ]
 
 
+def test_system_access_role_defaults() -> None:
+    settings = ServiceSettings.from_env()
+
+    assert settings.system_access.read_required_roles == ["AssetAllocation.System.Read"]
+    assert settings.system_access.logs_read_required_roles == ["AssetAllocation.System.Logs.Read"]
+    assert settings.system_access.operate_required_roles == ["AssetAllocation.System.Operate"]
+    assert settings.system_access.runtime_config_write_required_roles == [
+        "AssetAllocation.RuntimeConfig.Write",
+    ]
+    assert settings.system_access.job_operate_required_roles == ["AssetAllocation.Jobs.Operate"]
+    assert settings.system_access.purge_write_required_roles == ["AssetAllocation.Purge.Write"]
+
+
+def test_system_access_roles_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYSTEM_OPERATE_REQUIRED_ROLES", "Ops.One,Ops.Two")
+    monkeypatch.setenv("JOB_OPERATE_REQUIRED_ROLES", "Jobs.One")
+    monkeypatch.setenv("PURGE_WRITE_REQUIRED_ROLES", "Purge.One")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.system_access.operate_required_roles == ["Ops.One", "Ops.Two"]
+    assert settings.system_access.job_operate_required_roles == ["Jobs.One"]
+    assert settings.system_access.purge_write_required_roles == ["Purge.One"]
+
+
 def test_quiver_requires_api_key_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("QUIVER_ENABLED", "true")
     monkeypatch.delenv("QUIVER_API_KEY", raising=False)

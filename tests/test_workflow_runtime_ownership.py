@@ -156,10 +156,13 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert '--repository "${RELEASE_IMAGE_REPOSITORY}"' in text
     assert 'image_digest="${ACR_LOGIN_SERVER}/${RELEASE_IMAGE_REPOSITORY}@${manifest_digest}"' in text
     assert "No released ${RELEASE_IMAGE_REPOSITORY} image found in ACR ${ACR_NAME}." in text
-    assert "API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api_public.yaml' }}" in text
+    assert "API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api.yaml' }}" in text
+    assert "ALLOW_PUBLIC_API_INGRESS: ${{ vars.ALLOW_PUBLIC_API_INGRESS || 'false' }}" in text
     assert "ACA_NETWORK_SMOKE_JOB_NAME: ${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}" in text
     assert "python scripts/automation/render_control_plane_manifest.py \\" in text
     assert '--template "${API_DEPLOY_MANIFEST}" \\' in text
+    assert 'Refusing public API ingress manifest without ALLOW_PUBLIC_API_INGRESS=true.' in text
+    assert 'Unsupported API_DEPLOY_MANIFEST' in text
     assert "--output rendered-control-plane.yaml" in text
     assert 'expect_status 401 "https://${fqdn}/config.js"' in text
     assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
@@ -186,6 +189,9 @@ def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> Non
     assert "AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}" in text
     assert "CONTAINER_APPS_ENVIRONMENT_ID: ${{ steps.azure.outputs.environment_id }}" in text
     assert "ACR_PULL_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.identity_client_id }}" in text
+    assert "API_RUNTIME_IDENTITY_NAME: ${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}" in text
+    assert "API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}" in text
+    assert "API_RUNTIME_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.api_runtime_identity_client_id }}" in text
 
 
 def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> None:

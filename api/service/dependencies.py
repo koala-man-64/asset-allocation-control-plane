@@ -263,6 +263,78 @@ def require_data_discovery_write_access(request: Request) -> AuthContext:
     return auth_context
 
 
+def require_system_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="System read",
+    )
+    return auth_context
+
+
+def require_system_logs_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.logs_read_required_roles,
+        log_prefix="System logs read",
+    )
+    return auth_context
+
+
+def require_system_operate_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.operate_required_roles,
+        log_prefix="System operate",
+    )
+    return auth_context
+
+
+def require_runtime_config_write_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.runtime_config_write_required_roles,
+        log_prefix="Runtime config write",
+    )
+    return auth_context
+
+
+def require_job_operate_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.job_operate_required_roles,
+        log_prefix="Job operate",
+    )
+    return auth_context
+
+
+def require_purge_write_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).system_access
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.purge_write_required_roles,
+        log_prefix="Purge write",
+    )
+    return auth_context
+
+
 def require_quiver_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
     auth_context = validate_auth(request)
     settings = get_settings(request).quiver

@@ -98,7 +98,7 @@ def build_router(
 
     @router.post("/runtime-config")
     def set_runtime_config(payload: runtime_config_upsert_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_runtime_config_write_access = _runtime_attr(runtime, "require_runtime_config_write_access")
         get_settings = _runtime_attr(runtime, "get_settings")
         default_env_override_keys = _runtime_attr(runtime, "DEFAULT_ENV_OVERRIDE_KEYS")
         normalize_env_override = _runtime_attr(runtime, "normalize_env_override")
@@ -112,7 +112,7 @@ def build_router(
         runtime_topic = _runtime_attr(runtime, "REALTIME_TOPIC_RUNTIME_CONFIG")
         os_module = _runtime_attr(runtime, "os")
 
-        validate_auth(request)
+        require_runtime_config_write_access(request)
 
         settings = get_settings(request)
         dsn = (settings.postgres_dsn or os_module.environ.get("POSTGRES_DSN") or "").strip()
@@ -168,7 +168,7 @@ def build_router(
 
     @router.delete("/runtime-config/{key}")
     def remove_runtime_config(key: str, request: Request, scope: str = Query("global")) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_runtime_config_write_access = _runtime_attr(runtime, "require_runtime_config_write_access")
         get_settings = _runtime_attr(runtime, "get_settings")
         default_env_override_keys = _runtime_attr(runtime, "DEFAULT_ENV_OVERRIDE_KEYS")
         delete_runtime_config = _runtime_attr(runtime, "delete_runtime_config")
@@ -178,7 +178,7 @@ def build_router(
         runtime_topic = _runtime_attr(runtime, "REALTIME_TOPIC_RUNTIME_CONFIG")
         os_module = _runtime_attr(runtime, "os")
 
-        validate_auth(request)
+        require_runtime_config_write_access(request)
 
         settings = get_settings(request)
         dsn = (settings.postgres_dsn or os_module.environ.get("POSTGRES_DSN") or "").strip()
@@ -251,7 +251,7 @@ def build_router(
 
     @router.put("/debug-symbols")
     def set_debug_symbols(payload: debug_symbols_update_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_runtime_config_write_access = _runtime_attr(runtime, "require_runtime_config_write_access")
         get_settings = _runtime_attr(runtime, "get_settings")
         replace_debug_symbols_state = _runtime_attr(runtime, "replace_debug_symbols_state")
         get_actor = _runtime_attr(runtime, "_get_actor")
@@ -262,7 +262,7 @@ def build_router(
         debug_topic = _runtime_attr(runtime, "REALTIME_TOPIC_DEBUG_SYMBOLS")
         os_module = _runtime_attr(runtime, "os")
 
-        validate_auth(request)
+        require_runtime_config_write_access(request)
 
         settings = get_settings(request)
         dsn = (settings.postgres_dsn or os_module.environ.get("POSTGRES_DSN") or "").strip()
@@ -303,7 +303,7 @@ def build_router(
 
     @router.delete("/debug-symbols")
     def remove_debug_symbols(request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_runtime_config_write_access = _runtime_attr(runtime, "require_runtime_config_write_access")
         get_settings = _runtime_attr(runtime, "get_settings")
         delete_debug_symbols_state = _runtime_attr(runtime, "delete_debug_symbols_state")
         postgres_error = _runtime_attr(runtime, "PostgresError")
@@ -312,7 +312,7 @@ def build_router(
         debug_topic = _runtime_attr(runtime, "REALTIME_TOPIC_DEBUG_SYMBOLS")
         os_module = _runtime_attr(runtime, "os")
 
-        validate_auth(request)
+        require_runtime_config_write_access(request)
 
         settings = get_settings(request)
         dsn = (settings.postgres_dsn or os_module.environ.get("POSTGRES_DSN") or "").strip()

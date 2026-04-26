@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from asset_allocation_contracts.ui_config import UiRuntimeConfig
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.openapi.utils import get_openapi
@@ -57,6 +57,7 @@ from api.service.settings import ServiceSettings
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
 from asset_allocation_runtime_common.market_data.delta_core import get_delta_storage_auth_diagnostics
+from core.redaction import redact_sensitive_value, summarize_query_params
 
 logger = logging.getLogger("asset-allocation.api")
 
@@ -383,6 +384,14 @@ def create_app() -> FastAPI:
 
     content_security_policy = (os.environ.get("API_CSP") or "").strip()
 
+    @app.exception_handler(HTTPException)
+    async def _redacted_http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
+        return JSONResponse(
+            {"detail": redact_sensitive_value(exc.detail)},
+            status_code=exc.status_code,
+            headers=exc.headers,
+        )
+
     @app.middleware("http")
     async def _http_middleware(request: Request, call_next):
         try:
@@ -392,15 +401,17 @@ def create_app() -> FastAPI:
             request.state.request_id = request_id
             auth_header = str(request.headers.get("authorization") or "").strip()
 
+            query_summary = summarize_query_params(request.url.query)
             logger.info(
-                "HTTP request: request_id=%s method=%s path=%s query=%s host=%s origin=%s referer=%s forwarded_for=%s auth_present=%s",
+                "HTTP request: request_id=%s method=%s path=%s query_keys=%s query_count=%s query_sensitive=%s host=%s origin=%s forwarded_for=%s auth_present=%s",
                 request_id,
                 request.method,
                 path,
-                request.url.query,
+                ",".join(query_summary["keys"]),
+                query_summary["count"],
+                query_summary["hasSensitiveKeys"],
                 request.headers.get("host", ""),
                 request.headers.get("origin", ""),
-                request.headers.get("referer", ""),
                 request.headers.get("x-forwarded-for", ""),
                 auth_header.lower().startswith("bearer "),
             )

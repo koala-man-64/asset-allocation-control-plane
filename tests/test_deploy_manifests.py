@@ -143,3 +143,38 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "SCHWAB_REFRESH_TOKEN" not in _env_names(private_doc)
     assert expected_envs <= _env_names(public_doc)
     assert expected_envs <= _env_names(private_doc)
+
+
+def test_api_manifests_default_to_internal_parameterized_split_identity_runtime() -> None:
+    repo_root = _repo_root()
+    public_doc = _load_yaml(repo_root / "deploy" / "app_api_public.yaml")
+    private_doc = _load_yaml(repo_root / "deploy" / "app_api.yaml")
+
+    for doc in (public_doc, private_doc):
+        assert doc["name"] == "${API_APP_NAME}"
+        user_assigned = doc["identity"]["userAssignedIdentities"]
+        assert "${ACR_PULL_IDENTITY_RESOURCE_ID}" in user_assigned
+        assert "${API_RUNTIME_IDENTITY_RESOURCE_ID}" in user_assigned
+
+        registries = doc["properties"]["configuration"]["registries"]
+        assert registries[0]["identity"] == "${ACR_PULL_IDENTITY_RESOURCE_ID}"
+
+        env = {
+            entry["name"]: entry
+            for entry in doc["properties"]["template"]["containers"][0]["env"]
+        }
+        assert env["AZURE_CLIENT_ID"]["value"] == "${API_RUNTIME_IDENTITY_CLIENT_ID}"
+        assert "${ACR_PULL_IDENTITY_CLIENT_ID}" not in str(doc)
+
+        for name in {
+            "SYSTEM_READ_REQUIRED_ROLES",
+            "SYSTEM_LOGS_READ_REQUIRED_ROLES",
+            "SYSTEM_OPERATE_REQUIRED_ROLES",
+            "RUNTIME_CONFIG_WRITE_REQUIRED_ROLES",
+            "JOB_OPERATE_REQUIRED_ROLES",
+            "PURGE_WRITE_REQUIRED_ROLES",
+        }:
+            assert name in env
+
+    assert private_doc["properties"]["configuration"]["ingress"]["external"] is False
+    assert public_doc["properties"]["configuration"]["ingress"]["external"] is True

@@ -93,11 +93,11 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         payload: SymbolEnrichmentEnqueueRequest,
         request: Request,
     ) -> SymbolCleanupRunSummary:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_operate_access = _runtime_attr(runtime, "require_system_operate_access")
         get_settings = _runtime_attr(runtime, "get_settings")
         enqueue_symbol_cleanup_run = _runtime_attr(runtime, "enqueue_symbol_cleanup_run")
 
-        validate_auth(request)
+        require_system_operate_access(request)
         settings = get_settings(request).symbol_enrichment
         if not settings.enabled:
             raise HTTPException(status_code=503, detail="Symbol enrichment is disabled.")
@@ -121,11 +121,11 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         payload: list[SymbolProfileOverride],
         request: Request,
     ) -> list[SymbolProfileOverride]:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_operate_access = _runtime_attr(runtime, "require_system_operate_access")
         get_actor = _runtime_attr(runtime, "_get_actor")
         upsert_symbol_profile_overrides = _runtime_attr(runtime, "upsert_symbol_profile_overrides")
 
-        validate_auth(request)
+        require_system_operate_access(request)
         actor = get_actor(request)
         resolved_payload = [
             override.model_copy(

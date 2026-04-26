@@ -540,7 +540,7 @@ def build_router(
 
     @router.post("/domain-columns/refresh", response_model=domain_columns_response_model)
     def refresh_domain_columns(payload: domain_columns_refresh_request_model, request: Request) -> JSONResponse:
-        validate_auth = _runtime_attr(runtime, "validate_auth")
+        require_system_operate_access = _runtime_attr(runtime, "require_system_operate_access")
         normalize_layer = _runtime_attr(runtime, "_normalize_layer")
         normalize_domain = _runtime_attr(runtime, "_normalize_domain")
         read_domain_columns_from_artifact = _runtime_attr(runtime, "_read_domain_columns_from_artifact")
@@ -559,7 +559,7 @@ def build_router(
         domain_columns_cache_path = _runtime_attr(runtime, "_domain_columns_cache_path")
         logger = _runtime_attr(runtime, "logger")
 
-        validate_auth(request)
+        require_system_operate_access(request)
         normalized_layer = normalize_layer(payload.layer)
         normalized_domain = normalize_domain(payload.domain)
         if not normalized_layer:

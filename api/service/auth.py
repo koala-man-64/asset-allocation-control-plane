@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import hashlib
 import threading
 import time
 from dataclasses import dataclass
@@ -96,7 +97,9 @@ def summarize_auth_claims_for_logs(claims: Dict[str, Any] | None) -> Dict[str, A
 def _summarize_unverified_token_for_logs(token: str) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         "header": None,
-        "claims": None,
+        "claims": "<not-decoded-before-verification>",
+        "length": len(token or ""),
+        "sha256_12": hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()[:12],
     }
 
     try:
@@ -109,22 +112,6 @@ def _summarize_unverified_token_for_logs(token: str) -> Dict[str, Any]:
             "kid": header.get("kid"),
             "typ": header.get("typ"),
         }
-
-    try:
-        claims = jwt.decode(
-            token,
-            options={
-                "verify_signature": False,
-                "verify_exp": False,
-                "verify_nbf": False,
-                "verify_iss": False,
-                "verify_aud": False,
-            },
-        )
-    except Exception as exc:
-        summary["claims_error"] = f"{type(exc).__name__}: {exc}"
-    else:
-        summary["claims"] = summarize_auth_claims_for_logs(claims if isinstance(claims, dict) else {})
 
     return summary
 

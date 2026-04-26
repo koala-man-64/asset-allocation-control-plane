@@ -5,6 +5,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+from core.redaction import redact_sensitive_text, redact_sensitive_value
+
 # Standard Python Log Levels
 # CRITICAL = 50
 # ERROR = 40
@@ -21,7 +23,7 @@ class JsonFormatter(logging.Formatter):
         log_record: Dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
-            "message": record.getMessage(),
+            "message": redact_sensitive_text(record.getMessage()),
             "module": record.module,
             "funcName": record.funcName,
             "line": record.lineno,
@@ -30,13 +32,18 @@ class JsonFormatter(logging.Formatter):
         
         # Merge extra field if available
         if hasattr(record, 'context') and isinstance(record.context, dict): # type: ignore
-            log_record.update(record.context) # type: ignore
+            log_record.update(redact_sensitive_value(record.context)) # type: ignore
             
         # Exception handling
         if record.exc_info:
-            log_record["exception"] = self.formatException(record.exc_info)
+            log_record["exception"] = redact_sensitive_text(self.formatException(record.exc_info))
             
         return json.dumps(log_record)
+
+
+class RedactingFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_sensitive_text(super().format(record))
 
 def configure_logging() -> logging.Logger:
     """
@@ -82,7 +89,7 @@ def configure_logging() -> logging.Logger:
         handler.setFormatter(JsonFormatter())
     else:
         # Standard readable format
-        formatter = logging.Formatter(
+        formatter = RedactingFormatter(
             '%(asctime)s [%(levelname)s] %(module)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )

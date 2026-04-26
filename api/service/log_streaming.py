@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional, Sequence
 
 from api.service.realtime import RealtimeManager
+from core.redaction import redact_sensitive_text
 from monitoring.log_analytics import AzureLogAnalyticsClient, extract_first_table_rows
 
 logger = logging.getLogger("asset-allocation.api.log_streaming")
@@ -277,7 +278,7 @@ def _extract_stream_lines(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        message = _coalesce_string(row, "msg", "message", "log")
+        message = redact_sensitive_text(_coalesce_string(row, "msg", "message", "log"))
         if not message:
             continue
         timestamp = _coalesce_string(row, "TimeGenerated", "timegenerated") or datetime.now(timezone.utc).isoformat()

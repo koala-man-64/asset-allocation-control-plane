@@ -30,10 +30,12 @@ jobs:
       ACR_NAME: ${{ vars.ACR_NAME }}
       RELEASE_IMAGE_REPOSITORY: asset-allocation-api
       ACR_PULL_IDENTITY_NAME: ${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}
+      API_RUNTIME_IDENTITY_NAME: ${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}
       CONTAINER_APPS_ENVIRONMENT_NAME: ${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}
       SERVICE_ACCOUNT_NAME: ${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}
       API_APP_NAME: ${{ vars.API_APP_NAME || 'asset-allocation-api' }}
-      API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api_public.yaml' }}
+      API_DEPLOY_MANIFEST: ${{ vars.API_DEPLOY_MANIFEST || 'deploy/app_api.yaml' }}
+      ALLOW_PUBLIC_API_INGRESS: ${{ vars.ALLOW_PUBLIC_API_INGRESS || 'false' }}
       ACA_NETWORK_SMOKE_JOB_NAME: ${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}
       AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
       AZURE_CONTAINER_BRONZE: ${{ vars.AZURE_CONTAINER_BRONZE }}
@@ -101,6 +103,12 @@ jobs:
       SYMBOL_ENRICHMENT_CONFIDENCE_MIN: ${{ vars.SYMBOL_ENRICHMENT_CONFIDENCE_MIN }}
       SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN: ${{ vars.SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN }}
       SYMBOL_ENRICHMENT_ALLOWED_JOBS: ${{ vars.SYMBOL_ENRICHMENT_ALLOWED_JOBS }}
+      SYSTEM_READ_REQUIRED_ROLES: ${{ vars.SYSTEM_READ_REQUIRED_ROLES || 'AssetAllocation.System.Read' }}
+      SYSTEM_LOGS_READ_REQUIRED_ROLES: ${{ vars.SYSTEM_LOGS_READ_REQUIRED_ROLES || 'AssetAllocation.System.Logs.Read' }}
+      SYSTEM_OPERATE_REQUIRED_ROLES: ${{ vars.SYSTEM_OPERATE_REQUIRED_ROLES || 'AssetAllocation.System.Operate' }}
+      RUNTIME_CONFIG_WRITE_REQUIRED_ROLES: ${{ vars.RUNTIME_CONFIG_WRITE_REQUIRED_ROLES || 'AssetAllocation.RuntimeConfig.Write' }}
+      JOB_OPERATE_REQUIRED_ROLES: ${{ vars.JOB_OPERATE_REQUIRED_ROLES || 'AssetAllocation.Jobs.Operate' }}
+      PURGE_WRITE_REQUIRED_ROLES: ${{ vars.PURGE_WRITE_REQUIRED_ROLES || 'AssetAllocation.Purge.Write' }}
       API_CSP: ${{ vars.API_CSP }}
       API_CORS_ALLOW_ORIGINS: ${{ vars.API_CORS_ALLOW_ORIGINS }}
       SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON: ${{ vars.SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON }}
@@ -148,6 +156,22 @@ jobs:
       SCHWAB_CLIENT_SECRET: ${{ secrets.SCHWAB_CLIENT_SECRET }}
       POSTGRES_DSN: ${{ secrets.POSTGRES_DSN }}
       API_AUTH_SESSION_SECRET_KEYS: ${{ secrets.API_AUTH_SESSION_SECRET_KEYS }}
+      AZURE_STORAGE_CONNECTION_STRING_KEY_VAULT_URL: ${{ vars.AZURE_STORAGE_CONNECTION_STRING_KEY_VAULT_URL }}
+      ALPHA_VANTAGE_API_KEY_KEY_VAULT_URL: ${{ vars.ALPHA_VANTAGE_API_KEY_KEY_VAULT_URL }}
+      MASSIVE_API_KEY_KEY_VAULT_URL: ${{ vars.MASSIVE_API_KEY_KEY_VAULT_URL }}
+      POSTGRES_DSN_KEY_VAULT_URL: ${{ vars.POSTGRES_DSN_KEY_VAULT_URL }}
+      ALPACA_PAPER_API_KEY_ID_KEY_VAULT_URL: ${{ vars.ALPACA_PAPER_API_KEY_ID_KEY_VAULT_URL }}
+      ALPACA_PAPER_SECRET_KEY_KEY_VAULT_URL: ${{ vars.ALPACA_PAPER_SECRET_KEY_KEY_VAULT_URL }}
+      ALPACA_LIVE_API_KEY_ID_KEY_VAULT_URL: ${{ vars.ALPACA_LIVE_API_KEY_ID_KEY_VAULT_URL }}
+      ALPACA_LIVE_SECRET_KEY_KEY_VAULT_URL: ${{ vars.ALPACA_LIVE_SECRET_KEY_KEY_VAULT_URL }}
+      ETRADE_SANDBOX_CONSUMER_KEY_KEY_VAULT_URL: ${{ vars.ETRADE_SANDBOX_CONSUMER_KEY_KEY_VAULT_URL }}
+      ETRADE_SANDBOX_CONSUMER_SECRET_KEY_VAULT_URL: ${{ vars.ETRADE_SANDBOX_CONSUMER_SECRET_KEY_VAULT_URL }}
+      ETRADE_LIVE_CONSUMER_KEY_KEY_VAULT_URL: ${{ vars.ETRADE_LIVE_CONSUMER_KEY_KEY_VAULT_URL }}
+      ETRADE_LIVE_CONSUMER_SECRET_KEY_VAULT_URL: ${{ vars.ETRADE_LIVE_CONSUMER_SECRET_KEY_VAULT_URL }}
+      SCHWAB_CLIENT_ID_KEY_VAULT_URL: ${{ vars.SCHWAB_CLIENT_ID_KEY_VAULT_URL }}
+      SCHWAB_CLIENT_SECRET_KEY_VAULT_URL: ${{ vars.SCHWAB_CLIENT_SECRET_KEY_VAULT_URL }}
+      AI_RELAY_API_KEY_KEY_VAULT_URL: ${{ vars.AI_RELAY_API_KEY_KEY_VAULT_URL }}
+      API_AUTH_SESSION_SECRET_KEYS_KEY_VAULT_URL: ${{ vars.API_AUTH_SESSION_SECRET_KEYS_KEY_VAULT_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -167,12 +191,16 @@ jobs:
           az config set extension.use_dynamic_install=yes_without_prompt > /dev/null
           identity_id="$(az identity show --name "${ACR_PULL_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query id -o tsv)"
           identity_client_id="$(az identity show --name "${ACR_PULL_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query clientId -o tsv)"
+          runtime_identity_id="$(az identity show --name "${API_RUNTIME_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query id -o tsv)"
+          runtime_identity_client_id="$(az identity show --name "${API_RUNTIME_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query clientId -o tsv)"
           acr_login_server="$(az acr show --name "${ACR_NAME}" --resource-group "${RESOURCE_GROUP}" --query loginServer -o tsv)"
           env_id="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${CONTAINER_APPS_ENVIRONMENT_NAME}"
           previous_image="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.template.containers[0].image' -o tsv 2>/dev/null || true)"
           {
             echo "identity_id=${identity_id}"
             echo "identity_client_id=${identity_client_id}"
+            echo "api_runtime_identity_id=${runtime_identity_id}"
+            echo "api_runtime_identity_client_id=${runtime_identity_client_id}"
             echo "acr_login_server=${acr_login_server}"
             echo "environment_id=${env_id}"
             echo "previous_image=${previous_image}"
@@ -231,10 +259,24 @@ jobs:
           ACR_LOGIN_SERVER: ${{ steps.azure.outputs.acr_login_server }}
           ACR_PULL_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.identity_id }}
           ACR_PULL_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.identity_client_id }}
+          API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}
+          API_RUNTIME_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.api_runtime_identity_client_id }}
           CONTAINER_APPS_ENVIRONMENT_ID: ${{ steps.azure.outputs.environment_id }}
         shell: bash
         run: |
           set -euo pipefail
+          case "${API_DEPLOY_MANIFEST}" in
+            deploy/app_api.yaml|deploy/app_api_public.yaml)
+              ;;
+            *)
+              echo "Unsupported API_DEPLOY_MANIFEST '${API_DEPLOY_MANIFEST}'. Use deploy/app_api.yaml or explicitly guarded deploy/app_api_public.yaml." >&2
+              exit 1
+              ;;
+          esac
+          if [ "${API_DEPLOY_MANIFEST}" != "deploy/app_api.yaml" ] && [ "${ALLOW_PUBLIC_API_INGRESS}" != "true" ]; then
+            echo "Refusing public API ingress manifest without ALLOW_PUBLIC_API_INGRESS=true." >&2
+            exit 1
+          fi
           python scripts/automation/render_control_plane_manifest.py \
             --template "${API_DEPLOY_MANIFEST}" \
             --output rendered-control-plane.yaml
