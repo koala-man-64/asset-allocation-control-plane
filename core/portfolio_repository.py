@@ -21,11 +21,15 @@ from asset_allocation_contracts.portfolio import (
     PortfolioAssignmentRequest,
     PortfolioDefinition,
     PortfolioDefinitionDetailResponse,
+    PortfolioForecastAssumption,
+    PortfolioForecastHorizon,
+    PortfolioForecastResponse,
     PortfolioHistoryPoint,
     PortfolioHistoryResponse,
     PortfolioLedgerEvent,
     PortfolioLedgerEventPayload,
     PortfolioListResponse,
+    PortfolioNextRebalanceResponse,
     PortfolioPosition,
     PortfolioPositionListResponse,
     PortfolioRevision,
@@ -35,6 +39,10 @@ from asset_allocation_contracts.portfolio import (
     RebalanceTradeProposal,
 )
 from asset_allocation_runtime_common.foundation.postgres import connect
+from asset_allocation_runtime_common.domain.regime import DEFAULT_REGIME_MODEL_NAME
+from api.data_service import DataService
+from core.portfolio_analytics import derive_next_rebalance, derive_portfolio_forecast
+from core.regime_repository import RegimeRepository
 from core.strategy_repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -47,6 +55,8 @@ _ACCOUNT_COLUMNS = [
     "mode",
     "accountingDepth",
     "cadenceMode",
+    "rebalanceCadence",
+    "rebalanceAnchor",
     "baseCurrency",
     "benchmarkSymbol",
     "inceptionDate",
@@ -69,6 +79,8 @@ _ACCOUNT_SELECT_SQL = """
         mode,
         accounting_depth,
         cadence_mode,
+        rebalance_cadence,
+        rebalance_anchor,
         base_currency,
         benchmark_symbol,
         inception_date,
@@ -92,6 +104,8 @@ _ACCOUNT_REVISION_COLUMNS = [
     "mode",
     "accountingDepth",
     "cadenceMode",
+    "rebalanceCadence",
+    "rebalanceAnchor",
     "baseCurrency",
     "benchmarkSymbol",
     "inceptionDate",
@@ -408,6 +422,8 @@ class PortfolioRepository:
                 mode,
                 accounting_depth,
                 cadence_mode,
+                rebalance_cadence,
+                rebalance_anchor,
                 base_currency,
                 benchmark_symbol,
                 inception_date,
@@ -445,6 +461,26 @@ class PortfolioRepository:
             recentLedgerEvents=events,
         )
 
+    def _resolve_benchmark_symbol(
+        self,
+        account: PortfolioAccount,
+        assignment: PortfolioAssignment | None,
+    ) -> str | None:
+        if account.benchmarkSymbol:
+            return account.benchmarkSymbol
+        if assignment is None:
+            return None
+        portfolio_revision = self.get_portfolio_revision(
+            assignment.portfolioName,
+            version=assignment.portfolioVersion,
+        )
+        if portfolio_revision is not None and portfolio_revision.benchmarkSymbol:
+            return portfolio_revision.benchmarkSymbol
+        portfolio = self.get_portfolio(assignment.portfolioName)
+        if portfolio is not None and portfolio.benchmarkSymbol:
+            return portfolio.benchmarkSymbol
+        return None
+
     def save_account(
         self,
         *,
@@ -457,6 +493,8 @@ class PortfolioRepository:
         existing = self.get_account(resolved_account_id)
         next_version = int(existing.latestRevision or 0) + 1 if existing else 1
         status = "active"
+        rebalance_cadence = payload.rebalanceCadence or (existing.rebalanceCadence if existing else "weekly")
+        rebalance_anchor = payload.rebalanceAnchor or (existing.rebalanceAnchor if existing else "Strategy native cadence")
         with connect(dsn) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -469,6 +507,8 @@ class PortfolioRepository:
                         mode,
                         accounting_depth,
                         cadence_mode,
+                        rebalance_cadence,
+                        rebalance_anchor,
                         base_currency,
                         benchmark_symbol,
                         inception_date,
@@ -478,12 +518,14 @@ class PortfolioRepository:
                         created_at,
                         updated_at
                     )
-                    VALUES (%s, %s, %s, %s, 'internal_model_managed', 'position_level', 'strategy_native', %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    VALUES (%s, %s, %s, %s, 'internal_model_managed', 'position_level', 'strategy_native', %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                     ON CONFLICT (account_id)
                     DO UPDATE SET
                         name = EXCLUDED.name,
                         description = EXCLUDED.description,
                         status = EXCLUDED.status,
+                        rebalance_cadence = EXCLUDED.rebalance_cadence,
+                        rebalance_anchor = EXCLUDED.rebalance_anchor,
                         base_currency = EXCLUDED.base_currency,
                         benchmark_symbol = EXCLUDED.benchmark_symbol,
                         inception_date = EXCLUDED.inception_date,
@@ -497,6 +539,8 @@ class PortfolioRepository:
                         payload.name,
                         payload.description,
                         status,
+                        rebalance_cadence,
+                        rebalance_anchor,
                         payload.baseCurrency,
                         payload.benchmarkSymbol,
                         payload.inceptionDate,
@@ -517,6 +561,8 @@ class PortfolioRepository:
                         mode,
                         accounting_depth,
                         cadence_mode,
+                        rebalance_cadence,
+                        rebalance_anchor,
                         base_currency,
                         benchmark_symbol,
                         inception_date,
@@ -524,7 +570,7 @@ class PortfolioRepository:
                         created_at,
                         created_by
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, 'internal_model_managed', 'position_level', 'strategy_native', %s, %s, %s, %s, NOW(), %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, 'internal_model_managed', 'position_level', 'strategy_native', %s, %s, %s, %s, %s, NOW(), %s)
                     """,
                     (
                         resolved_account_id,
@@ -533,6 +579,8 @@ class PortfolioRepository:
                         payload.description,
                         payload.mandate,
                         status,
+                        rebalance_cadence,
+                        rebalance_anchor,
                         payload.baseCurrency,
                         payload.benchmarkSymbol,
                         payload.inceptionDate,
@@ -1033,6 +1081,128 @@ class PortfolioRepository:
                 rows = list(reversed(cur.fetchall()))
         points = [PortfolioHistoryPoint.model_validate(_row_to_model_payload(_HISTORY_COLUMNS, row)) for row in rows]
         return PortfolioHistoryResponse(points=points, totalPoints=total, truncated=total > resolved_limit)
+
+    def get_forecast(
+        self,
+        account_id: str,
+        *,
+        horizon: PortfolioForecastHorizon,
+        assumption: PortfolioForecastAssumption,
+        cost_drag_override_bps: float = 0.0,
+        model_name: str = DEFAULT_REGIME_MODEL_NAME,
+        model_version: int | None = None,
+    ) -> PortfolioForecastResponse:
+        account = self.get_account(account_id)
+        if account is None:
+            raise LookupError(f"Portfolio account '{account_id}' not found.")
+
+        history = self.list_history(account_id, limit=5000).points
+        snapshot = self.get_snapshot(account_id)
+        snapshot_as_of = snapshot.asOf if snapshot is not None else None
+        assignment = self.get_active_assignment(account_id, as_of=snapshot_as_of) if snapshot_as_of else self.get_active_assignment(account_id)
+        benchmark_symbol = self._resolve_benchmark_symbol(account, assignment)
+
+        benchmark_rows: list[dict[str, Any]] = []
+        if benchmark_symbol:
+            try:
+                benchmark_rows = DataService.get_data(
+                    "silver",
+                    "market",
+                    benchmark_symbol,
+                    limit=5000,
+                    sort_by_date="asc",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Portfolio forecast benchmark load failed: account_id=%s benchmark=%s error=%s",
+                    account_id,
+                    benchmark_symbol,
+                    exc,
+                )
+
+        regime_repo = RegimeRepository(self._require_dsn())
+        start_date = history[0].asOf if history else None
+        end_date = history[-1].asOf if history else None
+        regime_history_rows: list[dict[str, Any]] = []
+        try:
+            regime_history_rows = regime_repo.list_regime_history(
+                model_name=model_name,
+                model_version=model_version,
+                start_date=start_date,
+                end_date=end_date,
+                limit=max(400, len(history) * 3 if history else 400),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Portfolio forecast regime history load failed: account_id=%s model=%s error=%s",
+                account_id,
+                model_name,
+                exc,
+            )
+
+        current_regime_code: str | None = None
+        resolved_model_version = model_version
+        try:
+            current_snapshot = regime_repo.get_regime_latest(
+                model_name=model_name,
+                model_version=model_version,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Portfolio forecast current regime load failed: account_id=%s model=%s error=%s",
+                account_id,
+                model_name,
+                exc,
+            )
+            current_snapshot = None
+
+        if current_snapshot:
+            active_regimes = current_snapshot.get("active_regimes") or []
+            current_regime_code = str(active_regimes[0]) if active_regimes else None
+            raw_model_version = current_snapshot.get("model_version")
+            if raw_model_version is not None:
+                resolved_model_version = int(raw_model_version)
+        elif regime_history_rows:
+            raw_model_version = regime_history_rows[0].get("model_version")
+            if raw_model_version is not None:
+                resolved_model_version = int(raw_model_version)
+
+        return derive_portfolio_forecast(
+            account_id=account_id,
+            history_points=history,
+            benchmark_rows=benchmark_rows,
+            regime_history_rows=regime_history_rows,
+            current_regime_code=current_regime_code,
+            benchmark_symbol=benchmark_symbol,
+            model_name=model_name,
+            model_version=resolved_model_version,
+            horizon=horizon,
+            assumption=assumption,
+            cost_drag_override_bps=float(cost_drag_override_bps or 0),
+        )
+
+    def get_next_rebalance(
+        self,
+        account_id: str,
+        *,
+        as_of: date | None = None,
+    ) -> PortfolioNextRebalanceResponse:
+        account = self.get_account(account_id)
+        if account is None:
+            raise LookupError(f"Portfolio account '{account_id}' not found.")
+
+        snapshot = self.get_snapshot(account_id)
+        resolved_as_of = as_of or (snapshot.asOf if snapshot is not None else _utc_now().date())
+        assignment = self.get_active_assignment(account_id, as_of=resolved_as_of)
+        return derive_next_rebalance(
+            account_id=account_id,
+            rebalance_cadence=account.rebalanceCadence,
+            anchor_text=account.rebalanceAnchor,
+            last_materialized_at=account.lastMaterializedAt,
+            snapshot_as_of=snapshot.asOf if snapshot is not None else None,
+            effective_from=assignment.effectiveFrom if assignment is not None else None,
+            as_of=resolved_as_of,
+        )
 
     def list_positions(
         self,

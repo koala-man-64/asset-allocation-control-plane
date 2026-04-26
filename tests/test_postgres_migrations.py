@@ -471,3 +471,23 @@ def test_portfolio_workspace_migration_creates_revisioned_domain_and_materializa
     assert "FOREIGN KEY (account_id, account_version)" in text
     assert "status IN ('dirty', 'claimed', 'failed', 'idle')" in text
     assert "uq_core_portfolio_assignments_active_account" in text
+
+
+def test_portfolio_schedule_fields_migration_adds_rebalance_schedule_columns() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0043_portfolio_schedule_fields.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "ALTER TABLE core.portfolio_accounts" in text
+    assert "ADD COLUMN IF NOT EXISTS rebalance_cadence TEXT NOT NULL DEFAULT 'weekly'" in text
+    assert "ADD COLUMN IF NOT EXISTS rebalance_anchor TEXT NOT NULL DEFAULT 'Strategy native cadence'" in text
+    assert "ALTER TABLE core.portfolio_account_revisions" in text
+    assert "chk_core_portfolio_accounts_rebalance_cadence" in text
+    assert "chk_core_portfolio_account_revisions_rebalance_cadence" in text
