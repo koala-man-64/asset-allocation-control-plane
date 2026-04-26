@@ -106,6 +106,9 @@ def test_setup_action_validates_shared_package_compatibility_before_install() ->
     assert "check-shared-compat" in action
     assert '--requirements "${repo_path}/shared-python-deps.txt"' in action
     assert '--pyproject "${repo_path}/pyproject.toml"' in action
+    assert "--allow-newer-contracts" in action
+    assert 'python -m pip install --no-deps -r "${repo_path}/shared-python-deps.txt"' in action
+    assert "pip-check" in action
 
 
 def test_control_plane_workflows_do_not_consume_shared_release_dispatches() -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from api.service.settings import ServiceSettings
+from tests.api._password_auth import password_verifier_for
 
 
 def _configure_browser_oidc(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,8 +45,23 @@ def test_deployed_runtime_requires_api_oidc_configuration(monkeypatch: pytest.Mo
     monkeypatch.delenv("API_OIDC_ISSUER", raising=False)
     monkeypatch.delenv("API_OIDC_AUDIENCE", raising=False)
 
-    with pytest.raises(ValueError, match="Deployed runtime requires API OIDC configuration."):
+    with pytest.raises(ValueError, match="Deployed runtime requires API OIDC configuration or UI shared password auth."):
         ServiceSettings.from_env()
+
+
+def test_deployed_runtime_accepts_password_auth_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.password_auth.enabled is True
+    assert settings.ui_auth_provider == "password"
+    assert settings.auth_session_mode == "cookie"
+    assert settings.auth_required is True
 
 
 def test_symbol_enrichment_requires_allowed_jobs_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,6 +310,70 @@ def test_alpaca_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.alpaca.live_trading_base_url == "https://api.alpaca.markets"
 
 
+def test_kalshi_settings_allow_unconfigured_environments(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("KALSHI_DEMO_API_KEY_ID", raising=False)
+    monkeypatch.delenv("KALSHI_DEMO_PRIVATE_KEY_PEM", raising=False)
+    monkeypatch.delenv("KALSHI_LIVE_API_KEY_ID", raising=False)
+    monkeypatch.delenv("KALSHI_LIVE_PRIVATE_KEY_PEM", raising=False)
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.kalshi.demo_configured is False
+    assert settings.kalshi.live_configured is False
+
+
+def test_kalshi_trading_requires_kalshi_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_TRADING_ENABLED", "true")
+    monkeypatch.delenv("KALSHI_ENABLED", raising=False)
+
+    with pytest.raises(ValueError, match="KALSHI_TRADING_ENABLED requires KALSHI_ENABLED=true."):
+        ServiceSettings.from_env()
+
+
+def test_kalshi_settings_require_demo_credentials_together(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_DEMO_API_KEY_ID", "demo-key")
+    monkeypatch.delenv("KALSHI_DEMO_PRIVATE_KEY_PEM", raising=False)
+
+    with pytest.raises(
+        ValueError,
+        match="KALSHI_DEMO_API_KEY_ID and KALSHI_DEMO_PRIVATE_KEY_PEM are required together.",
+    ):
+        ServiceSettings.from_env()
+
+
+def test_kalshi_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_ENABLED", "true")
+    monkeypatch.setenv("KALSHI_TRADING_ENABLED", "true")
+    monkeypatch.setenv("KALSHI_TIMEOUT_SECONDS", "20")
+    monkeypatch.setenv("KALSHI_READ_RETRY_ATTEMPTS", "3")
+    monkeypatch.setenv("KALSHI_READ_RETRY_BASE_DELAY_SECONDS", "1.5")
+    monkeypatch.setenv("KALSHI_REQUIRED_ROLES", "AssetAllocation.Kalshi.Read")
+    monkeypatch.setenv("KALSHI_TRADING_REQUIRED_ROLES", "AssetAllocation.Kalshi.Trade,AssetAllocation.Admin")
+    monkeypatch.setenv("KALSHI_DEMO_API_KEY_ID", "demo-key")
+    monkeypatch.setenv("KALSHI_DEMO_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\\ndemo\\n-----END PRIVATE KEY-----")
+    monkeypatch.setenv("KALSHI_DEMO_BASE_URL", "https://demo-api.kalshi.co/trade-api/v2")
+    monkeypatch.setenv("KALSHI_LIVE_API_KEY_ID", "live-key")
+    monkeypatch.setenv("KALSHI_LIVE_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\\nlive\\n-----END PRIVATE KEY-----")
+    monkeypatch.setenv("KALSHI_LIVE_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.kalshi.enabled is True
+    assert settings.kalshi.trading_enabled is True
+    assert settings.kalshi.timeout_seconds == pytest.approx(20.0)
+    assert settings.kalshi.read_retry_attempts == 3
+    assert settings.kalshi.read_retry_base_delay_seconds == pytest.approx(1.5)
+    assert settings.kalshi.required_roles == ["AssetAllocation.Kalshi.Read"]
+    assert settings.kalshi.trading_required_roles == [
+        "AssetAllocation.Kalshi.Trade",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.kalshi.demo_configured is True
+    assert settings.kalshi.live_configured is True
+    assert settings.kalshi.demo_base_url == "https://demo-api.kalshi.co/trade-api/v2"
+    assert settings.kalshi.live_base_url == "https://api.elections.kalshi.com/trade-api/v2"
+
+
 def test_api_public_base_url_accepts_origin_without_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
 
@@ -306,6 +386,15 @@ def test_api_public_base_url_rejects_path(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com/root")
 
     with pytest.raises(ValueError, match="API_PUBLIC_BASE_URL must be an absolute http\\(s\\) origin"):
+        ServiceSettings.from_env()
+
+
+def test_ui_auth_provider_password_requires_cookie_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "bearer")
+
+    with pytest.raises(ValueError, match="UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie."):
         ServiceSettings.from_env()
 
 
@@ -341,3 +430,51 @@ def test_schwab_placeholder_callback_url_falls_back_to_derived_url(monkeypatch: 
     settings = ServiceSettings.from_env()
 
     assert settings.get_provider_callback_url("schwab") == "https://api.example.com/api/providers/schwab/connect/callback"
+
+
+def test_notification_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.setenv("NOTIFICATIONS_READ_REQUIRED_ROLES", "AssetAllocation.Notifications.Read,AssetAllocation.Admin")
+    monkeypatch.setenv("NOTIFICATIONS_WRITE_REQUIRED_ROLES", "AssetAllocation.Notifications.Write")
+    monkeypatch.setenv("NOTIFICATIONS_DELIVERY_PROVIDER", "log")
+    monkeypatch.setenv("NOTIFICATIONS_APP_BASE_URL", "https://app.example.com")
+    monkeypatch.setenv("NOTIFICATIONS_ACTION_PATH_TEMPLATE", "/trade-approvals/{token}")
+    monkeypatch.setenv("NOTIFICATIONS_DEFAULT_TRADE_APPROVAL_TTL_SECONDS", "600")
+    monkeypatch.setenv("NOTIFICATIONS_TOKEN_HASH_SECRET", "hash-secret")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.notifications.read_required_roles == [
+        "AssetAllocation.Notifications.Read",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.notifications.write_required_roles == ["AssetAllocation.Notifications.Write"]
+    assert settings.notifications.delivery_provider == "log"
+    assert settings.notifications.app_base_url == "https://app.example.com"
+    assert settings.notifications.action_path_template == "/trade-approvals/{token}"
+    assert settings.notifications.default_trade_approval_ttl_seconds == 600
+    assert settings.notifications.token_hash_secret == "hash-secret"
+
+
+def test_notification_settings_default_app_base_url_uses_api_public_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.delenv("NOTIFICATIONS_APP_BASE_URL", raising=False)
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.notifications.app_base_url == "https://api.example.com"
+
+
+def test_notification_settings_require_token_placeholder(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFICATIONS_ACTION_PATH_TEMPLATE", "/trade-approvals/static")
+
+    with pytest.raises(ValueError, match="NOTIFICATIONS_ACTION_PATH_TEMPLATE must include"):
+        ServiceSettings.from_env()
+
+
+def test_notification_acs_provider_requires_connection_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFICATIONS_DELIVERY_PROVIDER", "acs")
+    monkeypatch.delenv("NOTIFICATIONS_ACS_CONNECTION_STRING", raising=False)
+
+    with pytest.raises(ValueError, match="NOTIFICATIONS_ACS_CONNECTION_STRING is required"):
+        ServiceSettings.from_env()

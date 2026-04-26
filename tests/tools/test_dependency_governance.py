@@ -53,6 +53,21 @@ def test_validate_shared_dependency_compatibility_reports_version_skew() -> None
     assert "asset-allocation-contracts==0.0.0" in incompatibility
 
 
+def test_validate_shared_dependency_compatibility_can_allow_newer_contracts() -> None:
+    dependency_governance = _load_dependency_governance_module()
+
+    incompatibility = dependency_governance.validate_shared_dependency_compatibility(
+        {
+            "asset-allocation-contracts": "3.10.0",
+            "asset-allocation-runtime-common": "3.4.5",
+        },
+        "Requires-Dist: asset-allocation-contracts==3.7.0\n",
+        allow_newer_contracts=True,
+    )
+
+    assert incompatibility is None
+
+
 def test_validate_shared_dependency_compatibility_accepts_matching_versions() -> None:
     dependency_governance = _load_dependency_governance_module()
 

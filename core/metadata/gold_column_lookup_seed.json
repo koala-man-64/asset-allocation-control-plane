@@ -3400,265 +3400,324 @@
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "rsi_14d",
-      "description": "Gold market feature for RSI 14d.",
+      "description": "Momentum oscillator measuring the 14-day balance of average gains versus losses.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
+      "calculation_notes": "Computed by the gold ETL pipeline from canonical domain inputs; see DATA.md for lineage context.",
       "calculation_expression": null,
       "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "dist_prev_week_high_atr",
-      "description": "Gold market feature for dist prev week high ATR.",
+      "description": "ATR-normalized distance from close to the prior completed trading week's high.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed by the gold ETL pipeline from completed weekly OHLCV history with no current-week look-ahead.",
+      "calculation_expression": "(prev_week_high - close) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "high",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "dist_prev_week_low_atr",
-      "description": "Gold market feature for dist prev week low ATR.",
+      "description": "ATR-normalized distance from close to the prior completed trading week's low.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed by the gold ETL pipeline from completed weekly OHLCV history with no current-week look-ahead.",
+      "calculation_expression": "(close - prev_week_low) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "low",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "dist_prev_month_high_atr",
-      "description": "Gold market feature for dist prev month high ATR.",
+      "description": "ATR-normalized distance from close to the prior completed month's high.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed by the gold ETL pipeline from completed monthly OHLCV history with no current-month look-ahead.",
+      "calculation_expression": "(prev_month_high - close) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "high",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "dist_prev_month_low_atr",
-      "description": "Gold market feature for dist prev month low ATR.",
+      "description": "ATR-normalized distance from close to the prior completed month's low.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed by the gold ETL pipeline from completed monthly OHLCV history with no current-month look-ahead.",
+      "calculation_expression": "(close - prev_month_low) / atr_14d",
+      "calculation_dependencies": [
+        "date",
+        "low",
+        "close",
+        "atr_14d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "position_in_20d_range",
-      "description": "Gold market feature for position in 20d range.",
+      "description": "Normalized close location inside the prior 20-day Donchian range; values above 1 or below 0 indicate breakout extension.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed from lagged Donchian bounds so the feature reflects only completed 20-day history.",
+      "calculation_expression": "(close - donchian_low_20d) / (donchian_high_20d - donchian_low_20d)",
+      "calculation_dependencies": [
+        "close",
+        "donchian_high_20d",
+        "donchian_low_20d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "position_in_55d_range",
-      "description": "Gold market feature for position in 55d range.",
+      "description": "Normalized close location inside the prior 55-day Donchian range; values above 1 or below 0 indicate breakout extension.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed from lagged Donchian bounds so the feature reflects only completed 55-day history.",
+      "calculation_expression": "(close - donchian_low_55d) / (donchian_high_55d - donchian_low_55d)",
+      "calculation_dependencies": [
+        "close",
+        "donchian_high_55d",
+        "donchian_low_55d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "swept_sr_resistance_1",
-      "description": "Gold market feature for swept sr resistance 1.",
+      "description": "Binary bearish liquidity-sweep flag set when price trades above the nearest confirmed resistance zone but closes back below it.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed from confirmed support/resistance zones and same-bar rejection logic to approximate stop-run behavior from daily bars.",
+      "calculation_expression": "high > sr_resistance_1_high and close < sr_resistance_1_high",
+      "calculation_dependencies": [
+        "high",
+        "close",
+        "sr_resistance_1_high"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "swept_sr_support_1",
-      "description": "Gold market feature for swept sr support 1.",
+      "description": "Binary bullish liquidity-sweep flag set when price trades below the nearest confirmed support zone but closes back above it.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Computed from confirmed support/resistance zones and same-bar reclaim logic to approximate downside stop-runs from daily bars.",
+      "calculation_expression": "low < sr_support_1_low and close > sr_support_1_low",
+      "calculation_dependencies": [
+        "low",
+        "close",
+        "sr_support_1_low"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bearish_sweep_magnitude_atr",
-      "description": "Gold market feature for bearish sweep magnitude ATR.",
+      "description": "ATR-normalized amount by which the session high pierced the nearest confirmed resistance zone.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Zero when price does not trade above the confirmed resistance boundary on the session.",
+      "calculation_expression": "max(high - sr_resistance_1_high, 0) / atr_14d",
+      "calculation_dependencies": [
+        "high",
+        "sr_resistance_1_high",
+        "atr_14d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bullish_sweep_magnitude_atr",
-      "description": "Gold market feature for bullish sweep magnitude ATR.",
+      "description": "ATR-normalized amount by which the session low pierced the nearest confirmed support zone.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Zero when price does not trade below the confirmed support boundary on the session.",
+      "calculation_expression": "max(sr_support_1_low - low, 0) / atr_14d",
+      "calculation_dependencies": [
+        "low",
+        "sr_support_1_low",
+        "atr_14d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bearish_sweep_reclaim_frac",
-      "description": "Gold market feature for bearish sweep reclaim frac.",
+      "description": "Fraction of an upside sweep reclaimed back below confirmed resistance by the close; larger values imply stronger rejection.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Set to zero when no upside penetration occurs, then scaled by the size of the session's resistance overshoot.",
+      "calculation_expression": "case when high > sr_resistance_1_high then (sr_resistance_1_high - close) / (high - sr_resistance_1_high) else 0 end",
+      "calculation_dependencies": [
+        "high",
+        "close",
+        "sr_resistance_1_high"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bullish_sweep_reclaim_frac",
-      "description": "Gold market feature for bullish sweep reclaim frac.",
+      "description": "Fraction of a downside sweep reclaimed back above confirmed support by the close; larger values imply stronger rejection.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Set to zero when no downside penetration occurs, then scaled by the size of the session's support overshoot.",
+      "calculation_expression": "case when low < sr_support_1_low then (close - sr_support_1_low) / (sr_support_1_low - low) else 0 end",
+      "calculation_dependencies": [
+        "low",
+        "close",
+        "sr_support_1_low"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bars_since_bearish_sweep",
-      "description": "Gold market feature for bars since bearish sweep.",
+      "description": "Bars elapsed since the most recent bearish liquidity sweep above confirmed resistance.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Stateful rolling counter derived from prior `swept_sr_resistance_1` events for post-sweep confirmation logic.",
+      "calculation_expression": "rows since last swept_sr_resistance_1 = 1",
+      "calculation_dependencies": [
+        "swept_sr_resistance_1"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bars_since_bullish_sweep",
-      "description": "Gold market feature for bars since bullish sweep.",
+      "description": "Bars elapsed since the most recent bullish liquidity sweep below confirmed support.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Stateful rolling counter derived from prior `swept_sr_support_1` events for post-sweep confirmation logic.",
+      "calculation_expression": "rows since last swept_sr_support_1 = 1",
+      "calculation_dependencies": [
+        "swept_sr_support_1"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bearish_confirm_after_sweep",
-      "description": "Gold market feature for bearish confirm after sweep.",
+      "description": "Binary post-sweep confirmation flag set when close breaks below the most recent bearish sweep candle's low within three bars.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Separates the liquidity event from the follow-through confirmation phase so ranking or gating logic can weight them independently.",
+      "calculation_expression": "bars_since_bearish_sweep <= 3 and close < last_bearish_sweep_low",
+      "calculation_dependencies": [
+        "bars_since_bearish_sweep",
+        "close",
+        "swept_sr_resistance_1",
+        "low"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "bullish_confirm_after_sweep",
-      "description": "Gold market feature for bullish confirm after sweep.",
+      "description": "Binary post-sweep confirmation flag set when close breaks above the most recent bullish sweep candle's high within three bars.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Separates the liquidity event from the follow-through confirmation phase so ranking or gating logic can weight them independently.",
+      "calculation_expression": "bars_since_bullish_sweep <= 3 and close > last_bullish_sweep_high",
+      "calculation_dependencies": [
+        "bars_since_bullish_sweep",
+        "close",
+        "swept_sr_support_1",
+        "high"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "amihud_20d",
-      "description": "Gold market feature for amihud 20d.",
+      "description": "Twenty-day rolling Amihud illiquidity proxy measuring absolute return per dollar of traded volume.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Built from daily return and dollar volume only, using a guarded denominator so zero-volume days do not produce infinities.",
+      "calculation_expression": "rolling_mean(abs(return_1d) / max(close * volume, 1), 20)",
+      "calculation_dependencies": [
+        "return_1d",
+        "close",
+        "volume"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "amihud_z_252d",
-      "description": "Gold market feature for amihud z 252d.",
+      "description": "One-year z-score of the rolling Amihud illiquidity proxy.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Normalizes the rolling Amihud series against its own 252-day history to detect abnormal thin-liquidity regimes.",
+      "calculation_expression": "(amihud_20d - mean_252d(amihud_20d)) / std_252d(amihud_20d)",
+      "calculation_dependencies": [
+        "amihud_20d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "dollar_volume_20d",
-      "description": "Gold market feature for dollar volume 20d.",
+      "description": "Twenty-day rolling average of daily dollar volume.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Uses close multiplied by share volume as the daily execution-capacity proxy for daily bars.",
+      "calculation_expression": "rolling_mean(close * volume, 20)",
+      "calculation_dependencies": [
+        "close",
+        "volume"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "dollar_volume_z_252d",
-      "description": "Gold market feature for dollar volume z 252d.",
+      "description": "One-year z-score of the rolling dollar-volume proxy.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Normalizes rolling dollar volume against its own 252-day history to capture abnormally weak or strong trading participation.",
+      "calculation_expression": "(dollar_volume_20d - mean_252d(dollar_volume_20d)) / std_252d(dollar_volume_20d)",
+      "calculation_dependencies": [
+        "dollar_volume_20d"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",
       "table_name": "market_data",
       "column_name": "liquidity_stress_score",
-      "description": "Gold market feature for liquidity stress score.",
+      "description": "Composite daily liquidity gate that rises when price impact is elevated, participation is weak, and opening gaps are large.",
       "calculation_type": "derived_python",
-      "calculation_notes": "Computed by the gold market feature pipeline from historical OHLCV inputs.",
-      "calculation_expression": null,
-      "calculation_dependencies": [],
-      "source_job": "tasks.market_data.gold_market_data",
-      "status": "draft"
+      "calculation_notes": "Intended primarily as a no-trade or down-size regime feature rather than a directional alpha signal.",
+      "calculation_expression": "amihud_z_252d - dollar_volume_z_252d + abs(gap_atr)",
+      "calculation_dependencies": [
+        "amihud_z_252d",
+        "dollar_volume_z_252d",
+        "gap_atr"
+      ],
+      "status": "reviewed"
     },
     {
       "schema_name": "gold",

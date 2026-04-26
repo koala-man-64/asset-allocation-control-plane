@@ -53,6 +53,10 @@ async def test_swagger_routes_available_under_api_prefix(monkeypatch: pytest.Mon
     assert "/api/providers/schwab/account-numbers" in body["paths"]
     assert "/api/providers/schwab/accounts/{account_number}/positions" in body["paths"]
     assert "/api/providers/schwab/accounts/{account_number}/orders/preview" in body["paths"]
+    assert "/api/providers/kalshi/balance" in body["paths"]
+    assert "/api/providers/kalshi/orders" in body["paths"]
+    assert "/api/providers/kalshi/orders/queue-positions" in body["paths"]
+    assert "/api/providers/kalshi/markets/{ticker}/orderbook" in body["paths"]
     assert (
         body["paths"]["/api/providers/etrade/connect/callback-url"]["get"]["responses"]["200"]["content"][
             "application/json"

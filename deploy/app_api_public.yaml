@@ -35,6 +35,14 @@ properties:
       value: "${ALPACA_LIVE_API_KEY_ID}"
     - name: alpaca-live-secret-key
       value: "${ALPACA_LIVE_SECRET_KEY}"
+    - name: kalshi-demo-api-key-id
+      value: "${KALSHI_DEMO_API_KEY_ID}"
+    - name: kalshi-demo-private-key-pem
+      value: "${KALSHI_DEMO_PRIVATE_KEY_PEM}"
+    - name: kalshi-live-api-key-id
+      value: "${KALSHI_LIVE_API_KEY_ID}"
+    - name: kalshi-live-private-key-pem
+      value: "${KALSHI_LIVE_PRIVATE_KEY_PEM}"
     - name: etrade-sandbox-consumer-key
       value: "${ETRADE_SANDBOX_CONSUMER_KEY}"
     - name: etrade-sandbox-consumer-secret
@@ -120,6 +128,32 @@ properties:
         secretRef: alpaca-live-api-key-id
       - name: ALPACA_LIVE_SECRET_KEY
         secretRef: alpaca-live-secret-key
+      - name: KALSHI_ENABLED
+        value: "${KALSHI_ENABLED}"
+      - name: KALSHI_TRADING_ENABLED
+        value: "${KALSHI_TRADING_ENABLED}"
+      - name: KALSHI_TIMEOUT_SECONDS
+        value: "${KALSHI_TIMEOUT_SECONDS}"
+      - name: KALSHI_READ_RETRY_ATTEMPTS
+        value: "${KALSHI_READ_RETRY_ATTEMPTS}"
+      - name: KALSHI_READ_RETRY_BASE_DELAY_SECONDS
+        value: "${KALSHI_READ_RETRY_BASE_DELAY_SECONDS}"
+      - name: KALSHI_REQUIRED_ROLES
+        value: "${KALSHI_REQUIRED_ROLES}"
+      - name: KALSHI_TRADING_REQUIRED_ROLES
+        value: "${KALSHI_TRADING_REQUIRED_ROLES}"
+      - name: KALSHI_DEMO_BASE_URL
+        value: "${KALSHI_DEMO_BASE_URL}"
+      - name: KALSHI_DEMO_API_KEY_ID
+        secretRef: kalshi-demo-api-key-id
+      - name: KALSHI_DEMO_PRIVATE_KEY_PEM
+        secretRef: kalshi-demo-private-key-pem
+      - name: KALSHI_LIVE_BASE_URL
+        value: "${KALSHI_LIVE_BASE_URL}"
+      - name: KALSHI_LIVE_API_KEY_ID
+        secretRef: kalshi-live-api-key-id
+      - name: KALSHI_LIVE_PRIVATE_KEY_PEM
+        secretRef: kalshi-live-private-key-pem
       - name: POSTGRES_DSN
         secretRef: backtest-pg-dsn
       - name: API_ROOT_PREFIX

@@ -959,6 +959,31 @@ class PortfolioRepository:
             return None
         return PortfolioAssignment.model_validate(_row_to_model_payload(_ASSIGNMENT_COLUMNS, row))
 
+    def count_active_assignments_for_portfolio(
+        self,
+        portfolio_name: str,
+        portfolio_version: int,
+        *,
+        exclude_account_id: str | None = None,
+    ) -> int:
+        dsn = self._require_dsn()
+        sql = """
+            SELECT COUNT(*)
+            FROM core.portfolio_assignments
+            WHERE portfolio_name = %s
+              AND portfolio_version = %s
+              AND status IN ('scheduled', 'active')
+        """
+        params: list[Any] = [portfolio_name, int(portfolio_version)]
+        if exclude_account_id is not None:
+            sql += " AND account_id <> %s"
+            params.append(exclude_account_id)
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                row = cur.fetchone()
+        return int((row or (0,))[0] or 0)
+
     def assign_portfolio(self, account_id: str, payload: PortfolioAssignmentRequest) -> PortfolioAssignment:
         dsn = self._require_dsn()
         account = self.get_account(account_id)

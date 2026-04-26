@@ -15,7 +15,8 @@ from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger("api.service.session_cookies")
 
-SESSION_PAYLOAD_VERSION = 1
+LEGACY_SESSION_PAYLOAD_VERSION = 1
+SESSION_PAYLOAD_VERSION = 2
 SAFE_SESSION_CLAIM_KEYS = {
     "appid",
     "azp",
@@ -40,6 +41,7 @@ class SessionCookieBundle:
 
 @dataclass(frozen=True)
 class VerifiedSessionCookie:
+    mode: str
     subject: str
     claims: dict[str, Any]
     csrf_token: str
@@ -61,6 +63,7 @@ class SessionCookieManager:
         secret_keys: list[str],
         idle_ttl_seconds: int,
         absolute_ttl_seconds: int,
+        session_version: str,
         cookie_name: str,
         csrf_cookie_name: str,
         secure: bool,
@@ -68,6 +71,7 @@ class SessionCookieManager:
         self.enabled = bool(enabled)
         self.idle_ttl_seconds = int(idle_ttl_seconds)
         self.absolute_ttl_seconds = int(absolute_ttl_seconds)
+        self.session_version = str(session_version or "1").strip() or "1"
         self.cookie_name = cookie_name
         self.csrf_cookie_name = csrf_cookie_name
         self.secure = bool(secure)
@@ -82,13 +86,14 @@ class SessionCookieManager:
         if self.enabled and self.absolute_ttl_seconds < self.idle_ttl_seconds:
             raise ValueError("API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS must be greater than or equal to idle TTL.")
 
-    def issue(self, *, subject: str | None, claims: dict[str, Any]) -> SessionCookieBundle:
+    def issue(self, *, mode: str, subject: str | None, claims: dict[str, Any]) -> SessionCookieBundle:
         if not self.enabled:
             raise SessionCookieError("Cookie auth session mode is not enabled.")
 
         now = _now()
         csrf_token = secrets.token_urlsafe(32)
         payload = self._build_payload(
+            mode=mode,
             subject=subject,
             claims=claims,
             csrf_token=csrf_token,
@@ -115,15 +120,27 @@ class SessionCookieManager:
 
         payload = self._decrypt_payload(raw_cookie)
         now = _now()
+        mode = str(payload.get("mode") or "oidc").strip() or "oidc"
         subject = str(payload.get("sub") or "").strip()
         csrf_token = str(payload.get("csrf") or "").strip()
         claims = payload.get("claims")
         absolute_expires_at = _coerce_int(payload.get("absExp"))
         idle_expires_at = _coerce_int(payload.get("idleExp"))
         issued_at = _coerce_int(payload.get("iat"))
+        session_version = str(payload.get("sv") or "").strip()
+        payload_version = _coerce_int(payload.get("v"))
 
-        if payload.get("v") != SESSION_PAYLOAD_VERSION or not subject or not csrf_token or not isinstance(claims, dict):
+        if payload_version not in {LEGACY_SESSION_PAYLOAD_VERSION, SESSION_PAYLOAD_VERSION}:
             raise SessionCookieError("Invalid auth session cookie.")
+        if not subject or not csrf_token or not isinstance(claims, dict):
+            raise SessionCookieError("Invalid auth session cookie.")
+        if payload_version == SESSION_PAYLOAD_VERSION:
+            if mode not in {"oidc", "password"}:
+                raise SessionCookieError("Invalid auth session cookie.")
+            if session_version != self.session_version:
+                raise SessionCookieError("Auth session expired.")
+        else:
+            mode = "oidc"
         if absolute_expires_at <= now:
             logger.info("Auth session cookie expired by absolute TTL: subject=%s", subject)
             raise SessionCookieError("Auth session expired.")
@@ -132,6 +149,7 @@ class SessionCookieManager:
             raise SessionCookieError("Auth session expired.")
 
         renewal = self._build_renewal(
+            mode=mode,
             subject=subject,
             claims=claims,
             csrf_token=csrf_token,
@@ -144,6 +162,7 @@ class SessionCookieManager:
             logger.info("Auth session cookie renewed: subject=%s", subject)
 
         return VerifiedSessionCookie(
+            mode=mode,
             subject=subject,
             claims=dict(claims),
             csrf_token=csrf_token,
@@ -189,6 +208,7 @@ class SessionCookieManager:
     def _build_renewal(
         self,
         *,
+        mode: str,
         subject: str,
         claims: dict[str, Any],
         csrf_token: str,
@@ -206,6 +226,7 @@ class SessionCookieManager:
             return None
 
         payload = self._build_payload(
+            mode=mode,
             subject=subject,
             claims=claims,
             csrf_token=csrf_token,
@@ -222,6 +243,7 @@ class SessionCookieManager:
     def _build_payload(
         self,
         *,
+        mode: str,
         subject: str | None,
         claims: dict[str, Any],
         csrf_token: str,
@@ -238,6 +260,8 @@ class SessionCookieManager:
 
         return {
             "v": SESSION_PAYLOAD_VERSION,
+            "sv": self.session_version,
+            "mode": str(mode or "oidc").strip() or "oidc",
             "sub": normalized_subject,
             "csrf": csrf_token,
             "iat": issued_at,

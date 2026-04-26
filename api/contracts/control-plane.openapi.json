@@ -1361,6 +1361,353 @@
         "title": "BacktestSummary",
         "type": "object"
       },
+      "BrokerAccountAllocationUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectivefrom"
+          },
+          "expectedConfigurationVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedconfigurationversion"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerStrategyAllocationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          }
+        },
+        "title": "BrokerAccountAllocationUpdateRequest",
+        "type": "object"
+      },
+      "BrokerAccountConfiguration": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountname"
+          },
+          "allocation": {
+            "$ref": "#/components/schemas/BrokerStrategyAllocationSummary"
+          },
+          "audit": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerAccountConfigurationAuditRecord"
+            },
+            "title": "Audit",
+            "type": "array"
+          },
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/BrokerCapabilityFlags"
+          },
+          "configurationVersion": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Configurationversion",
+            "type": "integer"
+          },
+          "effectivePolicy": {
+            "$ref": "#/components/schemas/BrokerTradingPolicy"
+          },
+          "requestedPolicy": {
+            "$ref": "#/components/schemas/BrokerTradingPolicy"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "updatedBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedby"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "BrokerAccountConfiguration",
+        "type": "object"
+      },
+      "BrokerAccountConfigurationAuditRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "after": {
+            "additionalProperties": true,
+            "title": "After",
+            "type": "object"
+          },
+          "auditId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Auditid",
+            "type": "string"
+          },
+          "before": {
+            "additionalProperties": true,
+            "title": "Before",
+            "type": "object"
+          },
+          "category": {
+            "enum": [
+              "trading_policy",
+              "allocation"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "denialReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denialreason"
+          },
+          "grantedRoles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Grantedroles",
+            "type": "array"
+          },
+          "outcome": {
+            "default": "saved",
+            "enum": [
+              "saved",
+              "denied",
+              "warning"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "auditId",
+          "accountId",
+          "category",
+          "requestedAt"
+        ],
+        "title": "BrokerAccountConfigurationAuditRecord",
+        "type": "object"
+      },
+      "BrokerCapabilityFlags": {
+        "additionalProperties": false,
+        "properties": {
+          "canAcknowledgeAlerts": {
+            "default": false,
+            "title": "Canacknowledgealerts",
+            "type": "boolean"
+          },
+          "canPauseSync": {
+            "default": false,
+            "title": "Canpausesync",
+            "type": "boolean"
+          },
+          "canReadAllocation": {
+            "default": false,
+            "title": "Canreadallocation",
+            "type": "boolean"
+          },
+          "canReadBalances": {
+            "default": false,
+            "title": "Canreadbalances",
+            "type": "boolean"
+          },
+          "canReadOrders": {
+            "default": false,
+            "title": "Canreadorders",
+            "type": "boolean"
+          },
+          "canReadPositions": {
+            "default": false,
+            "title": "Canreadpositions",
+            "type": "boolean"
+          },
+          "canReadTradingPolicy": {
+            "default": false,
+            "title": "Canreadtradingpolicy",
+            "type": "boolean"
+          },
+          "canReconnect": {
+            "default": false,
+            "title": "Canreconnect",
+            "type": "boolean"
+          },
+          "canRefresh": {
+            "default": false,
+            "title": "Canrefresh",
+            "type": "boolean"
+          },
+          "canReleaseTradeConfirmation": {
+            "default": false,
+            "title": "Canreleasetradeconfirmation",
+            "type": "boolean"
+          },
+          "canTrade": {
+            "default": false,
+            "title": "Cantrade",
+            "type": "boolean"
+          },
+          "canWriteAllocation": {
+            "default": false,
+            "title": "Canwriteallocation",
+            "type": "boolean"
+          },
+          "canWriteTradingPolicy": {
+            "default": false,
+            "title": "Canwritetradingpolicy",
+            "type": "boolean"
+          },
+          "readOnlyReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readonlyreason"
+          }
+        },
+        "title": "BrokerCapabilityFlags",
+        "type": "object"
+      },
       "BrokerPositionSizeLimit": {
         "additionalProperties": false,
         "properties": {
@@ -1383,6 +1730,237 @@
           "value"
         ],
         "title": "BrokerPositionSizeLimit",
+        "type": "object"
+      },
+      "BrokerStrategyAllocationItem": {
+        "additionalProperties": false,
+        "properties": {
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "derivedWeightPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derivedweightpct"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "sleeveId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sleeveid",
+            "type": "string"
+          },
+          "sleeveName": {
+            "default": "",
+            "title": "Sleevename",
+            "type": "string"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/BrokerStrategyReference"
+          },
+          "targetNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetnotionalbaseccy"
+          },
+          "targetWeightPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetweightpct"
+          }
+        },
+        "required": [
+          "sleeveId",
+          "strategy"
+        ],
+        "title": "BrokerStrategyAllocationItem",
+        "type": "object"
+      },
+      "BrokerStrategyAllocationSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocatedNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatednotionalbaseccy"
+          },
+          "allocatedPercent": {
+            "anyOf": [
+              {
+                "maximum": 100.01,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatedpercent"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectivefrom"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerStrategyAllocationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "portfolioName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolioname"
+          },
+          "portfolioVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolioversion"
+          },
+          "remainingNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remainingnotionalbaseccy"
+          },
+          "remainingPercent": {
+            "anyOf": [
+              {
+                "maximum": 100.01,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remainingpercent"
+          },
+          "sharedActivePortfolio": {
+            "default": false,
+            "title": "Sharedactiveportfolio",
+            "type": "boolean"
+          }
+        },
+        "title": "BrokerStrategyAllocationSummary",
+        "type": "object"
+      },
+      "BrokerStrategyReference": {
+        "additionalProperties": false,
+        "properties": {
+          "strategyName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Strategyname",
+            "type": "string"
+          },
+          "strategyVersion": {
+            "minimum": 1.0,
+            "title": "Strategyversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "strategyName",
+          "strategyVersion"
+        ],
+        "title": "BrokerStrategyReference",
         "type": "object"
       },
       "BrokerTradingPolicy": {
@@ -1439,6 +2017,31 @@
           }
         },
         "title": "BrokerTradingPolicy",
+        "type": "object"
+      },
+      "BrokerTradingPolicyUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedConfigurationVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedconfigurationversion"
+          },
+          "requestedPolicy": {
+            "$ref": "#/components/schemas/BrokerTradingPolicy"
+          }
+        },
+        "required": [
+          "requestedPolicy"
+        ],
+        "title": "BrokerTradingPolicyUpdateRequest",
         "type": "object"
       },
       "ClosedPositionListResponse": {
@@ -1967,6 +2570,119 @@
           "offset"
         ],
         "title": "CongressTradeEventListResponse",
+        "type": "object"
+      },
+      "CreateNotificationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "clientRequestId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Clientrequestid",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "idempotencyKey": {
+            "maxLength": 160,
+            "minLength": 16,
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "message",
+              "trade_approval"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationRecipient"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "sourceRepo": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Sourcerepo",
+            "type": "string"
+          },
+          "sourceSystem": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcesystem"
+          },
+          "targetUrl": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeturl"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "tradeApproval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeApprovalPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sourceRepo",
+          "clientRequestId",
+          "idempotencyKey",
+          "kind",
+          "title",
+          "description"
+        ],
+        "title": "CreateNotificationRequest",
         "type": "object"
       },
       "CreateRegimeModelRequest": {
@@ -6611,6 +7327,527 @@
         "title": "KalshiCreateOrderRequest",
         "type": "object"
       },
+      "NotificationActionDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "decisionStatus": {
+            "default": "not_required",
+            "enum": [
+              "not_required",
+              "pending",
+              "approved",
+              "denied",
+              "expired"
+            ],
+            "title": "Decisionstatus",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "executionStatus": {
+            "default": "not_applicable",
+            "enum": [
+              "not_applicable",
+              "pending_approval",
+              "submitted",
+              "blocked",
+              "release_failed"
+            ],
+            "title": "Executionstatus",
+            "type": "string"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "kind": {
+            "enum": [
+              "message",
+              "trade_approval"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "requestId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Requestid",
+            "type": "string"
+          },
+          "targetUrl": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeturl"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "tokenId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Tokenid",
+            "type": "string"
+          },
+          "tradeApproval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeApprovalDisplay"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "requestId",
+          "tokenId",
+          "kind",
+          "title",
+          "description",
+          "createdAt"
+        ],
+        "title": "NotificationActionDetailResponse",
+        "type": "object"
+      },
+      "NotificationDecisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "deny"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "NotificationDecisionRequest",
+        "type": "object"
+      },
+      "NotificationDeliveryResult": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Address",
+            "type": "string"
+          },
+          "attemptedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attemptedat"
+          },
+          "channel": {
+            "enum": [
+              "email",
+              "sms"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "providerMessageId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providermessageid"
+          },
+          "recipientId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Recipientid",
+            "type": "string"
+          },
+          "sanitizedError": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sanitizederror"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "sent",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipientId",
+          "channel",
+          "address"
+        ],
+        "title": "NotificationDeliveryResult",
+        "type": "object"
+      },
+      "NotificationRecipient": {
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "email",
+                "sms"
+              ],
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayname"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phonenumber"
+          },
+          "recipientId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipientid"
+          }
+        },
+        "title": "NotificationRecipient",
+        "type": "object"
+      },
+      "NotificationStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "clientRequestId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Clientrequestid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidedat"
+          },
+          "decidedBy": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidedby"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approve",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "decisionStatus": {
+            "default": "not_required",
+            "enum": [
+              "not_required",
+              "pending",
+              "approved",
+              "denied",
+              "expired"
+            ],
+            "title": "Decisionstatus",
+            "type": "string"
+          },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationDeliveryResult"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "executionMessage": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionmessage"
+          },
+          "executionOrderId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executionorderid"
+          },
+          "executionStatus": {
+            "default": "not_applicable",
+            "enum": [
+              "not_applicable",
+              "pending_approval",
+              "submitted",
+              "blocked",
+              "release_failed"
+            ],
+            "title": "Executionstatus",
+            "type": "string"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "kind": {
+            "enum": [
+              "message",
+              "trade_approval"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "requestId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Requestid",
+            "type": "string"
+          },
+          "sourceRepo": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Sourcerepo",
+            "type": "string"
+          },
+          "sourceSystem": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcesystem"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "delivered",
+              "delivery_failed",
+              "decided",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "targetUrl": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeturl"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "tradeApproval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeApprovalDisplay"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "kind",
+          "sourceRepo",
+          "clientRequestId",
+          "title",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "NotificationStatusResponse",
+        "type": "object"
+      },
       "PortfolioAccount": {
         "additionalProperties": false,
         "properties": {
@@ -6757,6 +7994,23 @@
             "minimum": 0.0,
             "title": "Openalertcount",
             "type": "integer"
+          },
+          "rebalanceAnchor": {
+            "default": "Strategy native cadence",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Rebalanceanchor",
+            "type": "string"
+          },
+          "rebalanceCadence": {
+            "default": "weekly",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly"
+            ],
+            "title": "Rebalancecadence",
+            "type": "string"
           },
           "status": {
             "default": "draft",
@@ -6941,6 +8195,23 @@
             "title": "Notes",
             "type": "string"
           },
+          "rebalanceAnchor": {
+            "default": "Strategy native cadence",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Rebalanceanchor",
+            "type": "string"
+          },
+          "rebalanceCadence": {
+            "default": "weekly",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly"
+            ],
+            "title": "Rebalancecadence",
+            "type": "string"
+          },
           "status": {
             "default": "draft",
             "enum": [
@@ -7026,6 +8297,35 @@
               }
             ],
             "title": "Openingcash"
+          },
+          "rebalanceAnchor": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rebalanceanchor"
+          },
+          "rebalanceCadence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "monthly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rebalancecadence"
           }
         },
         "required": [
@@ -10852,6 +12152,16 @@
             "title": "Lookbackwindow",
             "type": "integer"
           },
+          "positionPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rankingSchemaName": {
             "anyOf": [
               {
@@ -10963,6 +12273,85 @@
           "config"
         ],
         "title": "StrategyDetailResponse",
+        "type": "object"
+      },
+      "StrategyPositionPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowedAssetClasses": {
+            "items": {
+              "enum": [
+                "equity",
+                "option"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedassetclasses",
+            "type": "array"
+          },
+          "maxOpenPositions": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxopenpositions"
+          },
+          "maxPositionSize": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionSizeLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requireOrderConfirmation": {
+            "default": false,
+            "title": "Requireorderconfirmation",
+            "type": "boolean"
+          },
+          "targetPositionSize": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionSizeLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "StrategyPositionPolicy",
+        "type": "object"
+      },
+      "StrategyPositionSizeLimit": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "pct_of_allocatable_capital",
+            "enum": [
+              "pct_of_allocatable_capital",
+              "notional_base_ccy"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "StrategyPositionSizeLimit",
         "type": "object"
       },
       "StrategyReferenceInput": {
@@ -13472,6 +14861,13 @@
           "account": {
             "$ref": "#/components/schemas/TradeAccountSummary"
           },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/TradeDeskAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
           "recentAuditEvents": {
             "items": {
               "$ref": "#/components/schemas/TradeDeskAuditEvent"
@@ -13610,6 +15006,18 @@
             ],
             "title": "Lastsyncedat"
           },
+          "lastTradeAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasttradeat"
+          },
           "name": {
             "maxLength": 128,
             "minLength": 1,
@@ -13621,6 +15029,16 @@
             "minimum": 0.0,
             "title": "Openordercount",
             "type": "integer"
+          },
+          "pnl": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradePnlSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "policyVersion": {
             "anyOf": [
@@ -13706,6 +15124,175 @@
           "environment"
         ],
         "title": "TradeAccountSummary",
+        "type": "object"
+      },
+      "TradeApprovalDisplay": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "environment": {
+            "enum": [
+              "paper",
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "limitPrice": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limitprice"
+          },
+          "notional": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notional"
+          },
+          "orderHash": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Orderhash",
+            "type": "string"
+          },
+          "orderType": {
+            "enum": [
+              "market",
+              "limit",
+              "stop",
+              "stop_limit"
+            ],
+            "title": "Ordertype",
+            "type": "string"
+          },
+          "previewId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Previewid",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "side": {
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "stopPrice": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopprice"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeInForce": {
+            "default": "day",
+            "enum": [
+              "day",
+              "gtc",
+              "opg",
+              "cls",
+              "ioc",
+              "fok"
+            ],
+            "title": "Timeinforce",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "previewId",
+          "orderHash",
+          "environment",
+          "symbol",
+          "side",
+          "orderType"
+        ],
+        "title": "TradeApprovalDisplay",
+        "type": "object"
+      },
+      "TradeApprovalPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "order": {
+            "$ref": "#/components/schemas/TradeOrderPreviewRequest"
+          },
+          "orderHash": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Orderhash",
+            "type": "string"
+          },
+          "placeIdempotencyKey": {
+            "maxLength": 160,
+            "minLength": 16,
+            "title": "Placeidempotencykey",
+            "type": "string"
+          },
+          "previewId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Previewid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "previewId",
+          "orderHash",
+          "placeIdempotencyKey",
+          "order"
+        ],
+        "title": "TradeApprovalPayload",
         "type": "object"
       },
       "TradeCapabilityFlags": {
@@ -13910,6 +15497,128 @@
           }
         },
         "title": "TradeDataFreshness",
+        "type": "object"
+      },
+      "TradeDeskAlert": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedat"
+          },
+          "acknowledgedBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedby"
+          },
+          "alertId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Alertid",
+            "type": "string"
+          },
+          "asOfDate": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asofdate"
+          },
+          "blocking": {
+            "default": false,
+            "title": "Blocking",
+            "type": "boolean"
+          },
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "severity": {
+            "default": "warning",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "accountId",
+          "code",
+          "title",
+          "observedAt"
+        ],
+        "title": "TradeDeskAlert",
         "type": "object"
       },
       "TradeDeskAuditEvent": {
@@ -14903,6 +16612,16 @@
             ],
             "title": "Stopprice"
           },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "symbol": {
             "maxLength": 32,
             "minLength": 1,
@@ -15124,6 +16843,16 @@
             ],
             "title": "Stopprice"
           },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "symbol": {
             "maxLength": 32,
             "minLength": 1,
@@ -15337,6 +17066,80 @@
           "expiresAt"
         ],
         "title": "TradeOrderPreviewResponse",
+        "type": "object"
+      },
+      "TradePnlSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "dayPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daypnl"
+          },
+          "grossExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grossexposure"
+          },
+          "netExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Netexposure"
+          },
+          "realizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realizedpnl"
+          },
+          "unrealizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealizedpnl"
+          }
+        },
+        "title": "TradePnlSnapshot",
         "type": "object"
       },
       "TradePosition": {
@@ -17552,6 +19355,152 @@
         "summary": "Get Trades",
         "tags": [
           "Backtests"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/allocation": {
+      "put": {
+        "operationId": "save_broker_account_allocation_api_broker_accounts__account_id__allocation_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrokerAccountAllocationUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Broker Account Allocation",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/configuration": {
+      "get": {
+        "operationId": "get_broker_account_configuration_api_broker_accounts__account_id__configuration_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Broker Account Configuration",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/trading-policy": {
+      "put": {
+        "operationId": "save_broker_account_trading_policy_api_broker_accounts__account_id__trading_policy_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrokerTradingPolicyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Broker Account Trading Policy",
+        "tags": [
+          "Broker Accounts"
         ]
       }
     },
@@ -22455,6 +24404,235 @@
         "summary": "Append Intraday Watchlist Symbols Endpoint",
         "tags": [
           "Intraday"
+        ]
+      }
+    },
+    "/api/notifications": {
+      "post": {
+        "operationId": "create_notification_api_notifications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNotificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Notification",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/notifications/actions/{token}": {
+      "get": {
+        "operationId": "get_notification_action_api_notifications_actions__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationActionDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Notification Action",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/notifications/actions/{token}/approve": {
+      "post": {
+        "operationId": "approve_notification_action_api_notifications_actions__token__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Notification Action",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/notifications/actions/{token}/deny": {
+      "post": {
+        "operationId": "deny_notification_action_api_notifications_actions__token__deny_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deny Notification Action",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/notifications/{request_id}": {
+      "get": {
+        "operationId": "get_notification_status_api_notifications__request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Notification Status",
+        "tags": [
+          "Notifications"
         ]
       }
     },

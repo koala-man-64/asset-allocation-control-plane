@@ -38,7 +38,11 @@ async def test_ranking_catalog_endpoint_returns_gold_tables(monkeypatch: pytest.
                 {
                     "name": "market_data",
                     "asOfColumn": "date",
-                    "columns": [{"name": "return_20d", "dataType": "double precision", "valueKind": "number"}],
+                    "columns": [
+                        {"name": "return_20d", "dataType": "double precision", "valueKind": "number"},
+                        {"name": "liquidity_stress_score", "dataType": "double precision", "valueKind": "number"},
+                        {"name": "swept_sr_resistance_1", "dataType": "integer", "valueKind": "boolean"},
+                    ],
                 }
             ],
         },
@@ -49,7 +53,10 @@ async def test_ranking_catalog_endpoint_returns_gold_tables(monkeypatch: pytest.
         response = await client.get("/api/rankings/catalog")
 
     assert response.status_code == 200
-    assert response.json()["tables"][0]["columns"][0]["name"] == "return_20d"
+    columns = {column["name"]: column for column in response.json()["tables"][0]["columns"]}
+    assert columns["return_20d"]["valueKind"] == "number"
+    assert columns["liquidity_stress_score"]["valueKind"] == "number"
+    assert columns["swept_sr_resistance_1"]["valueKind"] == "boolean"
 
 
 @pytest.mark.asyncio
