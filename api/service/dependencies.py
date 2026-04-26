@@ -555,3 +555,27 @@ def require_trade_desk_live_access(request: Request) -> AuthContext:
     )
     return auth_context
 
+
+def require_notification_read_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).notifications
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.read_required_roles,
+        log_prefix="Notifications read",
+    )
+    return auth_context
+
+
+def require_notification_write_access(request: Request) -> AuthContext:
+    auth_context = require_notification_read_access(request)
+    settings = get_settings(request).notifications
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.write_required_roles,
+        log_prefix="Notifications write",
+    )
+    return auth_context
+

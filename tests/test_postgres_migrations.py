@@ -506,3 +506,27 @@ def test_portfolio_notional_allocations_migration_adds_revision_mode_columns() -
     assert "allocatable_capital > 0" in text
     assert "allocation_mode = 'percent'" in text
     assert "allocatable_capital IS NOT NULL" in text
+
+
+def test_notifications_migration_creates_request_delivery_token_and_audit_tables() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0044_notifications.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.notification_requests" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_recipients" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_delivery_attempts" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_action_tokens" in text
+    assert "CREATE TABLE IF NOT EXISTS core.notification_audit_events" in text
+    assert "UNIQUE (source_repo, idempotency_key)" in text
+    assert "token_hash text NOT NULL UNIQUE" in text
+    assert "raw_token" not in text.lower()
+    assert "WHERE status = 'pending'" in text
+    assert "decision_status IN ('not_required', 'pending', 'approved', 'denied', 'expired')" in text

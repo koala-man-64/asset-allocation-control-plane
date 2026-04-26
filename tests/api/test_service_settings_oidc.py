@@ -316,3 +316,51 @@ def test_schwab_placeholder_callback_url_falls_back_to_derived_url(monkeypatch: 
     settings = ServiceSettings.from_env()
 
     assert settings.get_provider_callback_url("schwab") == "https://api.example.com/api/providers/schwab/connect/callback"
+
+
+def test_notification_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.setenv("NOTIFICATIONS_READ_REQUIRED_ROLES", "AssetAllocation.Notifications.Read,AssetAllocation.Admin")
+    monkeypatch.setenv("NOTIFICATIONS_WRITE_REQUIRED_ROLES", "AssetAllocation.Notifications.Write")
+    monkeypatch.setenv("NOTIFICATIONS_DELIVERY_PROVIDER", "log")
+    monkeypatch.setenv("NOTIFICATIONS_APP_BASE_URL", "https://app.example.com")
+    monkeypatch.setenv("NOTIFICATIONS_ACTION_PATH_TEMPLATE", "/trade-approvals/{token}")
+    monkeypatch.setenv("NOTIFICATIONS_DEFAULT_TRADE_APPROVAL_TTL_SECONDS", "600")
+    monkeypatch.setenv("NOTIFICATIONS_TOKEN_HASH_SECRET", "hash-secret")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.notifications.read_required_roles == [
+        "AssetAllocation.Notifications.Read",
+        "AssetAllocation.Admin",
+    ]
+    assert settings.notifications.write_required_roles == ["AssetAllocation.Notifications.Write"]
+    assert settings.notifications.delivery_provider == "log"
+    assert settings.notifications.app_base_url == "https://app.example.com"
+    assert settings.notifications.action_path_template == "/trade-approvals/{token}"
+    assert settings.notifications.default_trade_approval_ttl_seconds == 600
+    assert settings.notifications.token_hash_secret == "hash-secret"
+
+
+def test_notification_settings_default_app_base_url_uses_api_public_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com")
+    monkeypatch.delenv("NOTIFICATIONS_APP_BASE_URL", raising=False)
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.notifications.app_base_url == "https://api.example.com"
+
+
+def test_notification_settings_require_token_placeholder(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFICATIONS_ACTION_PATH_TEMPLATE", "/trade-approvals/static")
+
+    with pytest.raises(ValueError, match="NOTIFICATIONS_ACTION_PATH_TEMPLATE must include"):
+        ServiceSettings.from_env()
+
+
+def test_notification_acs_provider_requires_connection_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFICATIONS_DELIVERY_PROVIDER", "acs")
+    monkeypatch.delenv("NOTIFICATIONS_ACS_CONNECTION_STRING", raising=False)
+
+    with pytest.raises(ValueError, match="NOTIFICATIONS_ACS_CONNECTION_STRING is required"):
+        ServiceSettings.from_env()
