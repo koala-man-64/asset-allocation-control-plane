@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 import yaml
 
 
@@ -258,3 +259,19 @@ def test_release_workflow_smoke_tests_built_image_before_push() -> None:
     assert text.index('python -c "import api.service.app; import quiver_provider; import schwab"') < text.index(
         'docker push "${image_ref}"'
     )
+
+
+def test_api_dockerfile_copies_all_packaged_roots() -> None:
+    root = repo_root()
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    package_patterns = pyproject["tool"]["setuptools"]["packages"]["find"]["include"]
+    package_roots = sorted({pattern.removesuffix("*") for pattern in package_patterns if pattern.endswith("*")})
+    dockerfile = (root / "Dockerfile.asset_allocation_api").read_text(encoding="utf-8")
+
+    missing = [
+        package_root
+        for package_root in package_roots
+        if f"COPY asset-allocation-control-plane/{package_root}/ {package_root}/" not in dockerfile
+    ]
+
+    assert missing == []

@@ -54,11 +54,13 @@ from api.service.quiver_gateway import QuiverGateway
 from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.schwab_gateway import SchwabGateway
 from api.service.settings import ServiceSettings
+from core.log_redaction import install_log_redaction, redact_text
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
 from asset_allocation_runtime_common.market_data.delta_core import get_delta_storage_auth_diagnostics
 from core.redaction import redact_sensitive_value, summarize_query_params
 
+install_log_redaction()
 logger = logging.getLogger("asset-allocation.api")
 
 
@@ -400,19 +402,24 @@ def create_app() -> FastAPI:
             request_id = str(request.headers.get("x-request-id") or "").strip() or str(uuid.uuid4())
             request.state.request_id = request_id
             auth_header = str(request.headers.get("authorization") or "").strip()
+            query_keys = sorted({str(key) for key in request.query_params.keys()})
+            try:
+                query_param_count = len(request.query_params.multi_items())
+            except Exception:
+                query_param_count = len(request.query_params)
 
             query_summary = summarize_query_params(request.url.query)
             logger.info(
-                "HTTP request: request_id=%s method=%s path=%s query_keys=%s query_count=%s query_sensitive=%s host=%s origin=%s forwarded_for=%s auth_present=%s",
+                "HTTP request: request_id=%s method=%s path=%s query_param_count=%s query_keys=%s host=%s origin=%s referer=%s forwarded_for=%s auth_present=%s",
                 request_id,
                 request.method,
                 path,
-                ",".join(query_summary["keys"]),
-                query_summary["count"],
-                query_summary["hasSensitiveKeys"],
-                request.headers.get("host", ""),
-                request.headers.get("origin", ""),
-                request.headers.get("x-forwarded-for", ""),
+                query_param_count,
+                query_keys,
+                redact_text(request.headers.get("host", "")),
+                redact_text(request.headers.get("origin", "")),
+                redact_text(request.headers.get("referer", "")),
+                redact_text(request.headers.get("x-forwarded-for", "")),
                 auth_header.lower().startswith("bearer "),
             )
 

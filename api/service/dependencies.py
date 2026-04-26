@@ -339,6 +339,21 @@ def require_quiver_access(request: Request, *, require_enabled: bool = True) -> 
     auth_context = validate_auth(request)
     settings = get_settings(request).quiver
     if require_enabled and not settings.enabled:
+        logger.warning(
+            "Quiver integration disabled: provider=quiver request_id=%s path=%s caller_job=%s",
+            _request_id(request),
+            request.url.path,
+            request.headers.get("X-Caller-Job", "") or "n/a",
+            extra={
+                "context": {
+                    "provider": "quiver",
+                    "provider_event": "disabled",
+                    "request_id": _request_id(request),
+                    "path": request.url.path,
+                    "caller_job": request.headers.get("X-Caller-Job", "") or "n/a",
+                }
+            },
+        )
         raise HTTPException(status_code=503, detail="Quiver integration is disabled.")
 
     _require_configured_roles(
