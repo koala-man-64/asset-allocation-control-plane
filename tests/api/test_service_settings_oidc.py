@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from api.service.settings import ServiceSettings
+from tests.api._password_auth import password_verifier_for
 
 
 def _configure_browser_oidc(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,8 +45,23 @@ def test_deployed_runtime_requires_api_oidc_configuration(monkeypatch: pytest.Mo
     monkeypatch.delenv("API_OIDC_ISSUER", raising=False)
     monkeypatch.delenv("API_OIDC_AUDIENCE", raising=False)
 
-    with pytest.raises(ValueError, match="Deployed runtime requires API OIDC configuration."):
+    with pytest.raises(ValueError, match="Deployed runtime requires API OIDC configuration or UI shared password auth."):
         ServiceSettings.from_env()
+
+
+def test_deployed_runtime_accepts_password_auth_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.password_auth.enabled is True
+    assert settings.ui_auth_provider == "password"
+    assert settings.auth_session_mode == "cookie"
+    assert settings.auth_required is True
 
 
 def test_symbol_enrichment_requires_allowed_jobs_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -281,6 +297,15 @@ def test_api_public_base_url_rejects_path(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("API_PUBLIC_BASE_URL", "https://api.example.com/root")
 
     with pytest.raises(ValueError, match="API_PUBLIC_BASE_URL must be an absolute http\\(s\\) origin"):
+        ServiceSettings.from_env()
+
+
+def test_ui_auth_provider_password_requires_cookie_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "bearer")
+
+    with pytest.raises(ValueError, match="UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie."):
         ServiceSettings.from_env()
 
 

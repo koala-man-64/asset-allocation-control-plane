@@ -13,7 +13,10 @@ from api.service.auth import AuthContext
 from api.service.realtime_tickets import utc_now
 from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
+from tests.api._password_auth import password_verifier_for
 from tests.api._websocket import WebSocketHandshakeError, connect_websocket
+
+TEST_ORIGIN = "http://test"
 
 
 def _set_required_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -286,6 +289,42 @@ async def test_websocket_ticket_supports_oidc_mode(
 
         async with get_test_client(app, manage_lifespan=False) as client:
             response = await client.post("/api/realtime/ticket", headers={"Authorization": "Bearer token"})
+            assert response.status_code == 200
+            ticket = response.json()["ticket"]
+
+        async with connect_websocket(
+            app,
+            f"/api/ws/updates?ticket={ticket}",
+            manage_lifespan=False,
+        ) as websocket:
+            await websocket.send_text("ping")
+            assert await websocket.receive_text() == "pong"
+
+
+@pytest.mark.asyncio
+async def test_websocket_ticket_supports_password_cookie_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_required_env(tmp_path, monkeypatch)
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        async with get_test_client(app, manage_lifespan=False) as client:
+            login = await client.post(
+                "/api/auth/session",
+                json={"password": "operator-secret"},
+                headers={"Origin": TEST_ORIGIN},
+            )
+            assert login.status_code == 200
+            csrf_token = login.cookies.get("aa_csrf_dev")
+            response = await client.post(
+                "/api/realtime/ticket",
+                headers={"Origin": TEST_ORIGIN, "X-CSRF-Token": csrf_token or ""},
+            )
             assert response.status_code == 200
             ticket = response.json()["ticket"]
 
