@@ -1361,6 +1361,689 @@
         "title": "BacktestSummary",
         "type": "object"
       },
+      "BrokerAccountAllocationUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectivefrom"
+          },
+          "expectedConfigurationVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedconfigurationversion"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerStrategyAllocationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          }
+        },
+        "title": "BrokerAccountAllocationUpdateRequest",
+        "type": "object"
+      },
+      "BrokerAccountConfiguration": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountname"
+          },
+          "allocation": {
+            "$ref": "#/components/schemas/BrokerStrategyAllocationSummary"
+          },
+          "audit": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerAccountConfigurationAuditRecord"
+            },
+            "title": "Audit",
+            "type": "array"
+          },
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/BrokerCapabilityFlags"
+          },
+          "configurationVersion": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Configurationversion",
+            "type": "integer"
+          },
+          "effectivePolicy": {
+            "$ref": "#/components/schemas/BrokerTradingPolicy"
+          },
+          "requestedPolicy": {
+            "$ref": "#/components/schemas/BrokerTradingPolicy"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "updatedBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedby"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "BrokerAccountConfiguration",
+        "type": "object"
+      },
+      "BrokerAccountConfigurationAuditRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "after": {
+            "additionalProperties": true,
+            "title": "After",
+            "type": "object"
+          },
+          "auditId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Auditid",
+            "type": "string"
+          },
+          "before": {
+            "additionalProperties": true,
+            "title": "Before",
+            "type": "object"
+          },
+          "category": {
+            "enum": [
+              "trading_policy",
+              "allocation"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "denialReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denialreason"
+          },
+          "grantedRoles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Grantedroles",
+            "type": "array"
+          },
+          "outcome": {
+            "default": "saved",
+            "enum": [
+              "saved",
+              "denied",
+              "warning"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "auditId",
+          "accountId",
+          "category",
+          "requestedAt"
+        ],
+        "title": "BrokerAccountConfigurationAuditRecord",
+        "type": "object"
+      },
+      "BrokerCapabilityFlags": {
+        "additionalProperties": false,
+        "properties": {
+          "canAcknowledgeAlerts": {
+            "default": false,
+            "title": "Canacknowledgealerts",
+            "type": "boolean"
+          },
+          "canPauseSync": {
+            "default": false,
+            "title": "Canpausesync",
+            "type": "boolean"
+          },
+          "canReadAllocation": {
+            "default": false,
+            "title": "Canreadallocation",
+            "type": "boolean"
+          },
+          "canReadBalances": {
+            "default": false,
+            "title": "Canreadbalances",
+            "type": "boolean"
+          },
+          "canReadOrders": {
+            "default": false,
+            "title": "Canreadorders",
+            "type": "boolean"
+          },
+          "canReadPositions": {
+            "default": false,
+            "title": "Canreadpositions",
+            "type": "boolean"
+          },
+          "canReadTradingPolicy": {
+            "default": false,
+            "title": "Canreadtradingpolicy",
+            "type": "boolean"
+          },
+          "canReconnect": {
+            "default": false,
+            "title": "Canreconnect",
+            "type": "boolean"
+          },
+          "canRefresh": {
+            "default": false,
+            "title": "Canrefresh",
+            "type": "boolean"
+          },
+          "canReleaseTradeConfirmation": {
+            "default": false,
+            "title": "Canreleasetradeconfirmation",
+            "type": "boolean"
+          },
+          "canTrade": {
+            "default": false,
+            "title": "Cantrade",
+            "type": "boolean"
+          },
+          "canWriteAllocation": {
+            "default": false,
+            "title": "Canwriteallocation",
+            "type": "boolean"
+          },
+          "canWriteTradingPolicy": {
+            "default": false,
+            "title": "Canwritetradingpolicy",
+            "type": "boolean"
+          },
+          "readOnlyReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readonlyreason"
+          }
+        },
+        "title": "BrokerCapabilityFlags",
+        "type": "object"
+      },
+      "BrokerPositionSizeLimit": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "pct_of_allocatable_capital",
+            "enum": [
+              "pct_of_allocatable_capital",
+              "notional_base_ccy"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "BrokerPositionSizeLimit",
+        "type": "object"
+      },
+      "BrokerStrategyAllocationItem": {
+        "additionalProperties": false,
+        "properties": {
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "derivedWeightPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derivedweightpct"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "sleeveId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sleeveid",
+            "type": "string"
+          },
+          "sleeveName": {
+            "default": "",
+            "title": "Sleevename",
+            "type": "string"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/BrokerStrategyReference"
+          },
+          "targetNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetnotionalbaseccy"
+          },
+          "targetWeightPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetweightpct"
+          }
+        },
+        "required": [
+          "sleeveId",
+          "strategy"
+        ],
+        "title": "BrokerStrategyAllocationItem",
+        "type": "object"
+      },
+      "BrokerStrategyAllocationSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocatedNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatednotionalbaseccy"
+          },
+          "allocatedPercent": {
+            "anyOf": [
+              {
+                "maximum": 100.01,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatedpercent"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectivefrom"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerStrategyAllocationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "portfolioName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolioname"
+          },
+          "portfolioVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolioversion"
+          },
+          "remainingNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remainingnotionalbaseccy"
+          },
+          "remainingPercent": {
+            "anyOf": [
+              {
+                "maximum": 100.01,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remainingpercent"
+          },
+          "sharedActivePortfolio": {
+            "default": false,
+            "title": "Sharedactiveportfolio",
+            "type": "boolean"
+          }
+        },
+        "title": "BrokerStrategyAllocationSummary",
+        "type": "object"
+      },
+      "BrokerStrategyReference": {
+        "additionalProperties": false,
+        "properties": {
+          "strategyName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Strategyname",
+            "type": "string"
+          },
+          "strategyVersion": {
+            "minimum": 1.0,
+            "title": "Strategyversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "strategyName",
+          "strategyVersion"
+        ],
+        "title": "BrokerStrategyReference",
+        "type": "object"
+      },
+      "BrokerTradingPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowedAssetClasses": {
+            "items": {
+              "enum": [
+                "equity",
+                "option"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedassetclasses",
+            "type": "array"
+          },
+          "allowedSides": {
+            "items": {
+              "enum": [
+                "long",
+                "short"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedsides",
+            "type": "array"
+          },
+          "maxOpenPositions": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxopenpositions"
+          },
+          "maxSinglePositionExposure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerPositionSizeLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requireOrderConfirmation": {
+            "default": false,
+            "title": "Requireorderconfirmation",
+            "type": "boolean"
+          }
+        },
+        "title": "BrokerTradingPolicy",
+        "type": "object"
+      },
+      "BrokerTradingPolicyUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedConfigurationVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedconfigurationversion"
+          },
+          "requestedPolicy": {
+            "$ref": "#/components/schemas/BrokerTradingPolicy"
+          }
+        },
+        "required": [
+          "requestedPolicy"
+        ],
+        "title": "BrokerTradingPolicyUpdateRequest",
+        "type": "object"
+      },
       "ClosedPositionListResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7990,6 +8673,27 @@
       "PortfolioRevision": {
         "additionalProperties": false,
         "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
           "allocations": {
             "items": {
               "$ref": "#/components/schemas/PortfolioSleeveAllocation"
@@ -8081,6 +8785,28 @@
       "PortfolioSleeveAllocation": {
         "additionalProperties": false,
         "properties": {
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
+          "derivedWeight": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derivedweight"
+          },
           "enabled": {
             "default": true,
             "title": "Enabled",
@@ -8137,17 +8863,35 @@
           "strategy": {
             "$ref": "#/components/schemas/StrategyVersionReference"
           },
+          "targetNotionalBaseCcy": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetnotionalbaseccy"
+          },
           "targetWeight": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Targetweight",
-            "type": "number"
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetweight"
           }
         },
         "required": [
           "sleeveId",
-          "strategy",
-          "targetWeight"
+          "strategy"
         ],
         "title": "PortfolioSleeveAllocation",
         "type": "object"
@@ -8260,6 +9004,27 @@
       "PortfolioUpsertRequest": {
         "additionalProperties": false,
         "properties": {
+          "allocatableCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocatablecapital"
+          },
+          "allocationMode": {
+            "default": "percent",
+            "enum": [
+              "percent",
+              "notional_base_ccy"
+            ],
+            "title": "Allocationmode",
+            "type": "string"
+          },
           "allocations": {
             "items": {
               "$ref": "#/components/schemas/PortfolioSleeveAllocation"
@@ -13320,6 +14085,11 @@
             "title": "Cash",
             "type": "number"
           },
+          "confirmationRequired": {
+            "default": false,
+            "title": "Confirmationrequired",
+            "type": "boolean"
+          },
           "environment": {
             "enum": [
               "paper",
@@ -13366,11 +14136,33 @@
             "title": "Openordercount",
             "type": "integer"
           },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
+          },
           "positionCount": {
             "default": 0,
             "minimum": 0.0,
             "title": "Positioncount",
             "type": "integer"
+          },
+          "projectedTradingPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerTradingPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "provider": {
             "enum": [
@@ -13511,6 +14303,11 @@
           "supportsNotionalOrders": {
             "default": false,
             "title": "Supportsnotionalorders",
+            "type": "boolean"
+          },
+          "supportsOptions": {
+            "default": false,
+            "title": "Supportsoptions",
             "type": "boolean"
           },
           "supportsStopOrders": {
@@ -13664,6 +14461,30 @@
             ],
             "title": "Clientrequestid"
           },
+          "confirmationTokenId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtokenid"
+          },
+          "denialReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denialreason"
+          },
           "details": {
             "additionalProperties": true,
             "title": "Details",
@@ -13699,6 +14520,13 @@
             "title": "Eventtype",
             "type": "string"
           },
+          "grantedRoles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Grantedroles",
+            "type": "array"
+          },
           "idempotencyKey": {
             "anyOf": [
               {
@@ -13730,6 +14558,19 @@
             ],
             "title": "Orderid"
           },
+          "previewId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previewid"
+          },
           "provider": {
             "enum": [
               "alpaca",
@@ -13751,6 +14592,19 @@
               }
             ],
             "title": "Providerorderid"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
           },
           "sanitizedError": {
             "anyOf": [
@@ -14416,6 +15270,19 @@
             "title": "Clientrequestid",
             "type": "string"
           },
+          "confirmationToken": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtoken"
+          },
           "confirmedAt": {
             "format": "date-time",
             "title": "Confirmedat",
@@ -14467,6 +15334,19 @@
             ],
             "title": "Notional"
           },
+          "orderHash": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderhash"
+          },
           "orderType": {
             "enum": [
               "market",
@@ -14476,6 +15356,18 @@
             ],
             "title": "Ordertype",
             "type": "string"
+          },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
           },
           "previewId": {
             "maxLength": 128,
@@ -14575,6 +15467,11 @@
             ],
             "title": "Auditeventid"
           },
+          "confirmationRequired": {
+            "default": false,
+            "title": "Confirmationrequired",
+            "type": "boolean"
+          },
           "message": {
             "anyOf": [
               {
@@ -14588,6 +15485,18 @@
           },
           "order": {
             "$ref": "#/components/schemas/TradeOrder"
+          },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
           },
           "reconciliationRequired": {
             "default": false,
@@ -14807,6 +15716,24 @@
             ],
             "title": "Cashafter"
           },
+          "confirmationRequired": {
+            "default": false,
+            "title": "Confirmationrequired",
+            "type": "boolean"
+          },
+          "confirmationToken": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmationtoken"
+          },
           "environment": {
             "enum": [
               "paper",
@@ -14849,11 +15776,46 @@
           "order": {
             "$ref": "#/components/schemas/TradeOrder"
           },
+          "orderHash": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderhash"
+          },
+          "policyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policyversion"
+          },
           "previewId": {
             "maxLength": 128,
             "minLength": 1,
             "title": "Previewid",
             "type": "string"
+          },
+          "projectedPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerTradingPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "provider": {
             "enum": [
@@ -17104,6 +18066,152 @@
         "summary": "Get Trades",
         "tags": [
           "Backtests"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/allocation": {
+      "put": {
+        "operationId": "save_broker_account_allocation_api_broker_accounts__account_id__allocation_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrokerAccountAllocationUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Broker Account Allocation",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/configuration": {
+      "get": {
+        "operationId": "get_broker_account_configuration_api_broker_accounts__account_id__configuration_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Broker Account Configuration",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/trading-policy": {
+      "put": {
+        "operationId": "save_broker_account_trading_policy_api_broker_accounts__account_id__trading_policy_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrokerTradingPolicyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Broker Account Trading Policy",
+        "tags": [
+          "Broker Accounts"
         ]
       }
     },

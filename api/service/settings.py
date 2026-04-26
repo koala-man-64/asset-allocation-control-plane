@@ -736,6 +736,28 @@ class DataDiscoverySettings:
 
 
 @dataclass(frozen=True)
+class BrokerAccountPolicySettings:
+    read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AccountPolicy.Read"])
+    write_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AccountPolicy.Write"])
+    trade_confirmation_release_required_roles: list[str] = field(
+        default_factory=lambda: ["AssetAllocation.TradeConfirmation.Release"]
+    )
+
+    @staticmethod
+    def from_env() -> "BrokerAccountPolicySettings":
+        return BrokerAccountPolicySettings(
+            read_required_roles=_split_csv(_get_optional_str("BROKER_ACCOUNT_POLICY_READ_REQUIRED_ROLES"))
+            or ["AssetAllocation.AccountPolicy.Read"],
+            write_required_roles=_split_csv(_get_optional_str("BROKER_ACCOUNT_POLICY_WRITE_REQUIRED_ROLES"))
+            or ["AssetAllocation.AccountPolicy.Write"],
+            trade_confirmation_release_required_roles=_split_csv(
+                _get_optional_str("TRADE_CONFIRMATION_RELEASE_REQUIRED_ROLES")
+            )
+            or ["AssetAllocation.TradeConfirmation.Release"],
+        )
+
+
+@dataclass(frozen=True)
 class TradeDeskSettings:
     read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Read"])
     preview_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Preview"])
@@ -828,6 +850,7 @@ class ServiceSettings:
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
     data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
+    broker_account_policy: BrokerAccountPolicySettings = field(default_factory=BrokerAccountPolicySettings)
     trade_desk: TradeDeskSettings = field(default_factory=TradeDeskSettings)
 
     @property
@@ -943,6 +966,7 @@ class ServiceSettings:
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
         data_discovery = DataDiscoverySettings.from_env()
+        broker_account_policy = BrokerAccountPolicySettings.from_env()
         trade_desk = TradeDeskSettings.from_env()
         ui_oidc_config = {
             "authority": ui_authority,
@@ -985,5 +1009,6 @@ class ServiceSettings:
             symbol_enrichment=symbol_enrichment,
             intraday_monitor=intraday_monitor,
             data_discovery=data_discovery,
+            broker_account_policy=broker_account_policy,
             trade_desk=trade_desk,
         )

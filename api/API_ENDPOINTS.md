@@ -16,6 +16,11 @@ API Root
     |   `-- /chat/stream [POST] (ai.stream_chat) - Authenticated SSE relay to the OpenAI Responses API; accepts JSON or multipart with optional files :: api/endpoints/ai.py
     |-- /realtime/ticket [POST] (realtime.issue_realtime_ticket) - Issues a single-use websocket ticket for authenticated clients :: api/endpoints/realtime.py <== ui/src/hooks/useRealtime.ts
     |-- /ws/updates [WebSocket] (realtime.websocket_updates) - Real-time updates (system health/jobs/container apps/runtime config/debug symbols) :: api/endpoints/realtime.py <== ui/src/hooks/useRealtime.ts
+    |
+    # Broker Account Configuration (Matches ui/src/features/accounts/AccountOperationsPage.tsx)
+    |-- /broker-accounts/{account_id}/configuration [GET] (broker_accounts.get_broker_account_configuration) - Returns the persisted broker-account trading policy, allocation summary, capabilities, warnings, and recent audit activity :: api/endpoints/broker_accounts.py
+    |-- /broker-accounts/{account_id}/trading-policy [PUT] (broker_accounts.save_broker_account_trading_policy) - Saves requested trading-policy controls with optimistic concurrency and audit capture :: api/endpoints/broker_accounts.py
+    |-- /broker-accounts/{account_id}/allocation [PUT] (broker_accounts.save_broker_account_allocation) - Saves account-scoped strategy allocation through active-portfolio orchestration, including clone-on-edit when the active portfolio is shared :: api/endpoints/broker_accounts.py
 
     # System & Health (Matches ui/src/hooks/useDataQueries.ts)
     |-- /system

@@ -471,3 +471,24 @@ def test_portfolio_workspace_migration_creates_revisioned_domain_and_materializa
     assert "FOREIGN KEY (account_id, account_version)" in text
     assert "status IN ('dirty', 'claimed', 'failed', 'idle')" in text
     assert "uq_core_portfolio_assignments_active_account" in text
+
+
+def test_broker_account_configuration_migration_creates_policy_and_audit_tables() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0043_broker_account_configuration.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.broker_account_configurations" in text
+    assert "CREATE TABLE IF NOT EXISTS core.broker_account_configuration_audit" in text
+    assert "requested_policy_json JSONB" in text
+    assert "effective_policy_json JSONB" in text
+    assert "allocation_summary_json JSONB" in text
+    assert "CHECK (category IN ('trading_policy', 'allocation'))" in text
+    assert "CHECK (outcome IN ('saved', 'denied', 'warning'))" in text

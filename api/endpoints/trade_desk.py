@@ -37,11 +37,22 @@ def _service(request: Request) -> TradeDeskService:
     dsn = str(request.app.state.settings.postgres_dsn or "").strip()
     if not dsn:
         raise HTTPException(status_code=503, detail="Postgres is required for trade desk endpoints.")
-    return TradeDeskService(TradeDeskRepository(dsn), request.app.state.settings.trade_desk)
+    return TradeDeskService(
+        TradeDeskRepository(dsn),
+        request.app.state.settings.trade_desk,
+        request.app.state.settings.broker_account_policy.trade_confirmation_release_required_roles,
+    )
 
 
 def _actor(auth_context: AuthContext) -> str | None:
     return str(auth_context.subject or "").strip() or None
+
+
+def _granted_roles(auth_context: AuthContext) -> list[str]:
+    roles = auth_context.claims.get("roles") if isinstance(auth_context.claims, dict) else []
+    if not isinstance(roles, list):
+        return []
+    return [str(role).strip() for role in roles if str(role).strip()]
 
 
 def _handle_trade_desk_error(exc: TradeDeskError) -> None:
@@ -132,7 +143,12 @@ async def preview_trade_order(
 ) -> TradeOrderPreviewResponse:
     _set_no_store(response)
     try:
-        return _service(request).preview_order(account_id, payload, actor=_actor(auth_context))
+        return _service(request).preview_order(
+            account_id,
+            payload,
+            actor=_actor(auth_context),
+            granted_roles=_granted_roles(auth_context),
+        )
     except TradeDeskError as exc:
         _handle_trade_desk_error(exc)
         raise
@@ -150,7 +166,12 @@ async def place_trade_order(
     if payload.environment == "live":
         auth_context = require_trade_desk_live_access(request)
     try:
-        return _service(request).place_order(account_id, payload, actor=_actor(auth_context))
+        return _service(request).place_order(
+            account_id,
+            payload,
+            actor=_actor(auth_context),
+            granted_roles=_granted_roles(auth_context),
+        )
     except TradeDeskError as exc:
         _handle_trade_desk_error(exc)
         raise
@@ -167,7 +188,13 @@ async def cancel_trade_order(
 ) -> TradeOrderCancelResponse:
     _set_no_store(response)
     try:
-        return _service(request).cancel_order(account_id, order_id, payload, actor=_actor(auth_context))
+        return _service(request).cancel_order(
+            account_id,
+            order_id,
+            payload,
+            actor=_actor(auth_context),
+            granted_roles=_granted_roles(auth_context),
+        )
     except TradeDeskError as exc:
         _handle_trade_desk_error(exc)
         raise
