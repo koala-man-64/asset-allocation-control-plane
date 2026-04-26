@@ -6,6 +6,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      contracts_version_override:
+        description: Optional exact contracts version override
+        required: false
+        type: string
+      runtime_common_version_override:
+        description: Optional exact runtime-common version override
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -31,6 +40,27 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: asset-allocation-control-plane
+
+      - name: Resolve shared package versions
+        id: shared
+        shell: bash
+        env:
+          PIP_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}
+          PIP_EXTRA_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          versions_file="${RUNNER_TEMP}/shared-versions.env"
+          python scripts/workflows/resolve_shared_versions.py \
+            --contracts-override "${{ inputs.contracts_version_override }}" \
+            --runtime-common-override "${{ inputs.runtime_common_version_override }}" > "${versions_file}"
+          cat "${versions_file}" >> "$GITHUB_OUTPUT"
+          source "${versions_file}"
+          cat > "${RUNNER_TEMP}/shared-constraints.txt" <<EOF
+          asset-allocation-contracts==${contracts_version}
+          asset-allocation-runtime-common==${runtime_common_version}
+          EOF
+          echo "constraint_path=${RUNNER_TEMP}/shared-constraints.txt" >> "$GITHUB_OUTPUT"
 
       - name: Validate required release configuration
         env:
@@ -70,19 +100,10 @@ jobs:
             asset-allocation-control-plane/requirements.lock.txt
             asset-allocation-control-plane/pyproject.toml
           repo-path: asset-allocation-control-plane
+          pip-constraint-path: ${{ steps.shared.outputs.constraint_path }}
         env:
           PYTHON_PACKAGE_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}
           PYTHON_PACKAGE_EXTRA_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}
-
-      - name: Resolve shared package versions
-        id: shared
-        shell: bash
-        run: |
-          set -euo pipefail
-          python asset-allocation-control-plane/scripts/repo/dependency_governance.py \
-            emit-shared-versions \
-            --pyproject asset-allocation-control-plane/pyproject.toml > shared-versions.txt
-          cat shared-versions.txt >> "$GITHUB_OUTPUT"
 
       - name: Verify shared package availability
         shell: bash
@@ -190,8 +211,8 @@ jobs:
           mkdir -p artifacts
           python - <<'PY'
           import json
-          from pathlib import Path
           import os
+          from pathlib import Path
 
           manifest = {
               "repo": os.environ["GITHUB_REPOSITORY"],
@@ -210,11 +231,11 @@ jobs:
           Path("artifacts/release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
         env:
+          CONTRACTS_VERSION: ${{ steps.shared.outputs.contracts_version }}
+          CONTROL_PLANE_VERSION: ${{ steps.shared.outputs.control_plane_version }}
           IMAGE_REF: ${{ steps.image.outputs.image_ref }}
           IMAGE_DIGEST: ${{ steps.image.outputs.image_digest }}
-          CONTRACTS_VERSION: ${{ steps.shared.outputs.contracts_version }}
           RUNTIME_COMMON_VERSION: ${{ steps.shared.outputs.runtime_common_version }}
-          CONTROL_PLANE_VERSION: ${{ steps.shared.outputs.control_plane_version }}
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

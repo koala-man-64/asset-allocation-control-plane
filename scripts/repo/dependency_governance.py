@@ -33,10 +33,17 @@ def is_first_party_shared_package(name: str) -> bool:
     return normalize_name(name).startswith(FIRST_PARTY_SHARED_PREFIX)
 
 
+def extract_dependency_name(entry: str) -> str:
+    match = re.match(r"^([A-Za-z0-9_.-]+)", entry.strip())
+    if not match:
+        raise ValueError(f"Unable to parse dependency name from entry: {entry}")
+    return normalize_name(match.group(1))
+
+
 def filter_installable_runtime_entries(runtime_entries: List[str]) -> List[str]:
     installable_entries: List[str] = []
     for entry in runtime_entries:
-        package_name = entry.split("==", 1)[0].strip()
+        package_name = extract_dependency_name(entry)
         if not is_first_party_shared_package(package_name):
             installable_entries.append(entry)
     return installable_entries
@@ -141,22 +148,31 @@ def parse_pyproject_runtime_dependencies(pyproject_path: Path) -> Tuple[List[str
 
     for entry in raw_entries:
         candidate = entry.strip()
-        match = PINNED_REQ_RE.match(candidate)
-        if not match:
-            malformed.append(f"{pyproject_path}: dependency must be pinned with == : {candidate}")
+        try:
+            package_name = extract_dependency_name(candidate)
+        except ValueError:
+            malformed.append(f"{pyproject_path}: dependency entry is malformed: {candidate}")
             continue
 
-        package_name = normalize_name(match.group(1))
-        package_version = match.group(2).strip()
+        if is_first_party_shared_package(package_name):
+            pinned_value = candidate
+            duplicate_display = candidate
+        else:
+            match = PINNED_REQ_RE.match(candidate)
+            if not match:
+                malformed.append(f"{pyproject_path}: dependency must be pinned with == : {candidate}")
+                continue
+            pinned_value = match.group(2).strip()
+            duplicate_display = f"{match.group(1)}=={pinned_value}"
 
         if package_name in pinned:
             duplicates.append(
-                f"{pyproject_path}: {package_name}=={package_version} duplicates {package_name}=={pinned[package_name]}"
+                f"{pyproject_path}: {duplicate_display} duplicates {pinned[package_name]}"
             )
             continue
 
-        pinned[package_name] = package_version
-        ordered_entries.append(f"{match.group(1)}=={package_version}")
+        pinned[package_name] = pinned_value
+        ordered_entries.append(candidate)
 
     return ordered_entries, pinned, duplicates, malformed
 
@@ -198,12 +214,12 @@ def diff_dependency_sets(expected: Dict[str, str], observed: Dict[str, str], exp
 
     for package_name in missing:
         issues.append(
-            f"Missing in {observed_label}: {package_name}=={expected[package_name]} (present in {expected_label})"
+            f"Missing in {observed_label}: {expected[package_name]} (present in {expected_label})"
         )
 
     for package_name in extra:
         issues.append(
-            f"Unexpected in {observed_label}: {package_name}=={observed[package_name]} (not in {expected_label})"
+            f"Unexpected in {observed_label}: {observed[package_name]} (not in {expected_label})"
         )
 
     common = sorted(set(expected) & set(observed))
