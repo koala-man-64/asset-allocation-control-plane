@@ -798,6 +798,59 @@ class TradeDeskSettings:
 
 
 @dataclass(frozen=True)
+class NotificationSettings:
+    read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Notifications.Read"])
+    write_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Notifications.Write"])
+    delivery_provider: Literal["log", "acs"] = "log"
+    acs_connection_string: Optional[str] = None
+    acs_email_sender: Optional[str] = None
+    acs_sms_from: Optional[str] = None
+    app_base_url: Optional[str] = None
+    action_path_template: str = "/notifications/actions/{token}"
+    default_trade_approval_ttl_seconds: int = 300
+    token_hash_secret: Optional[str] = None
+
+    @staticmethod
+    def from_env(*, api_public_base_url: str | None) -> "NotificationSettings":
+        delivery_provider = (_get_optional_str("NOTIFICATIONS_DELIVERY_PROVIDER") or "log").lower()
+        if delivery_provider not in {"log", "acs"}:
+            raise ValueError("NOTIFICATIONS_DELIVERY_PROVIDER must be either 'log' or 'acs'.")
+
+        app_base_url = _get_optional_str("NOTIFICATIONS_APP_BASE_URL") or api_public_base_url
+        if app_base_url:
+            app_base_url = _validate_absolute_http_origin(app_base_url, env_name="NOTIFICATIONS_APP_BASE_URL")
+
+        action_path_template = _normalize_path(
+            _get_optional_str("NOTIFICATIONS_ACTION_PATH_TEMPLATE") or "/notifications/actions/{token}"
+        )
+        if "{token}" not in action_path_template:
+            raise ValueError("NOTIFICATIONS_ACTION_PATH_TEMPLATE must include '{token}'.")
+
+        settings = NotificationSettings(
+            read_required_roles=_split_csv(_get_optional_str("NOTIFICATIONS_READ_REQUIRED_ROLES"))
+            or ["AssetAllocation.Notifications.Read"],
+            write_required_roles=_split_csv(_get_optional_str("NOTIFICATIONS_WRITE_REQUIRED_ROLES"))
+            or ["AssetAllocation.Notifications.Write"],
+            delivery_provider=delivery_provider,  # type: ignore[arg-type]
+            acs_connection_string=_get_optional_str("NOTIFICATIONS_ACS_CONNECTION_STRING"),
+            acs_email_sender=_get_optional_str("NOTIFICATIONS_ACS_EMAIL_SENDER"),
+            acs_sms_from=_get_optional_str("NOTIFICATIONS_ACS_SMS_FROM"),
+            app_base_url=app_base_url,
+            action_path_template=action_path_template,
+            default_trade_approval_ttl_seconds=_get_optional_int(
+                "NOTIFICATIONS_DEFAULT_TRADE_APPROVAL_TTL_SECONDS",
+                default=300,
+                minimum=30,
+                maximum=86_400,
+            ),
+            token_hash_secret=_get_optional_str("NOTIFICATIONS_TOKEN_HASH_SECRET"),
+        )
+        if settings.delivery_provider == "acs" and not settings.acs_connection_string:
+            raise ValueError("NOTIFICATIONS_ACS_CONNECTION_STRING is required when NOTIFICATIONS_DELIVERY_PROVIDER=acs.")
+        return settings
+
+
+@dataclass(frozen=True)
 class ServiceSettings:
     api_root_prefix: str
     api_public_base_url: Optional[str]
@@ -829,6 +882,7 @@ class ServiceSettings:
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
     data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
     trade_desk: TradeDeskSettings = field(default_factory=TradeDeskSettings)
+    notifications: NotificationSettings = field(default_factory=NotificationSettings)
 
     @property
     def auth_required(self) -> bool:
@@ -944,6 +998,7 @@ class ServiceSettings:
         intraday_monitor = IntradayMonitorSettings.from_env()
         data_discovery = DataDiscoverySettings.from_env()
         trade_desk = TradeDeskSettings.from_env()
+        notifications = NotificationSettings.from_env(api_public_base_url=api_public_base_url)
         ui_oidc_config = {
             "authority": ui_authority,
             "clientId": ui_client_id,
@@ -986,4 +1041,5 @@ class ServiceSettings:
             intraday_monitor=intraday_monitor,
             data_discovery=data_discovery,
             trade_desk=trade_desk,
+            notifications=notifications,
         )
