@@ -22,6 +22,10 @@ _CONNECTION_STRING_SECRET_RE = re.compile(
     r"\b(AccountKey|SharedAccessSignature|SharedAccessKey|ClientSecret)=([^;,\s]+)",
     re.IGNORECASE,
 )
+_POSTGRES_DSN_SECRET_RE = re.compile(
+    r"\b((?:postgresql|postgres)://)[^@\s]+@",
+    re.IGNORECASE,
+)
 
 _SENSITIVE_EXACT_KEYS = {
     "authorization",
@@ -78,6 +82,7 @@ def redact_text(value: str) -> str:
     if not text:
         return text
     redacted = _BEARER_TOKEN_RE.sub(r"\1 " + REDACTED, text)
+    redacted = _POSTGRES_DSN_SECRET_RE.sub(r"\1" + REDACTED + "@", redacted)
     redacted = _QUERY_SECRET_RE.sub(lambda match: f"{match.group(1)}{match.group(2)}{REDACTED}", redacted)
     redacted = _CONNECTION_STRING_SECRET_RE.sub(lambda match: f"{match.group(1)}={REDACTED}", redacted)
     return redacted

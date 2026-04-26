@@ -820,6 +820,10 @@ class SystemAccessSettings:
             or ["AssetAllocation.Jobs.Operate"],
             purge_write_required_roles=_split_csv(_get_optional_str("PURGE_WRITE_REQUIRED_ROLES"))
             or ["AssetAllocation.Purge.Write"],
+        )
+
+
+@dataclass(frozen=True)
 class BrokerAccountPolicySettings:
     read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AccountPolicy.Read"])
     write_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.AccountPolicy.Write"])

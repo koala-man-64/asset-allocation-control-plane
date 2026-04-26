@@ -41,27 +41,6 @@ jobs:
         with:
           path: asset-allocation-control-plane
 
-      - name: Resolve shared package versions
-        id: shared
-        shell: bash
-        env:
-          PIP_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}
-          PIP_EXTRA_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}
-        run: |
-          set -euo pipefail
-          cd asset-allocation-control-plane
-          versions_file="${RUNNER_TEMP}/shared-versions.env"
-          python scripts/workflows/resolve_shared_versions.py \
-            --contracts-override "${{ inputs.contracts_version_override }}" \
-            --runtime-common-override "${{ inputs.runtime_common_version_override }}" > "${versions_file}"
-          cat "${versions_file}" >> "$GITHUB_OUTPUT"
-          source "${versions_file}"
-          cat > "${RUNNER_TEMP}/shared-constraints.txt" <<EOF
-          asset-allocation-contracts==${contracts_version}
-          asset-allocation-runtime-common==${runtime_common_version}
-          EOF
-          echo "constraint_path=${RUNNER_TEMP}/shared-constraints.txt" >> "$GITHUB_OUTPUT"
-
       - name: Validate required release configuration
         env:
           AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -92,6 +71,37 @@ jobs:
             echo "Missing required release configuration: ${missing[*]}" >&2
             exit 1
           fi
+
+      - name: Set up release Python runtime
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Resolve shared package versions
+        id: shared
+        shell: bash
+        env:
+          PIP_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_INDEX_URL }}
+          PIP_EXTRA_INDEX_URL: ${{ secrets.PYTHON_PACKAGE_EXTRA_INDEX_URL }}
+        run: |
+          set -euo pipefail
+          cd asset-allocation-control-plane
+          versions_file="${RUNNER_TEMP}/shared-versions.env"
+          python scripts/workflows/resolve_shared_versions.py \
+            --contracts-override "${{ inputs.contracts_version_override }}" \
+            --runtime-common-override "${{ inputs.runtime_common_version_override }}" > "${versions_file}"
+          cat "${versions_file}" >> "$GITHUB_OUTPUT"
+          read_version() {
+            local key="$1"
+            awk -F= -v key="${key}" '$1 == key { print substr($0, length(key) + 2); found = 1 } END { exit found ? 0 : 1 }' "${versions_file}"
+          }
+          contracts_version="$(read_version contracts_version)"
+          runtime_common_version="$(read_version runtime_common_version)"
+          cat > "${RUNNER_TEMP}/shared-constraints.txt" <<EOF
+          asset-allocation-contracts==${contracts_version}
+          asset-allocation-runtime-common==${runtime_common_version}
+          EOF
+          echo "constraint_path=${RUNNER_TEMP}/shared-constraints.txt" >> "$GITHUB_OUTPUT"
 
       - name: Set up control-plane Python environment
         uses: ./asset-allocation-control-plane/.github/actions/setup-control-plane-python

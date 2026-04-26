@@ -36,6 +36,54 @@ def test_get_exact_requires_dist_version_returns_exact_pin() -> None:
     assert version == "3.0.0"
 
 
+def test_get_exact_requires_dist_version_accepts_parenthesized_metadata_pin() -> None:
+    dependency_governance = _load_dependency_governance_module()
+    metadata_text = "\n".join(
+        [
+            "Metadata-Version: 2.4",
+            "Requires-Dist: asset-allocation-contracts (==3.7.0)",
+        ]
+    )
+
+    version = dependency_governance.get_exact_requires_dist_version(
+        metadata_text,
+        "asset-allocation-contracts",
+    )
+
+    assert version == "3.7.0"
+
+
+def test_build_allowed_pip_check_lines_accepts_parenthesized_runtime_requirement(monkeypatch) -> None:
+    dependency_governance = _load_dependency_governance_module()
+
+    def version(package_name: str) -> str:
+        versions = {
+            "asset-allocation-contracts": "3.10.0",
+            "asset-allocation-runtime-common": "3.4.5",
+        }
+        return versions[package_name]
+
+    def requires(package_name: str) -> list[str]:
+        assert package_name == "asset-allocation-runtime-common"
+        return ["asset-allocation-contracts (==3.7.0)"]
+
+    monkeypatch.setattr(dependency_governance.importlib.metadata, "version", version)
+    monkeypatch.setattr(dependency_governance.importlib.metadata, "requires", requires)
+
+    allowed_lines = dependency_governance.build_allowed_pip_check_lines(
+        {
+            "asset-allocation-contracts": "asset-allocation-contracts==3.10.0",
+            "asset-allocation-runtime-common": "asset-allocation-runtime-common==3.4.5",
+        }
+    )
+
+    assert allowed_lines == {
+        "asset-allocation-runtime-common 3.4.5 has requirement "
+        "asset-allocation-contracts==3.7.0, "
+        "but you have asset-allocation-contracts 3.10.0."
+    }
+
+
 def test_validate_shared_dependency_compatibility_reports_version_skew() -> None:
     dependency_governance = _load_dependency_governance_module()
 
