@@ -69,6 +69,19 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "ALPACA_LIVE_TRADING_BASE_URL",
         "ALPACA_LIVE_API_KEY_ID",
         "ALPACA_LIVE_SECRET_KEY",
+        "KALSHI_ENABLED",
+        "KALSHI_TRADING_ENABLED",
+        "KALSHI_TIMEOUT_SECONDS",
+        "KALSHI_READ_RETRY_ATTEMPTS",
+        "KALSHI_READ_RETRY_BASE_DELAY_SECONDS",
+        "KALSHI_REQUIRED_ROLES",
+        "KALSHI_TRADING_REQUIRED_ROLES",
+        "KALSHI_DEMO_BASE_URL",
+        "KALSHI_DEMO_API_KEY_ID",
+        "KALSHI_DEMO_PRIVATE_KEY_PEM",
+        "KALSHI_LIVE_BASE_URL",
+        "KALSHI_LIVE_API_KEY_ID",
+        "KALSHI_LIVE_PRIVATE_KEY_PEM",
         "ETRADE_ENABLED",
         "ETRADE_TRADING_ENABLED",
         "ETRADE_CALLBACK_URL",
@@ -119,6 +132,14 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "alpaca-paper-secret-key" in _secret_names(private_doc)
     assert "alpaca-live-api-key-id" in _secret_names(private_doc)
     assert "alpaca-live-secret-key" in _secret_names(private_doc)
+    assert "kalshi-demo-api-key-id" in _secret_names(public_doc)
+    assert "kalshi-demo-private-key-pem" in _secret_names(public_doc)
+    assert "kalshi-live-api-key-id" in _secret_names(public_doc)
+    assert "kalshi-live-private-key-pem" in _secret_names(public_doc)
+    assert "kalshi-demo-api-key-id" in _secret_names(private_doc)
+    assert "kalshi-demo-private-key-pem" in _secret_names(private_doc)
+    assert "kalshi-live-api-key-id" in _secret_names(private_doc)
+    assert "kalshi-live-private-key-pem" in _secret_names(private_doc)
     assert "etrade-sandbox-consumer-key" in _secret_names(public_doc)
     assert "etrade-sandbox-consumer-secret" in _secret_names(public_doc)
     assert "etrade-live-consumer-key" in _secret_names(public_doc)

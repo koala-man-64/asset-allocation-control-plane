@@ -15377,30 +15377,6 @@
             ],
             "title": "Denialreason"
           },
-          "confirmationTokenId": {
-            "anyOf": [
-              {
-                "maxLength": 160,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confirmationtokenid"
-          },
-          "denialReason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Denialreason"
-          },
           "details": {
             "additionalProperties": true,
             "title": "Details",

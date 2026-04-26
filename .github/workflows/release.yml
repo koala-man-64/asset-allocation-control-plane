@@ -177,7 +177,7 @@ jobs:
             -e AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \
             -e AZURE_CONTAINER_COMMON="${AZURE_CONTAINER_COMMON}" \
             "${image_ref}" \
-            python -c "import api.service.app; import quiver_provider; import schwab"
+            python -c "import api.service.app; import kalshi; import quiver_provider; import schwab"
           docker push "${image_ref}"
           image_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "${image_ref}")"
           echo "image_ref=${image_ref}" >> "$GITHUB_OUTPUT"

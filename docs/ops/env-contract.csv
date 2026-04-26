@@ -50,6 +50,14 @@ DATA_DISCOVERY_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-spec
 DATA_DISCOVERY_VISIBLE_SCHEMAS,deploy_var,var,deploy_config,true,Comma-separated schema allowlist exposed by the data discovery surface and raw Postgres explorer.
 DATA_DISCOVERY_SAMPLE_MAX_LIMIT,deploy_var,var,deploy_config,true,Maximum row count accepted by the discovery sample preview endpoint.
 DATA_DISCOVERY_CACHE_TTL_SECONDS,deploy_var,var,deploy_config,true,In-process TTL in seconds for cached discovery catalog and dataset detail responses.
+NOTIFICATIONS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification read access.
+NOTIFICATIONS_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification write access.
+NOTIFICATIONS_DELIVERY_PROVIDER,deploy_var,var,deploy_config,true,Notification delivery provider. Use log by default and acs for Azure Communication Services delivery.
+NOTIFICATIONS_APP_BASE_URL,deploy_var,var,deploy_config,true,Absolute app origin used to build notification action links.
+NOTIFICATIONS_ACTION_PATH_TEMPLATE,deploy_var,var,deploy_config,true,Path template used to build notification action links and must include the token placeholder.
+NOTIFICATIONS_DEFAULT_TRADE_APPROVAL_TTL_SECONDS,deploy_var,var,deploy_config,true,Default notification trade approval token lifetime in seconds.
+NOTIFICATIONS_ACS_EMAIL_SENDER,deploy_var,var,deploy_config,true,Azure Communication Services email sender address for notifications.
+NOTIFICATIONS_ACS_SMS_FROM,deploy_var,var,deploy_config,true,Azure Communication Services SMS sender number for notifications.
 AI_RELAY_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the control-plane AI relay endpoint.
 AI_RELAY_MODEL,deploy_var,var,deploy_config,true,Deploy-time fixed OpenAI model used by the AI relay.
 AI_RELAY_REASONING_EFFORT,deploy_var,var,deploy_config,true,Reasoning effort passed to reasoning-capable OpenAI models.
@@ -151,6 +159,8 @@ ALPHA_VANTAGE_API_KEY,secret,secret,secret_store,true,Alpha Vantage API key. Nev
 AI_RELAY_API_KEY,secret,secret,secret_store,true,OpenAI API key used by the control-plane AI relay. Never auto-discovered.
 AI_RELAY_SMOKE_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify an authorized AI relay stream.
 AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN,secret,secret,secret_store,true,Optional bearer token used by deploy smoke to verify AI relay role-denied behavior.
+NOTIFICATIONS_TOKEN_HASH_SECRET,secret,secret,secret_store,true,Secret used to hash notification action tokens.
+NOTIFICATIONS_ACS_CONNECTION_STRING,secret,secret,secret_store,true,Azure Communication Services connection string for notification delivery.
 QUIVER_API_KEY,secret,secret,secret_store,true,Quiver API key. Never auto-discovered.
 ETRADE_SANDBOX_CONSUMER_KEY,secret,secret,secret_store,true,E*TRADE sandbox consumer key for OAuth 1.0a login and sandbox API calls.
 ETRADE_SANDBOX_CONSUMER_SECRET,secret,secret,secret_store,true,E*TRADE sandbox consumer secret for OAuth 1.0a login and sandbox API calls.
