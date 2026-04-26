@@ -61,3 +61,24 @@ def test_gold_column_lookup_seed_approved_rows_do_not_use_placeholders() -> None
             offenders.append(f"{table_name}.{column_name}")
 
     assert not offenders, f"Approved rows cannot keep placeholder descriptions: {offenders[:10]}"
+
+
+def test_gold_column_lookup_seed_includes_curated_daily_liquidity_rows() -> None:
+    entries = _load_seed_entries()
+    market_rows = {
+        str(entry.get("column_name") or "").strip(): entry
+        for entry in entries
+        if str(entry.get("table_name") or "").strip() == "market_data"
+    }
+
+    for column_name in (
+        "dist_prev_week_high_atr",
+        "position_in_20d_range",
+        "swept_sr_resistance_1",
+        "bars_since_bearish_sweep",
+        "amihud_20d",
+        "liquidity_stress_score",
+    ):
+        row = market_rows[column_name]
+        assert str(row.get("status") or "").strip().lower() == "reviewed"
+        assert not str(row.get("description") or "").strip().lower().startswith("todo: describe")

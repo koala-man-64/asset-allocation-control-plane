@@ -8,6 +8,8 @@ Gold Delta remains the source of truth. The gold jobs now replicate successful b
   - [`deploy/sql/postgres/migrations/0019_gold_postgres_sync.sql`](../../deploy/sql/postgres/migrations/0019_gold_postgres_sync.sql)
   - [`deploy/sql/postgres/migrations/0024_add_gold_earnings_calendar_columns.sql`](../../deploy/sql/postgres/migrations/0024_add_gold_earnings_calendar_columns.sql)
   - [`deploy/sql/postgres/migrations/0027_add_gold_market_structure_features.sql`](../../deploy/sql/postgres/migrations/0027_add_gold_market_structure_features.sql)
+  - [`deploy/sql/postgres/migrations/0040_add_gold_market_corporate_action_columns.sql`](../../deploy/sql/postgres/migrations/0040_add_gold_market_corporate_action_columns.sql)
+  - [`deploy/sql/postgres/migrations/0043_add_gold_market_liquidity_features.sql`](../../deploy/sql/postgres/migrations/0043_add_gold_market_liquidity_features.sql)
 - Shared sync helper: [`tasks/common/postgres_gold_sync.py`](../../tasks/common/postgres_gold_sync.py)
 - Column metadata catalog:
   - migration: [`deploy/sql/postgres/migrations/0031_gold_column_lookup.sql`](../../deploy/sql/postgres/migrations/0031_gold_column_lookup.sql)
@@ -117,6 +119,18 @@ The first successful run seeds `core.gold_sync_state`. After that, unchanged buc
 - Donchian channel highs/lows, ATR-normalized distance, and breakout flags for 20-day and 55-day windows
 - Confirmed-pivot nearest support/resistance zone scalars (`sr_*`)
 - Fibonacci retracement levels and active-swing context (`fib_*`)
+
+`gold.market_data` now also includes daily liquidity-analysis features derived from OHLCV history only:
+- Higher-timeframe location features against the prior completed week and month (`dist_prev_week_*`, `dist_prev_month_*`)
+- Range-position features inside lagged 20-day and 55-day Donchian windows (`position_in_20d_range`, `position_in_55d_range`)
+- Liquidity-sweep and follow-through confirmation flags around confirmed support/resistance (`swept_sr_*`, `*_sweep_*`, `*_confirm_after_sweep`)
+- Low-data liquidity regime proxies built from return, volume, and gap behavior (`amihud_*`, `dollar_volume_*`, `liquidity_stress_score`)
+
+After applying the migration and rerunning the upstream market sync, refresh the lookup metadata so the new columns do not appear with placeholder descriptions:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/ops/data/sync_gold_column_lookup.py
+```
 
 ## Rebuild / Recovery
 
