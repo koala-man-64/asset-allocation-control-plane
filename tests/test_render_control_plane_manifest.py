@@ -119,6 +119,77 @@ def test_renderer_keeps_ai_relay_secret_and_env_binding_when_key_present(tmp_pat
     assert "\n      - name: AI_RELAY_API_KEY\n        secretRef: ai-relay-api-key\n" in rendered
 
 
+def test_renderer_omits_ui_password_hash_secret_and_env_binding_when_key_missing(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api_public.yaml"
+    output = tmp_path / "rendered.yaml"
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env=_template_env(
+            template,
+            overrides={
+                "AI_RELAY_ENABLED": "false",
+                "AI_RELAY_API_KEY": "",
+                "UI_AUTH_PROVIDER": "",
+                "UI_SHARED_PASSWORD_HASH": "",
+            },
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output.read_text(encoding="utf-8")
+    assert "name: ui-shared-password-hash" not in rendered
+    assert "\n      - name: UI_SHARED_PASSWORD_HASH\n" not in rendered
+
+
+def test_renderer_fails_fast_when_ui_password_auth_enabled_without_hash(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api_public.yaml"
+    output = tmp_path / "rendered.yaml"
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env=_template_env(
+            template,
+            overrides={
+                "AI_RELAY_ENABLED": "false",
+                "AI_RELAY_API_KEY": "",
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "",
+            },
+        ),
+    )
+
+    assert result.returncode == 1
+    assert "UI_AUTH_PROVIDER=password but secret UI_SHARED_PASSWORD_HASH is missing or empty." in result.stderr
+    assert not output.exists()
+
+
+def test_renderer_keeps_ui_password_hash_secret_and_env_binding_when_hash_present(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api_public.yaml"
+    output = tmp_path / "rendered.yaml"
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env=_template_env(
+            template,
+            overrides={
+                "AI_RELAY_ENABLED": "false",
+                "AI_RELAY_API_KEY": "",
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "test-password-hash",
+            },
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output.read_text(encoding="utf-8")
+    assert 'value: "test-password-hash"' in rendered
+    assert "\n      - name: UI_SHARED_PASSWORD_HASH\n        secretRef: ui-shared-password-hash\n" in rendered
+
+
 def test_renderer_serializes_env_values_as_yaml_safe_strings(tmp_path: Path) -> None:
     template = _repo_root() / "deploy" / "app_api_public.yaml"
     output = tmp_path / "rendered.yaml"

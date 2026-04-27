@@ -27,6 +27,14 @@ _AI_RELAY_ENV_BLOCK = (
     "      - name: AI_RELAY_API_KEY",
     "        secretRef: ai-relay-api-key",
 )
+_UI_PASSWORD_HASH_SECRET_BLOCK = (
+    "    - name: ui-shared-password-hash",
+    '      value: "${UI_SHARED_PASSWORD_HASH}"',
+)
+_UI_PASSWORD_HASH_ENV_BLOCK = (
+    "      - name: UI_SHARED_PASSWORD_HASH",
+    "        secretRef: ui-shared-password-hash",
+)
 _SECRET_KEY_VAULT_URL_ENV_BY_NAME = {
     "azure-storage-connection-string": "AZURE_STORAGE_CONNECTION_STRING_KEY_VAULT_URL",
     "alpha-vantage-api-key": "ALPHA_VANTAGE_API_KEY_KEY_VAULT_URL",
@@ -165,14 +173,21 @@ def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
     ai_relay_enabled = env.get("AI_RELAY_ENABLED", "").strip().lower() == "true"
     ai_relay_api_key = env.get("AI_RELAY_API_KEY", "").strip()
     ai_relay_key_vault_url = env.get("AI_RELAY_API_KEY_KEY_VAULT_URL", "").strip()
+    ui_auth_provider = env.get("UI_AUTH_PROVIDER", "").strip().lower()
+    ui_shared_password_hash = env.get("UI_SHARED_PASSWORD_HASH", "").strip()
 
     if ai_relay_enabled and not (ai_relay_api_key or ai_relay_key_vault_url):
         raise ValueError("AI_RELAY_ENABLED=true but secret AI_RELAY_API_KEY is missing or empty.")
+    if ui_auth_provider == "password" and not ui_shared_password_hash:
+        raise ValueError("UI_AUTH_PROVIDER=password but secret UI_SHARED_PASSWORD_HASH is missing or empty.")
 
     lines = template.splitlines()
     if not (ai_relay_api_key or ai_relay_key_vault_url):
         lines = _remove_exact_block(lines, _AI_RELAY_SECRET_BLOCK)
         lines = _remove_exact_block(lines, _AI_RELAY_ENV_BLOCK)
+    if not ui_shared_password_hash:
+        lines = _remove_exact_block(lines, _UI_PASSWORD_HASH_SECRET_BLOCK)
+        lines = _remove_exact_block(lines, _UI_PASSWORD_HASH_ENV_BLOCK)
 
     rendered = _render_placeholders("\n".join(lines), env)
     if template.endswith("\n"):

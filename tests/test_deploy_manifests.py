@@ -117,11 +117,13 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
         "AI_RELAY_MAX_OUTPUT_TOKENS",
         "AI_RELAY_REQUIRED_ROLES",
         "AI_RELAY_API_KEY",
+        "UI_SHARED_PASSWORD_HASH",
         "SYMBOL_ENRICHMENT_ENABLED",
         "SYMBOL_ENRICHMENT_MODEL",
         "SYMBOL_ENRICHMENT_CONFIDENCE_MIN",
         "SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN",
         "SYMBOL_ENRICHMENT_ALLOWED_JOBS",
+        "UI_AUTH_PROVIDER",
     }
 
     assert "alpaca-paper-api-key-id" in _secret_names(public_doc)
@@ -158,6 +160,8 @@ def test_api_manifests_include_ai_relay_secret_and_env_surface() -> None:
     assert "schwab-refresh-token" not in _secret_names(private_doc)
     assert "ai-relay-api-key" in _secret_names(public_doc)
     assert "ai-relay-api-key" in _secret_names(private_doc)
+    assert "ui-shared-password-hash" in _secret_names(public_doc)
+    assert "ui-shared-password-hash" in _secret_names(private_doc)
     assert "SCHWAB_ACCESS_TOKEN" not in _env_names(public_doc)
     assert "SCHWAB_REFRESH_TOKEN" not in _env_names(public_doc)
     assert "SCHWAB_ACCESS_TOKEN" not in _env_names(private_doc)

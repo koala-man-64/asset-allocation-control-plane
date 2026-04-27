@@ -8,6 +8,8 @@ import stat
 import subprocess
 from pathlib import Path
 
+from api.service.password_auth import verify_password_hash
+
 
 ALLOWED_CLASSES = {"deploy_var", "secret"}
 ALLOWED_STORAGE = {"var", "secret"}
@@ -151,7 +153,10 @@ def test_deploy_workflow_maps_auth_session_config_to_correct_github_storage() ->
     assert "API_AUTH_SESSION_IDLE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_IDLE_TTL_SECONDS }}" in text
     assert "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS }}" in text
     assert "API_AUTH_SESSION_SECRET_KEYS: ${{ secrets.API_AUTH_SESSION_SECRET_KEYS }}" in text
+    assert "UI_AUTH_PROVIDER: ${{ vars.UI_AUTH_PROVIDER }}" in text
+    assert "UI_SHARED_PASSWORD_HASH: ${{ secrets.UI_SHARED_PASSWORD_HASH }}" in text
     assert "API_AUTH_SESSION_SECRET_KEYS: ${{ vars.API_AUTH_SESSION_SECRET_KEYS }}" not in text
+    assert "UI_SHARED_PASSWORD_HASH: ${{ vars.UI_SHARED_PASSWORD_HASH }}" not in text
 
 
 def test_sync_script_reads_repo_local_contract() -> None:
@@ -461,6 +466,150 @@ def test_setup_env_generates_api_auth_session_secret_when_missing(tmp_path: Path
     assert "API_AUTH_SESSION_SECRET_KEYS=<redacted> [requirement=required;" in stdout
     assert "source=generated" in stdout
     assert re.fullmatch(r"[0-9a-f]{64}", generated)
+
+
+def test_setup_env_hashes_plaintext_ui_password_override(tmp_path: Path) -> None:
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+    write_stub_command(stub_dir, "az", 'print("[]")')
+
+    env_file = tmp_path / "password-derived.env.web"
+    write_env_file(
+        env_file,
+        build_contract_env_values(
+            {
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "",
+                "API_AUTH_SESSION_MODE": "cookie",
+            }
+        ),
+    )
+
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-EnvFilePath",
+            str(env_file),
+            "-Set",
+            "UI_SHARED_PASSWORD=DeskPass123!",
+        ],
+        cwd=repo_root(),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    stdout = completed.stdout
+    values = env_map(env_file)
+    verifier = values["UI_SHARED_PASSWORD_HASH"]
+
+    assert "UI_SHARED_PASSWORD_HASH=<redacted> [requirement=required;" in stdout
+    assert "source=derived" in stdout
+    assert verifier.startswith("pbkdf2_sha256$")
+    assert verify_password_hash(verifier, "DeskPass123!")
+    assert not verify_password_hash(verifier, "wrong-password")
+
+
+def test_setup_env_marks_ui_password_hash_required_when_password_auth_selected(tmp_path: Path) -> None:
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+    write_stub_command(stub_dir, "az", 'print("[]")')
+
+    env_file = tmp_path / "password.env.web"
+    write_env_file(
+        env_file,
+        build_contract_env_values(
+            {
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "",
+            }
+        ),
+    )
+
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-DryRun",
+            "-EnvFilePath",
+            str(env_file),
+        ],
+        cwd=repo_root(),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    stdout = completed.stdout
+    assert "UI_AUTH_PROVIDER=password [requirement=optional;" in stdout
+    assert "UI_SHARED_PASSWORD_HASH=<redacted> [requirement=required;" in stdout
+
+
+def test_setup_env_script_uses_plaintext_ui_password_prompt() -> None:
+    text = (repo_root() / "scripts" / "setup-env.ps1").read_text(encoding="utf-8")
+    assert "function Prompt-UiSharedPasswordValue" in text
+    assert "UI_SHARED_PASSWORD [secret plaintext; hash stored]" in text
+    assert "Confirm UI_SHARED_PASSWORD" in text
+    assert 'New-UiSharedPasswordHash -Password $plaintextPassword' in text
+
+
+def test_setup_env_rejects_password_auth_without_cookie_session_mode(tmp_path: Path) -> None:
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+
+    write_stub_command(stub_dir, "gh", 'print("[]")')
+    write_stub_command(stub_dir, "az", 'print("[]")')
+
+    env_file = tmp_path / "password-invalid.env.web"
+    write_env_file(
+        env_file,
+        build_contract_env_values(
+            {
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "pbkdf2_sha256$600000$salt$hash",
+                "API_AUTH_SESSION_MODE": "bearer",
+            }
+        ),
+    )
+
+    script = repo_root() / "scripts" / "setup-env.ps1"
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-EnvFilePath",
+            str(env_file),
+        ],
+        cwd=repo_root(),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    error_output = completed.stdout + completed.stderr
+    assert "UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie" in error_output
 
 
 def test_setup_env_treats_existing_placeholder_values_as_unset(tmp_path: Path) -> None:
@@ -1039,6 +1188,137 @@ else:
     error_output = completed.stdout + completed.stderr
     assert ".env.web is missing required values" in error_output
     assert "API_AUTH_SESSION_SECRET_KEYS" in error_output
+
+
+def test_sync_script_requires_local_ui_password_hash_when_password_auth_enabled(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values(
+            {
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "",
+                "API_AUTH_SESSION_MODE": "cookie",
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    write_stub_command(
+        stub_dir,
+        "gh",
+        """
+if args[:2] == ["secret", "list"]:
+    if "--jq" in args:
+        print("UI_SHARED_PASSWORD_HASH")
+    else:
+        print(json.dumps([{"name": "UI_SHARED_PASSWORD_HASH"}]))
+elif args[:2] == ["variable", "list"]:
+    print("")
+else:
+    print("")
+""".strip(),
+    )
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("other-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    error_output = completed.stdout + completed.stderr
+    assert ".env.web is missing required values" in error_output
+    assert "UI_SHARED_PASSWORD_HASH" in error_output
+
+
+def test_sync_script_requires_cookie_mode_when_password_auth_enabled(tmp_path: Path) -> None:
+    temp_repo = tmp_path / "repo"
+    (temp_repo / "scripts").mkdir(parents=True)
+    (temp_repo / "docs" / "ops").mkdir(parents=True)
+
+    (temp_repo / "scripts" / "sync-all-to-github.ps1").write_text(
+        (repo_root() / "scripts" / "sync-all-to-github.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (temp_repo / "docs" / "ops" / "env-contract.csv").write_text(
+        (repo_root() / "docs" / "ops" / "env-contract.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    write_env_file(
+        temp_repo / ".env.web",
+        build_contract_env_values(
+            {
+                "UI_AUTH_PROVIDER": "password",
+                "UI_SHARED_PASSWORD_HASH": "pbkdf2_sha256$600000$salt$hash",
+                "API_AUTH_SESSION_MODE": "bearer",
+            }
+        ),
+    )
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    write_stub_command(stub_dir, "gh", 'print("")')
+    write_stub_command(
+        stub_dir,
+        "az",
+        """
+if args[:2] == ["identity", "show"]:
+    print("other-client-id")
+else:
+    print("")
+""".strip(),
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(stub_dir) + os.pathsep + env.get("PATH", "")
+    completed = subprocess.run(
+        [
+            powershell_exe(),
+            "-NoProfile",
+            "-File",
+            str(temp_repo / "scripts" / "sync-all-to-github.ps1"),
+        ],
+        cwd=temp_repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    error_output = completed.stdout + completed.stderr
+    assert "UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie before syncing." in error_output
 
 
 def test_sync_script_rejects_acr_pull_identity_for_azure_client_id(tmp_path: Path) -> None:

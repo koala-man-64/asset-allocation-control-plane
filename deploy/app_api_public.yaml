@@ -59,6 +59,8 @@ properties:
       value: "${AI_RELAY_API_KEY}"
     - name: api-auth-session-secret-keys
       value: "${API_AUTH_SESSION_SECRET_KEYS}"
+    - name: ui-shared-password-hash
+      value: "${UI_SHARED_PASSWORD_HASH}"
   template:
     serviceAccountName: ${SERVICE_ACCOUNT_NAME}
     containers:
@@ -226,6 +228,8 @@ properties:
         value: "${API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS}"
       - name: API_AUTH_SESSION_SECRET_KEYS
         secretRef: api-auth-session-secret-keys
+      - name: UI_SHARED_PASSWORD_HASH
+        secretRef: ui-shared-password-hash
       - name: AI_RELAY_ENABLED
         value: "${AI_RELAY_ENABLED}"
       - name: AI_RELAY_MODEL
@@ -294,6 +298,8 @@ properties:
         value: "${UI_OIDC_REDIRECT_URI}"
       - name: UI_API_BASE_URL
         value: "${UI_API_BASE_URL}"
+      - name: UI_AUTH_PROVIDER
+        value: "${UI_AUTH_PROVIDER}"
       - name: LOG_FORMAT
         value: "JSON"
       - name: LOG_LEVEL

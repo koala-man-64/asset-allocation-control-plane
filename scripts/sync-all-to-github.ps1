@@ -227,6 +227,10 @@ foreach ($requiredKey in @(
 
 function Get-RequirementLevel {
     param([Parameter(Mandatory = $true)][string]$Name)
+    if ($Name -eq "UI_SHARED_PASSWORD_HASH") {
+        if ($script:UiAuthProvider -eq "password") { return "required" }
+        return "optional"
+    }
     if ($Name -in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
         if ($script:AiRelayEnabled) { return "required" }
         return "optional"
@@ -238,7 +242,26 @@ function Get-RequirementLevel {
 function Test-SecretAllowsRemoteFallback {
     param([Parameter(Mandatory = $true)][string]$Name)
     if ($Name -eq "API_AUTH_SESSION_SECRET_KEYS") { return $false }
+    if ($Name -eq "UI_SHARED_PASSWORD_HASH" -and $script:UiAuthProvider -eq "password") { return $false }
     return $true
+}
+
+function Assert-UiPasswordAuthConfiguration {
+    param([Parameter(Mandatory = $true)][hashtable]$EnvMap)
+
+    $uiAuthProvider = if ($EnvMap.ContainsKey("UI_AUTH_PROVIDER")) { Normalize-EnvValue -Value $EnvMap["UI_AUTH_PROVIDER"] } else { "" }
+    $uiAuthProvider = $uiAuthProvider.Trim().ToLowerInvariant()
+    if ($uiAuthProvider -ne "password") { return }
+
+    $passwordHash = if ($EnvMap.ContainsKey("UI_SHARED_PASSWORD_HASH")) { Normalize-EnvValue -Value $EnvMap["UI_SHARED_PASSWORD_HASH"] } else { "" }
+    if ([string]::IsNullOrWhiteSpace($passwordHash)) {
+        throw ".env.web UI_AUTH_PROVIDER=password requires UI_SHARED_PASSWORD_HASH. Run scripts/setup-env.ps1 and provide the shared password hash before syncing."
+    }
+
+    $sessionMode = if ($EnvMap.ContainsKey("API_AUTH_SESSION_MODE")) { Normalize-EnvValue -Value $EnvMap["API_AUTH_SESSION_MODE"] } else { "" }
+    if ($sessionMode.Trim().ToLowerInvariant() -ne "cookie") {
+        throw ".env.web UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie before syncing."
+    }
 }
 
 if (-not (Test-Path $envPath)) { throw ".env.web not found at $envPath. Run scripts/setup-env.ps1 first." }
@@ -267,6 +290,11 @@ if ($envMap.ContainsKey("AI_RELAY_ENABLED")) {
     $aiRelayEnabled = Test-TruthyValue -Value $envMap["AI_RELAY_ENABLED"]
 }
 $script:AiRelayEnabled = $aiRelayEnabled
+$script:UiAuthProvider = if ($envMap.ContainsKey("UI_AUTH_PROVIDER")) {
+    (Normalize-EnvValue -Value $envMap["UI_AUTH_PROVIDER"]).Trim().ToLowerInvariant()
+} else {
+    ""
+}
 
 $missingRequired = New-Object System.Collections.Generic.List[string]
 foreach ($key in ($contractMap.Keys | Sort-Object)) {
@@ -282,6 +310,7 @@ if ($missingRequired.Count -gt 0) {
     throw ".env.web is missing required values: $($missingRequired -join ', '). Run scripts/setup-env.ps1 and provide the missing values before syncing."
 }
 
+Assert-UiPasswordAuthConfiguration -EnvMap $envMap
 Assert-DeployAzureClientIdIsNotAcrPullIdentity -EnvMap $envMap
 
 $expectedVars = New-Object System.Collections.Generic.List[string]
