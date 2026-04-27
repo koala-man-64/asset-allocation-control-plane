@@ -123,6 +123,16 @@ def test_setup_action_validates_shared_package_compatibility_before_install() ->
     assert "pip-constraint-path" in action
 
 
+def test_setup_action_does_not_require_packaging_for_shared_dependency_discovery() -> None:
+    action = (repo_root() / ".github" / "actions" / "setup-control-plane-python" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from packaging" not in action
+    assert "pip._vendor.packaging" not in action
+    assert "DEPENDENCY_NAME_RE" in action
+
+
 def test_control_plane_workflows_do_not_consume_shared_release_dispatches() -> None:
     forbidden_events = ("contracts" "_released", "runtime_common" "_released")
     for path in (repo_root() / ".github" / "workflows").glob("*.yml"):

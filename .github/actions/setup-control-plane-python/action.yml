@@ -86,19 +86,31 @@ runs:
 
         python - <<'PY' > "${repo_path}/shared-python-deps.txt"
         import os
+        import re
         import tomllib
         from pathlib import Path
-        from packaging.requirements import Requirement
+
+        DEPENDENCY_NAME_RE = re.compile(r"^([A-Za-z0-9_.-]+)")
+        FIRST_PARTY_SHARED_PREFIX = "asset-allocation-"
+
+        def normalize_name(name: str) -> str:
+            return re.sub(r"[-_.]+", "-", name).lower()
+
+        def dependency_name(dependency: str) -> str:
+            match = DEPENDENCY_NAME_RE.match(dependency.strip())
+            if not match:
+                raise SystemExit(f"Unable to parse dependency name from pyproject entry: {dependency}")
+            return normalize_name(match.group(1))
 
         repo_path = Path(os.environ["REPO_PATH"])
-        excluded_dependency = os.environ["SHARED_DEPS_EXCLUDE"].strip()
+        excluded_dependency = normalize_name(os.environ.get("SHARED_DEPS_EXCLUDE", "").strip())
         pyproject = tomllib.loads((repo_path / "pyproject.toml").read_text(encoding="utf-8"))
 
         for dependency in pyproject["project"]["dependencies"]:
-            requirement = Requirement(dependency)
-            if not requirement.name.startswith("asset-allocation-"):
+            name = dependency_name(dependency)
+            if not name.startswith(FIRST_PARTY_SHARED_PREFIX):
                 continue
-            if excluded_dependency and requirement.name == excluded_dependency:
+            if excluded_dependency and name == excluded_dependency:
                 continue
             print(dependency)
         PY
