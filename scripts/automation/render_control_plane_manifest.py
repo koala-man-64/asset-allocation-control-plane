@@ -27,6 +27,12 @@ _AI_RELAY_ENV_BLOCK = (
     "      - name: AI_RELAY_API_KEY",
     "        secretRef: ai-relay-api-key",
 )
+_OPTIONAL_SECRET_ENV_BINDINGS = {
+    "kalshi-demo-api-key-id": "KALSHI_DEMO_API_KEY_ID",
+    "kalshi-demo-private-key-pem": "KALSHI_DEMO_PRIVATE_KEY_PEM",
+    "kalshi-live-api-key-id": "KALSHI_LIVE_API_KEY_ID",
+    "kalshi-live-private-key-pem": "KALSHI_LIVE_PRIVATE_KEY_PEM",
+}
 _SECRET_KEY_VAULT_URL_ENV_BY_NAME = {
     "azure-storage-connection-string": "AZURE_STORAGE_CONNECTION_STRING_KEY_VAULT_URL",
     "alpha-vantage-api-key": "ALPHA_VANTAGE_API_KEY_KEY_VAULT_URL",
@@ -161,6 +167,58 @@ def _apply_key_vault_secret_refs(rendered: str, env: dict[str, str]) -> str:
     return dumped if rendered.endswith("\n") else dumped.rstrip("\n")
 
 
+def _remove_empty_optional_secret_bindings(rendered: str) -> str:
+    loaded = yaml.safe_load(rendered)
+    if not isinstance(loaded, dict):
+        raise ValueError("Rendered manifest must parse into a YAML mapping.")
+
+    configuration = loaded.get("properties", {}).get("configuration", {})
+    secrets = configuration.get("secrets", [])
+    if not isinstance(secrets, list):
+        raise ValueError("Rendered manifest properties.configuration.secrets must be a YAML sequence.")
+
+    removed_secret_names: set[str] = set()
+    kept_secrets: list[object] = []
+    for entry in secrets:
+        if not isinstance(entry, dict):
+            kept_secrets.append(entry)
+            continue
+        secret_name = str(entry.get("name") or "").strip()
+        if secret_name not in _OPTIONAL_SECRET_ENV_BINDINGS:
+            kept_secrets.append(entry)
+            continue
+        has_value = bool(str(entry.get("value") or "").strip())
+        has_key_vault_ref = bool(str(entry.get("keyVaultUrl") or "").strip())
+        if has_value or has_key_vault_ref:
+            kept_secrets.append(entry)
+            continue
+        removed_secret_names.add(secret_name)
+
+    if not removed_secret_names:
+        return rendered
+
+    configuration["secrets"] = kept_secrets
+    containers = loaded.get("properties", {}).get("template", {}).get("containers", [])
+    if isinstance(containers, list):
+        for container in containers:
+            if not isinstance(container, dict):
+                continue
+            env_entries = container.get("env", [])
+            if not isinstance(env_entries, list):
+                continue
+            container["env"] = [
+                entry
+                for entry in env_entries
+                if not (
+                    isinstance(entry, dict)
+                    and str(entry.get("secretRef") or "").strip() in removed_secret_names
+                )
+            ]
+
+    dumped = yaml.safe_dump(loaded, sort_keys=False)
+    return dumped if rendered.endswith("\n") else dumped.rstrip("\n")
+
+
 def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
     ai_relay_enabled = env.get("AI_RELAY_ENABLED", "").strip().lower() == "true"
     ai_relay_api_key = env.get("AI_RELAY_API_KEY", "").strip()
@@ -178,6 +236,7 @@ def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
     if template.endswith("\n"):
         rendered += "\n"
     rendered = _apply_key_vault_secret_refs(rendered, env)
+    rendered = _remove_empty_optional_secret_bindings(rendered)
     _validate_rendered_manifest(rendered)
     return rendered
 

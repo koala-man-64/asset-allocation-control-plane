@@ -19,6 +19,11 @@ on:
         required: true
         default: false
         type: boolean
+      provision_private_runtime:
+        description: Provision VNet-backed Container Apps runtime and network smoke job
+        required: true
+        default: false
+        type: boolean
       enable_acr_private_link:
         description: Provision ACR Premium private endpoint and private DNS support
         required: true
@@ -104,50 +109,51 @@ jobs:
       - name: Provision shared Azure substrate
         shell: pwsh
         run: |
-          $args = @(
-            '-SubscriptionId', '${{ vars.AZURE_SUBSCRIPTION_ID }}',
-            '-ResourceGroup', '${{ vars.RESOURCE_GROUP }}',
-            '-Location', '${{ vars.AZURE_LOCATION || 'eastus' }}',
-            '-StorageAccountName', '${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}',
-            '-AcrName', '${{ vars.ACR_NAME }}',
-            '-AcrPullIdentityName', '${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}',
-            '-ApiRuntimeIdentityName', '${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}',
-            '-JobControlIdentityName', '${{ vars.JOB_CONTROL_IDENTITY_NAME || 'asset-allocation-job-control-mi' }}',
-            '-LogAnalyticsWorkspaceName', '${{ vars.LOG_ANALYTICS_WORKSPACE_NAME || 'asset-allocation-law' }}',
-            '-ContainerAppsEnvironmentName', '${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}',
-            '-VnetContainerAppsEnvironmentName', '${{ vars.CONTAINER_APPS_ENVIRONMENT_VNET_NAME || 'asset-allocation-env-vnet' }}',
-            '-ServiceAccountName', '${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}',
-            '-VnetName', '${{ vars.ACA_VNET_NAME || 'asset-allocation-vnet-prod' }}',
-            '-VnetAddressSpace', '${{ vars.ACA_VNET_ADDRESS_SPACE || '10.64.0.0/24' }}',
-            '-AcaInfrastructureSubnetName', '${{ vars.ACA_INFRA_SUBNET_NAME || 'aca-infra-snet' }}',
-            '-AcaInfrastructureSubnetPrefix', '${{ vars.ACA_INFRA_SUBNET_PREFIX || '10.64.0.0/26' }}',
-            '-PrivateEndpointSubnetName', '${{ vars.PRIVATE_ENDPOINT_SUBNET_NAME || 'private-endpoints-snet' }}',
-            '-PrivateEndpointSubnetPrefix', '${{ vars.PRIVATE_ENDPOINT_SUBNET_PREFIX || '10.64.0.64/27' }}',
-            '-ReservedSubnetPrefix', '${{ vars.ACA_RESERVED_SUBNET_PREFIX || '10.64.0.96/27' }}',
-            '-NatGatewayName', '${{ vars.NAT_GATEWAY_NAME || 'asset-allocation-nat-prod' }}',
-            '-NatPublicIpName', '${{ vars.NAT_PUBLIC_IP_NAME || 'asset-allocation-egress-ip-prod' }}',
-            '-NetworkSmokeJobName', '${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}',
-            '-VnetApiAppName', '${{ vars.API_APP_VNET_NAME || 'asset-allocation-api-vnet' }}',
-            '-VnetUiAppName', '${{ vars.UI_APP_VNET_NAME || 'asset-allocation-ui-vnet' }}',
-            '-UiPublicHostname', '${{ vars.UI_PUBLIC_HOSTNAME }}',
-            '-EnvFile', 'infra.generated.env',
-            '-NonInteractive',
-            '-PromptForResources:$false'
-          )
-          if ('${{ inputs.provision_postgres }}' -eq 'true') { $args += '-ProvisionPostgres' }
-          if ('${{ inputs.configure_acr_pull_identity }}' -eq 'true') {
-            $args += '-GrantAcrPullToAcaResources'
-            $args += '-ConfigureAcrPullIdentityOnAcaResources'
+          $provisionArgs = @{
+            SubscriptionId = '${{ vars.AZURE_SUBSCRIPTION_ID }}'
+            ResourceGroup = '${{ vars.RESOURCE_GROUP }}'
+            Location = '${{ vars.AZURE_LOCATION || 'eastus' }}'
+            StorageAccountName = '${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}'
+            AcrName = '${{ vars.ACR_NAME }}'
+            AcrPullIdentityName = '${{ vars.ACR_PULL_IDENTITY_NAME || 'asset-allocation-acr-pull-mi' }}'
+            ApiRuntimeIdentityName = '${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}'
+            JobControlIdentityName = '${{ vars.JOB_CONTROL_IDENTITY_NAME || 'asset-allocation-job-control-mi' }}'
+            LogAnalyticsWorkspaceName = '${{ vars.LOG_ANALYTICS_WORKSPACE_NAME || 'asset-allocation-law' }}'
+            ContainerAppsEnvironmentName = '${{ vars.CONTAINER_APPS_ENVIRONMENT_NAME || 'asset-allocation-env' }}'
+            VnetContainerAppsEnvironmentName = '${{ vars.CONTAINER_APPS_ENVIRONMENT_VNET_NAME || 'asset-allocation-env-vnet' }}'
+            ServiceAccountName = '${{ vars.SERVICE_ACCOUNT_NAME || 'asset-allocation-sa' }}'
+            VnetName = '${{ vars.ACA_VNET_NAME || 'asset-allocation-vnet-prod' }}'
+            VnetAddressSpace = '${{ vars.ACA_VNET_ADDRESS_SPACE || '10.64.0.0/24' }}'
+            AcaInfrastructureSubnetName = '${{ vars.ACA_INFRA_SUBNET_NAME || 'aca-infra-snet' }}'
+            AcaInfrastructureSubnetPrefix = '${{ vars.ACA_INFRA_SUBNET_PREFIX || '10.64.0.0/26' }}'
+            PrivateEndpointSubnetName = '${{ vars.PRIVATE_ENDPOINT_SUBNET_NAME || 'private-endpoints-snet' }}'
+            PrivateEndpointSubnetPrefix = '${{ vars.PRIVATE_ENDPOINT_SUBNET_PREFIX || '10.64.0.64/27' }}'
+            ReservedSubnetPrefix = '${{ vars.ACA_RESERVED_SUBNET_PREFIX || '10.64.0.96/27' }}'
+            NatGatewayName = '${{ vars.NAT_GATEWAY_NAME || 'asset-allocation-nat-prod' }}'
+            NatPublicIpName = '${{ vars.NAT_PUBLIC_IP_NAME || 'asset-allocation-egress-ip-prod' }}'
+            NetworkSmokeJobName = '${{ vars.ACA_NETWORK_SMOKE_JOB_NAME || 'asset-allocation-network-smoke' }}'
+            VnetApiAppName = '${{ vars.API_APP_VNET_NAME || 'asset-allocation-api-vnet' }}'
+            VnetUiAppName = '${{ vars.UI_APP_VNET_NAME || 'asset-allocation-ui-vnet' }}'
+            UiPublicHostname = '${{ vars.UI_PUBLIC_HOSTNAME }}'
+            EnvFile = 'infra.generated.env'
+            NonInteractive = $true
+            PromptForResources = $false
           }
-          if ('${{ inputs.grant_job_start_permissions }}' -eq 'true') { $args += '-GrantJobStartToAcaResources' }
-          if ('${{ inputs.enable_acr_private_link }}' -eq 'true') { $args += '-EnableAcrPrivateLink' }
+          if ('${{ inputs.provision_postgres }}' -eq 'true') { $provisionArgs.ProvisionPostgres = $true }
+          if ('${{ inputs.configure_acr_pull_identity }}' -eq 'true') {
+            $provisionArgs.GrantAcrPullToAcaResources = $true
+            $provisionArgs.ConfigureAcrPullIdentityOnAcaResources = $true
+          }
+          if ('${{ inputs.grant_job_start_permissions }}' -eq 'true') { $provisionArgs.GrantJobStartToAcaResources = $true }
+          if ('${{ inputs.provision_private_runtime }}' -ne 'true') { $provisionArgs.SkipParallelPrivateRuntime = $true }
+          if ('${{ inputs.enable_acr_private_link }}' -eq 'true') { $provisionArgs.EnableAcrPrivateLink = $true }
           if ('${{ inputs.disable_public_data_plane_access }}' -eq 'true') {
             if ('${{ inputs.private_runtime_verified }}' -ne 'true') {
               throw "private_runtime_verified=true is required before disabling public Storage/Postgres data-plane access."
             }
-            $args += '-DisablePublicDataPlaneAccess'
+            $provisionArgs.DisablePublicDataPlaneAccess = $true
           }
-          & .\scripts\ops\provision\provision_azure.ps1 @args
+          & .\scripts\ops\provision\provision_azure.ps1 @provisionArgs
 
       - name: Write infrastructure summary
         shell: pwsh
@@ -168,6 +174,7 @@ jobs:
           - Service account: `${{ vars.SERVICE_ACCOUNT_NAME }}`
           - Postgres reconciled: `${{ inputs.provision_postgres }}`
           - ACR pull identity reconciled: `${{ inputs.configure_acr_pull_identity }}`
+          - Private runtime reconciled: `${{ inputs.provision_private_runtime }}`
           - API runtime identity: `${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}`
           - Job-control identity: `${{ vars.JOB_CONTROL_IDENTITY_NAME || 'asset-allocation-job-control-mi' }}`
           - Narrow ACA operator RBAC reconciled: `${{ inputs.grant_job_start_permissions }}`
