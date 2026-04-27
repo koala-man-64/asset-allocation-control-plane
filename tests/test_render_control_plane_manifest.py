@@ -190,6 +190,49 @@ def test_renderer_keeps_ui_password_hash_secret_and_env_binding_when_hash_presen
     assert "\n      - name: UI_SHARED_PASSWORD_HASH\n        secretRef: ui-shared-password-hash\n" in rendered
 
 
+def test_renderer_omits_empty_kalshi_secret_bindings(tmp_path: Path) -> None:
+    template = _repo_root() / "deploy" / "app_api_public.yaml"
+    output = tmp_path / "rendered.yaml"
+
+    result = _run_renderer(
+        template=template,
+        output=output,
+        extra_env=_template_env(
+            template,
+            overrides={
+                "AI_RELAY_ENABLED": "false",
+                "AI_RELAY_API_KEY": "",
+                "KALSHI_ENABLED": "false",
+                "KALSHI_TRADING_ENABLED": "false",
+                "KALSHI_DEMO_API_KEY_ID": "",
+                "KALSHI_DEMO_PRIVATE_KEY_PEM": "",
+                "KALSHI_LIVE_API_KEY_ID": "",
+                "KALSHI_LIVE_PRIVATE_KEY_PEM": "",
+            },
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    doc = yaml.safe_load(output.read_text(encoding="utf-8"))
+    secrets = {
+        entry["name"]
+        for entry in doc["properties"]["configuration"]["secrets"]
+    }
+    env_names = {
+        entry["name"]
+        for entry in doc["properties"]["template"]["containers"][0]["env"]
+    }
+    assert "kalshi-demo-api-key-id" not in secrets
+    assert "kalshi-demo-private-key-pem" not in secrets
+    assert "kalshi-live-api-key-id" not in secrets
+    assert "kalshi-live-private-key-pem" not in secrets
+    assert "KALSHI_DEMO_API_KEY_ID" not in env_names
+    assert "KALSHI_DEMO_PRIVATE_KEY_PEM" not in env_names
+    assert "KALSHI_LIVE_API_KEY_ID" not in env_names
+    assert "KALSHI_LIVE_PRIVATE_KEY_PEM" not in env_names
+    assert _manifest_env_value(output.read_text(encoding="utf-8"), "KALSHI_ENABLED") == "false"
+
+
 def test_renderer_serializes_env_values_as_yaml_safe_strings(tmp_path: Path) -> None:
     template = _repo_root() / "deploy" / "app_api_public.yaml"
     output = tmp_path / "rendered.yaml"

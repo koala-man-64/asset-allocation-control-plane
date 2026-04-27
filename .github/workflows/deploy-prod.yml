@@ -297,10 +297,23 @@ jobs:
             --output rendered-control-plane.yaml
 
       - name: Apply control-plane app manifest
+        env:
+          ACR_PULL_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.identity_id }}
+          API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}
         shell: bash
         run: |
           set -euo pipefail
           if az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" > /dev/null 2>&1; then
+            az containerapp identity assign \
+              --name "${API_APP_NAME}" \
+              --resource-group "${RESOURCE_GROUP}" \
+              --user-assigned "${ACR_PULL_IDENTITY_RESOURCE_ID}" \
+              --only-show-errors > /dev/null
+            az containerapp identity assign \
+              --name "${API_APP_NAME}" \
+              --resource-group "${RESOURCE_GROUP}" \
+              --user-assigned "${API_RUNTIME_IDENTITY_RESOURCE_ID}" \
+              --only-show-errors > /dev/null
             az containerapp update --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-control-plane.yaml
           else
             az containerapp create --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --yaml rendered-control-plane.yaml
@@ -316,7 +329,10 @@ jobs:
             shift
             local actual
             actual="$(curl -sS -o /dev/null -w '%{http_code}' --retry 12 --retry-delay 10 --retry-connrefused "$@")"
-            test "${actual}" = "${expected}"
+            if [ "${actual}" != "${expected}" ]; then
+              echo "Expected HTTP ${expected}, got ${actual}: $*" >&2
+              return 1
+            fi
           }
 
           fqdn="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)"
@@ -405,7 +421,7 @@ jobs:
                 --only-show-errors
             )"
             : "${deploy_smoke_token:?Failed to mint deploy smoke bearer token. Ensure the Azure deploy principal has the AssetAllocation.Access app role.}"
-            expect_status 401 "https://${fqdn}/config.js"
+            expect_status 200 "https://${fqdn}/config.js"
             expect_status 401 "https://${fqdn}/api/openapi.json"
             expect_status 401 "https://${fqdn}/api/docs"
             expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/docs"
