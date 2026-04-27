@@ -439,10 +439,35 @@ function Get-ResolvedUiAuthProvider {
     return ""
 }
 
+function Get-ResolvedBreakGlassPasswordAuthEnabled {
+    $candidates = @()
+    foreach ($source in @($overrideMap, $existingMap, $templateMap)) {
+        if ($null -eq $source -or -not $source.ContainsKey("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED")) {
+            continue
+        }
+        $candidate = Normalize-EnvValueForKey -Name "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED" -Value $source["UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
+    $githubValue = Get-GitHubVariableValue -Name "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED"
+    if (-not [string]::IsNullOrWhiteSpace($githubValue)) { $candidates += $githubValue }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        return (Test-TruthyValue -Value $candidate)
+    }
+    return $false
+}
+
 function Get-RequirementLevel {
     param([Parameter(Mandatory = $true)][string]$Name)
-    if ($Name -eq "UI_SHARED_PASSWORD_HASH") {
-        if ((Get-ResolvedUiAuthProvider) -eq "password") { return "required" }
+    if ($Name -in @(
+        "UI_SHARED_PASSWORD_HASH",
+        "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED",
+        "UI_BREAK_GLASS_PASSWORD_ROLES",
+        "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS",
+        "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT"
+    )) {
+        if ((Get-ResolvedUiAuthProvider) -eq "password" -or (Get-ResolvedBreakGlassPasswordAuthEnabled)) { return "required" }
         return "optional"
     }
     if ($Name -in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
@@ -488,7 +513,19 @@ function Assert-UiPasswordAuthConfiguration {
     }
 
     $uiAuthProvider = if ($values.ContainsKey("UI_AUTH_PROVIDER")) { $values["UI_AUTH_PROVIDER"].Trim().ToLowerInvariant() } else { "" }
-    if ($uiAuthProvider -ne "password") { return }
+    $breakGlassEnabled = if ($values.ContainsKey("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED")) {
+        Test-TruthyValue -Value $values["UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED"]
+    } else {
+        $false
+    }
+
+    if ($uiAuthProvider -ne "password" -and -not $breakGlassEnabled) { return }
+    if ($breakGlassEnabled -and $uiAuthProvider -ne "password") {
+        throw "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true requires UI_AUTH_PROVIDER=password."
+    }
+    if (-not $breakGlassEnabled) {
+        throw "UI_AUTH_PROVIDER=password requires UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true."
+    }
 
     $passwordHash = if ($values.ContainsKey("UI_SHARED_PASSWORD_HASH")) { $values["UI_SHARED_PASSWORD_HASH"] } else { "" }
     if ([string]::IsNullOrWhiteSpace($passwordHash)) {
@@ -498,6 +535,18 @@ function Assert-UiPasswordAuthConfiguration {
     $sessionMode = if ($values.ContainsKey("API_AUTH_SESSION_MODE")) { $values["API_AUTH_SESSION_MODE"].Trim().ToLowerInvariant() } else { "" }
     if ($sessionMode -ne "cookie") {
         throw "UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie. Update that value before continuing."
+    }
+
+    $requiredBreakGlassKeys = @(
+        "UI_BREAK_GLASS_PASSWORD_ROLES",
+        "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS",
+        "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT"
+    )
+    foreach ($key in $requiredBreakGlassKeys) {
+        $value = if ($values.ContainsKey($key)) { $values[$key] } else { "" }
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            throw "UI_AUTH_PROVIDER=password requires $key. Update that value before continuing."
+        }
     }
 }
 

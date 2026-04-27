@@ -429,6 +429,12 @@ def create_app() -> FastAPI:
             auth_session_renewal = getattr(request.state, "auth_session_renewal", None)
             if auth_session_renewal is not None:
                 request.app.state.auth.set_session_cookies(response, auth_session_renewal)
+                logger.info(
+                    "session_cookie_renewed: request_id=%s path=%s session_id=%s",
+                    request_id,
+                    path,
+                    getattr(auth_session_renewal, "session_id", "-"),
+                )
 
             # Safe logic for headers
             if path.startswith("/assets/") and response.status_code == 200:

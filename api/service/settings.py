@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ipaddress
 import os
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, List, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
@@ -127,6 +129,10 @@ def _validate_ui_redirect_uri(value: str) -> str:
     return _validate_absolute_http_url(value, env_name="UI_OIDC_REDIRECT_URI")
 
 
+def _validate_ui_post_logout_redirect_uri(value: str) -> str:
+    return _validate_absolute_http_url(value, env_name="UI_OIDC_POST_LOGOUT_REDIRECT_URI")
+
+
 def _validate_absolute_http_origin(value: str, *, env_name: str) -> str:
     parsed = urlparse(value)
     host = (parsed.hostname or "").strip().lower()
@@ -208,6 +214,32 @@ def _derive_ui_post_logout_redirect_uri(redirect_uri: str | None) -> str | None:
         return None
 
     return urlunparse(parsed._replace(path="/auth/logout-complete", params="", query="", fragment=""))
+
+
+def _validate_cidr_list(values: list[str], *, env_name: str) -> list[str]:
+    normalized: list[str] = []
+    for item in values:
+        try:
+            network = ipaddress.ip_network(item, strict=False)
+        except ValueError as exc:
+            raise ValueError(f"{env_name} contains an invalid CIDR: {item}.") from exc
+        normalized.append(str(network))
+    return normalized
+
+
+def _parse_iso8601_timestamp(value: str, *, env_name: str) -> int:
+    normalized = str(value or "").strip()
+    if not normalized:
+        raise ValueError(f"{env_name} must be an ISO-8601 timestamp.")
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be an ISO-8601 timestamp.") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{env_name} must include a timezone offset.")
+    return int(parsed.astimezone(timezone.utc).timestamp())
 
 
 @dataclass(frozen=True)
@@ -525,9 +557,12 @@ class SchwabSettings:
 class PasswordAuthSettings:
     enabled: bool = False
     verifier: Optional[str] = None
-    session_subject: str = "operator"
-    session_display_name: str = "Operator"
-    session_username: str = "operator"
+    session_subject: str = "break-glass-operator"
+    session_display_name: str = "Break Glass Operator"
+    session_username: str = "break-glass"
+    session_roles: list[str] = field(default_factory=list)
+    allowed_cidrs: list[str] = field(default_factory=list)
+    expires_at_epoch: int | None = None
     rate_limit_window_seconds: int = 300
     rate_limit_max_attempts_per_ip: int = 10
     rate_limit_max_attempts_global: int = 200
@@ -535,12 +570,27 @@ class PasswordAuthSettings:
     @staticmethod
     def from_env() -> "PasswordAuthSettings":
         verifier = _get_optional_str("UI_SHARED_PASSWORD_HASH")
+        break_glass_enabled = _get_optional_bool("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", default=False)
+        session_roles = _split_csv(_get_optional_str("UI_BREAK_GLASS_PASSWORD_ROLES"))
+        allowed_cidrs = _validate_cidr_list(
+            _split_csv(_get_optional_str("UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS")),
+            env_name="UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS",
+        )
+        expires_at_raw = _get_optional_str("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT")
+        expires_at_epoch = (
+            _parse_iso8601_timestamp(expires_at_raw, env_name="UI_BREAK_GLASS_PASSWORD_EXPIRES_AT")
+            if expires_at_raw
+            else None
+        )
         settings = PasswordAuthSettings(
-            enabled=bool(verifier),
+            enabled=bool(verifier) and break_glass_enabled,
             verifier=verifier,
-            session_subject=_get_optional_str("UI_SHARED_PASSWORD_SUBJECT") or "operator",
-            session_display_name=_get_optional_str("UI_SHARED_PASSWORD_DISPLAY_NAME") or "Operator",
-            session_username=_get_optional_str("UI_SHARED_PASSWORD_USERNAME") or "operator",
+            session_subject=_get_optional_str("UI_SHARED_PASSWORD_SUBJECT") or "break-glass-operator",
+            session_display_name=_get_optional_str("UI_SHARED_PASSWORD_DISPLAY_NAME") or "Break Glass Operator",
+            session_username=_get_optional_str("UI_SHARED_PASSWORD_USERNAME") or "break-glass",
+            session_roles=session_roles,
+            allowed_cidrs=allowed_cidrs,
+            expires_at_epoch=expires_at_epoch,
             rate_limit_window_seconds=_get_optional_int(
                 "UI_PASSWORD_RATE_LIMIT_WINDOW_SECONDS",
                 default=300,
@@ -560,8 +610,20 @@ class PasswordAuthSettings:
                 maximum=10_000,
             ),
         )
-        if settings.enabled and settings.verifier:
+        if verifier:
             validate_password_hash_format(settings.verifier)
+        if break_glass_enabled and not verifier:
+            raise ValueError("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED requires UI_SHARED_PASSWORD_HASH.")
+        if break_glass_enabled and not settings.session_roles:
+            raise ValueError("UI_BREAK_GLASS_PASSWORD_ROLES is required when UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true.")
+        if break_glass_enabled and not settings.allowed_cidrs:
+            raise ValueError(
+                "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS is required when UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true."
+            )
+        if break_glass_enabled and settings.expires_at_epoch is None:
+            raise ValueError("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT is required when UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true.")
+        if settings.expires_at_epoch is not None and settings.expires_at_epoch <= int(datetime.now(timezone.utc).timestamp()):
+            raise ValueError("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT must be in the future.")
         return settings
 
 
@@ -965,8 +1027,8 @@ class ServiceSettings:
     ui_oidc_config: dict[str, Any] = field(default_factory=dict)
     ui_auth_provider: UiAuthProvider = "disabled"
     auth_session_mode: AuthSessionMode = "bearer"
-    auth_session_idle_ttl_seconds: int = 2_592_000
-    auth_session_absolute_ttl_seconds: int = 2_592_000
+    auth_session_idle_ttl_seconds: int = 1_800
+    auth_session_absolute_ttl_seconds: int = 28_800
     auth_session_version: str = "1"
     auth_session_secret_keys: list[str] = field(default_factory=list)
     auth_session_cookie_secure: bool = True
@@ -1033,13 +1095,13 @@ class ServiceSettings:
         auth_session_mode = _get_auth_session_mode()
         auth_session_idle_ttl_seconds = _get_optional_int(
             "API_AUTH_SESSION_IDLE_TTL_SECONDS",
-            default=2_592_000,
+            default=1_800,
             minimum=60,
             maximum=31_536_000,
         )
         auth_session_absolute_ttl_seconds = _get_optional_int(
             "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS",
-            default=2_592_000,
+            default=28_800,
             minimum=60,
             maximum=31_536_000,
         )
@@ -1072,8 +1134,9 @@ class ServiceSettings:
         ui_client_id = _get_optional_str("UI_OIDC_CLIENT_ID")
         ui_scopes = _get_optional_str("UI_OIDC_SCOPES")
         ui_redirect_uri = _get_optional_str("UI_OIDC_REDIRECT_URI")
+        ui_post_logout_redirect_uri = _get_optional_str("UI_OIDC_POST_LOGOUT_REDIRECT_URI")
         browser_oidc_inputs_present = bool(
-            configured_ui_authority or ui_client_id or ui_scopes or ui_redirect_uri
+            configured_ui_authority or ui_client_id or ui_scopes or ui_redirect_uri or ui_post_logout_redirect_uri
         )
         if browser_oidc_inputs_present and not (ui_authority and ui_client_id):
             raise ValueError("UI_OIDC_AUTHORITY and UI_OIDC_CLIENT_ID are required together.")
@@ -1084,32 +1147,38 @@ class ServiceSettings:
             raise ValueError("UI_OIDC_REDIRECT_URI is required when browser OIDC is configured.")
         if ui_redirect_uri:
             ui_redirect_uri = _validate_ui_redirect_uri(ui_redirect_uri)
+        if ui_post_logout_redirect_uri:
+            ui_post_logout_redirect_uri = _validate_ui_post_logout_redirect_uri(ui_post_logout_redirect_uri)
 
         configured_ui_auth_provider = _get_ui_auth_provider()
         if configured_ui_auth_provider is not None:
             ui_auth_provider = configured_ui_auth_provider
         elif browser_oidc_enabled:
             ui_auth_provider = "oidc"
-        elif password_auth.enabled:
-            ui_auth_provider = "password"
         else:
             ui_auth_provider = "disabled"
 
         if ui_auth_provider == "oidc" and not browser_oidc_enabled:
             raise ValueError("UI_AUTH_PROVIDER=oidc requires browser OIDC configuration.")
+        if ui_auth_provider == "oidc" and auth_session_mode != "cookie":
+            raise ValueError("UI_AUTH_PROVIDER=oidc requires API_AUTH_SESSION_MODE=cookie.")
         if ui_auth_provider == "password" and not password_auth.enabled:
-            raise ValueError("UI_AUTH_PROVIDER=password requires UI_SHARED_PASSWORD_HASH.")
+            raise ValueError("UI_AUTH_PROVIDER=password requires explicitly enabled break-glass password auth.")
         if ui_auth_provider == "password" and auth_session_mode != "cookie":
             raise ValueError("UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie.")
+        if password_auth.enabled and ui_auth_provider != "password":
+            raise ValueError("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED requires UI_AUTH_PROVIDER=password.")
 
         anonymous_local_auth_enabled = False
         if not oidc_auth_enabled and not password_auth.enabled:
             if _is_local_runtime():
                 anonymous_local_auth_enabled = True
             else:
-                raise ValueError("Deployed runtime requires API OIDC configuration or UI shared password auth.")
+                raise ValueError(
+                    "Deployed runtime requires API OIDC configuration or explicitly enabled break-glass password auth."
+                )
         if auth_session_mode == "cookie" and not (oidc_auth_enabled or password_auth.enabled):
-            raise ValueError("Cookie auth sessions require API OIDC auth or UI shared password auth.")
+            raise ValueError("Cookie auth sessions require API OIDC auth or explicitly enabled break-glass password auth.")
 
         postgres_dsn = _get_optional_str("POSTGRES_DSN")
         ai_relay = AiRelaySettings.from_env()
@@ -1136,7 +1205,7 @@ class ServiceSettings:
             "clientId": ui_client_id,
             "scope": ui_scopes,
             "redirectUri": ui_redirect_uri,
-            "postLogoutRedirectUri": _derive_ui_post_logout_redirect_uri(ui_redirect_uri),
+            "postLogoutRedirectUri": ui_post_logout_redirect_uri or _derive_ui_post_logout_redirect_uri(ui_redirect_uri),
             "apiBaseUrl": _FIXED_UI_API_BASE_URL,
             "authSessionMode": auth_session_mode,
             "authProvider": ui_auth_provider,

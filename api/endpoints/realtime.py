@@ -24,6 +24,14 @@ def issue_realtime_ticket(request: Request) -> JSONResponse:
     auth_context = validate_auth(request)
     store = get_websocket_ticket_store(request)
     ticket = store.issue(subject=auth_context.subject, auth_mode=auth_context.mode)
+    logger.info(
+        "realtime_ticket_issued: request_id=%s subject=%s mode=%s session_id=%s expires_at=%s",
+        str(getattr(request.state, "request_id", "") or request.headers.get("x-request-id", "") or "-"),
+        auth_context.subject or "-",
+        auth_context.mode,
+        auth_context.session_id or "-",
+        to_utc_timestamp(ticket.expires_at),
+    )
     return JSONResponse(
         {
             "ticket": ticket.ticket,
@@ -38,7 +46,7 @@ async def websocket_updates(websocket: WebSocket) -> None:
     ticket = str(websocket.query_params.get("ticket") or "").strip()
     store = get_websocket_ticket_store(websocket)
     if not store.consume(ticket):
-        logger.warning("Realtime websocket rejected: missing_or_invalid_ticket client=%s", websocket.client)
+        logger.warning("realtime_ticket_rejected: reason=missing_or_invalid_or_reused client=%s", websocket.client)
         await websocket.close(code=WEBSOCKET_UNAUTHORIZED_CLOSE_CODE, reason="Unauthorized")
         return
 

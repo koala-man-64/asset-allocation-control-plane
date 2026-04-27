@@ -302,7 +302,7 @@ async def test_websocket_ticket_supports_oidc_mode(
 
 
 @pytest.mark.asyncio
-async def test_websocket_ticket_supports_password_cookie_mode(
+async def test_websocket_ticket_supports_break_glass_password_cookie_mode(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_required_env(tmp_path, monkeypatch)
@@ -310,6 +310,10 @@ async def test_websocket_ticket_supports_password_cookie_mode(
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
     monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
     monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", "true")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS", "127.0.0.1/32")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT", "2099-01-01T00:00:00Z")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ROLES", "AssetAllocation.System.Read")
 
     app = create_app()
     async with app.router.lifespan_context(app):
@@ -317,7 +321,11 @@ async def test_websocket_ticket_supports_password_cookie_mode(
             login = await client.post(
                 "/api/auth/session",
                 json={"password": "operator-secret"},
-                headers={"Origin": TEST_ORIGIN},
+                headers={
+                    "Origin": TEST_ORIGIN,
+                    "X-Break-Glass-Reason": "Emergency realtime validation",
+                    "X-Forwarded-For": "127.0.0.1",
+                },
             )
             assert login.status_code == 200
             csrf_token = login.cookies.get("aa_csrf_dev")

@@ -41,7 +41,7 @@ Use only these workflow entry points:
 
 - Use `release.yml` to fail fast on missing GitHub release configuration, unpublished shared-package versions, or missing Azure release RBAC before it exports contracts or builds the image.
 - Use `release.yml` to build one immutable API image digest and export `api/contracts/control-plane.openapi.json` plus `api/contracts/ui-runtime-config.schema.json`.
-- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, and the `/openapi.json` redirect path.
+- Use `deploy-prod.yml` manual runs to auto-resolve the latest released `asset-allocation-api` image from ACR and verify `/healthz`, `/readyz`, `/config.js`, `/api/auth/session`, and the `/openapi.json` redirect path.
 - Use `deploy_runtime` repository dispatch when automation or rollback needs to supply an explicit image digest.
 
 ## Shared Azure Foundation To Provision Once
@@ -150,8 +150,8 @@ GitHub variables:
    - `python -m pytest tests/api/test_ai_gateway_service.py tests/api/test_ai_chat_stream.py tests/api/test_config_js_contract.py tests/api/test_internal_endpoints.py tests/api/test_swagger_docs.py -q`
 8. Build the API image from `Dockerfile.asset_allocation_api`.
 9. Deploy a single control-plane Container App:
-   - use `deploy/app_api_public.yaml` for public ingress
-   - use `deploy/app_api.yaml` for private ingress
+   - use `deploy/app_api.yaml` for the standard private-ingress deployment
+   - treat `deploy/app_api_public.yaml` as break-glass only
    - use a manual `deploy-prod.yml` run to deploy the latest released ACR image
 10. Verify:
    - `/healthz`
@@ -159,7 +159,8 @@ GitHub variables:
    - `/config.js`
    - `/config.js` exposes `oidcPostLogoutRedirectUri` whenever browser OIDC is enabled
    - `/openapi.json` redirects to the active OpenAPI document
-   - if browser OIDC is enabled, `/api/auth/session` returns `401` without a bearer token on auth-required deployments and `200` with a valid operator token
+   - if browser OIDC is enabled, `POST /api/auth/session` returns `401` without a bearer token on auth-required deployments and `200` with a valid operator token
+   - `GET /api/auth/session` returns `200` only after the backend cookie session has been established
    - `/api/ai/chat/stream` returns `401` without a bearer token
    - `/api/ai/chat/stream` returns `403` for an authenticated token that lacks `AssetAllocation.AiRelay.Use`
    - `/api/ai/chat/stream` returns a streamed `completed` event for an authorized token when AI relay is enabled and configured
@@ -203,7 +204,7 @@ GitHub variables:
 - Repo sync is intentionally narrow: `docs/ops/env-contract.csv` describes only GitHub vars and secrets consumed by this repo's workflows.
 - This repo currently has no npm or Node workspace, so `.github/dependabot.yml` intentionally has no npm update entry.
 - `ASSET_ALLOCATION_API_BASE_URL` is a downstream consumer concern. Keep it in the jobs and UI repos, not in this repo's deploy contract.
-- This repo is the source of truth for `/config.js` and `/openapi.json`.
+- This repo is the source of truth for `/config.js`, `/api/auth/session`, and `/openapi.json`.
 
 ## Evidence
 

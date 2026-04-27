@@ -135,7 +135,7 @@ def _require_csrf_for_cookie_auth(request: Request, auth_context: AuthContext) -
         or not hmac.compare_digest(cookie_token, expected_token)
     ):
         logger.warning(
-            "CSRF rejected for cookie-auth request: request_id=%s method=%s path=%s has_header=%s has_cookie=%s",
+            "csrf_rejected: request_id=%s method=%s path=%s has_header=%s has_cookie=%s",
             _request_id(request),
             request.method,
             request.url.path,
@@ -234,7 +234,7 @@ def _require_configured_roles(
     required_roles: list[str],
     log_prefix: str,
 ) -> None:
-    if auth_context.mode in {"anonymous", "password"}:
+    if auth_context.mode == "anonymous":
         return
     granted_roles = sorted(_claim_roles(auth_context.claims if isinstance(auth_context.claims, dict) else {}))
     configured_roles = sorted({role.strip() for role in required_roles if role.strip()})

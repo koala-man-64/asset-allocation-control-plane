@@ -16,7 +16,8 @@ Rules:
 - Git and GitHub metadata are used for repo slug defaults where possible.
 - Secrets are never fetched from Azure. Existing `.env.web` secrets are reused, and matching GitHub secret names suppress prompts so already-populated repo secrets can be preserved without re-entry.
 - Protected deploy smoke tokens are minted during `deploy-prod.yml` from the Azure login identity using `API_OIDC_AUDIENCE`; rerun `scripts/ops/provision/provision_entra_oidc.ps1` after setting `AZURE_CLIENT_ID` so the deploy principal receives `AssetAllocation.Access`.
-- `API_AUTH_SESSION_MODE=cookie` enables browser session cookies. `API_AUTH_SESSION_SECRET_KEYS` must be populated with at least one high-entropy secret before rollout; comma-separated older keys may remain temporarily for rotation.
+- `API_AUTH_SESSION_MODE=cookie` is the standard browser mode and enables backend-issued session cookies. `API_AUTH_SESSION_SECRET_KEYS` must be populated with at least one high-entropy secret before rollout; comma-separated older keys may remain temporarily for rotation.
+- `API_AUTH_SESSION_IDLE_TTL_SECONDS` defaults to 1800 seconds and `API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS` defaults to 28800 seconds for the browser session path.
 - `API_DEPLOY_MANIFEST` defaults to the internal-only VNet manifest (`deploy/app_api.yaml`). `deploy/app_api_public.yaml` is break-glass only and `deploy-prod.yml` refuses it unless `ALLOW_PUBLIC_API_INGRESS=true`.
 - `API_RUNTIME_IDENTITY_NAME` is the managed identity rendered into runtime `AZURE_CLIENT_ID`; `ACR_PULL_IDENTITY_NAME` must remain limited to image pull, and infra reconcile grants the deploy principal Managed Identity Operator on both identities.
 - `ENABLE_ACR_PRIVATE_LINK=true` reconciles ACR Premium private endpoint support through `privatelink.azurecr.io`. Keep ACR public access enabled until the in-environment image-pull smoke has passed.
@@ -27,6 +28,7 @@ Rules:
 - Schwab access and refresh tokens are never setup or sync inputs. The control-plane obtains them through the Schwab OAuth connect flow, keeps them in process memory, and refreshes access tokens from the in-memory refresh token when available.
 - Broker write routes are separately gated. Set `ETRADE_TRADING_ENABLED=true`, `SCHWAB_TRADING_ENABLED=true`, or `KALSHI_TRADING_ENABLED=true` only after the corresponding read integration, credentials, and broker trade roles are configured.
 - `API_CORS_ALLOW_ORIGINS` should not stay blank in deployed environments. `scripts/setup-env.ps1` derives it from `UI_PUBLIC_HOSTNAME` when present, otherwise from the effective UI redirect origin and finally the live UI Container App ingress FQDN.
+- `UI_AUTH_PROVIDER=oidc` is the standard deployed browser mode. `UI_AUTH_PROVIDER=password` is break-glass only and requires `UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true`, `UI_SHARED_PASSWORD_HASH`, `UI_BREAK_GLASS_PASSWORD_ROLES`, `UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS`, and `UI_BREAK_GLASS_PASSWORD_EXPIRES_AT`.
 - The parallel private runtime is controlled through the `ACA_*`, `PRIVATE_ENDPOINT_*`, `NAT_*`, `*_VNET_NAME`, and `UI_PUBLIC_HOSTNAME` vars in the env contract so the VNet-backed substrate and stable UI hostname stay explicit in source control.
 - `scripts/sync-all-to-github.ps1` reads only `.env.web` and this repo-local env contract, and fails fast if AI relay is enabled without the required AI key or role surface.
 

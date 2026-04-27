@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import hashlib
+import ipaddress
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import jwt
 from jwt.exceptions import InvalidTokenError
@@ -29,6 +31,7 @@ class AuthContext:
     source: str = "bearer"
     csrf_token: Optional[str] = None
     session_renewal: Optional[SessionCookieBundle] = None
+    session_id: Optional[str] = None
 
 
 class AuthError(Exception):
@@ -75,6 +78,35 @@ def _claim_text_list(claims: Dict[str, Any], name: str) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
+
+def _expected_tenant_id_from_issuer(issuer: str) -> str | None:
+    parsed = urlparse(str(issuer or "").strip())
+    host = (parsed.hostname or "").strip().lower()
+    if host not in {"login.microsoftonline.com", "login.windows.net", "sts.windows.net"}:
+        return None
+    segments = [segment.strip() for segment in parsed.path.split("/") if segment.strip()]
+    if not segments:
+        return None
+    tenant_id = segments[0]
+    if tenant_id.lower() in {"common", "organizations", "consumers"}:
+        return None
+    return tenant_id
+
+
+def _sanitize_reason_for_logs(value: str | None) -> str:
+    reason = " ".join(str(value or "").split())
+    if not reason:
+        return "-"
+    return reason[:200]
+
+
+def _client_ip_allowed(client_ip: str, allowed_cidrs: list[str]) -> bool:
+    try:
+        resolved_ip = ipaddress.ip_address(str(client_ip or "").strip())
+    except ValueError:
+        return False
+    return any(resolved_ip in ipaddress.ip_network(cidr, strict=False) for cidr in allowed_cidrs)
 
 
 def summarize_auth_claims_for_logs(claims: Dict[str, Any] | None) -> Dict[str, Any]:
@@ -271,6 +303,19 @@ class AuthManager:
         return AuthContext(mode="oidc", subject=subject, claims=dict(claims), source="bearer")
 
     def _enforce_claim_requirements(self, claims: Dict[str, Any], context: Dict[str, Any]) -> None:
+        expected_tenant_id = _expected_tenant_id_from_issuer(self._settings.oidc_issuer or "")
+        if expected_tenant_id:
+            actual_tenant_id = _claim_text(claims, "tid")
+            if actual_tenant_id != expected_tenant_id:
+                logger.warning(
+                    "OIDC tenant check failed: request_id=%s path=%s expected_tid=%s actual_tid=%s",
+                    context.get("request_id", "-"),
+                    context.get("path", "-"),
+                    expected_tenant_id,
+                    actual_tenant_id or "-",
+                )
+                raise AuthError(status_code=401, detail="Invalid bearer token tenant.", www_authenticate="Bearer")
+
         required_scopes = set(self._settings.oidc_required_scopes or [])
         if required_scopes:
             raw_scopes = str(claims.get("scp") or "").strip()
@@ -335,11 +380,53 @@ class AuthManager:
         password: str,
         *,
         client_ip: str,
+        break_glass_reason: str | None = None,
         request_context: Optional[Dict[str, Any]] = None,
     ) -> AuthContext:
         context = dict(request_context or {})
+        reason_for_logs = _sanitize_reason_for_logs(break_glass_reason)
+        logger.info(
+            "break_glass_attempted: request_id=%s client_ip=%s path=%s reason=%s",
+            context.get("request_id", "-"),
+            client_ip or "unknown",
+            context.get("path", "-"),
+            reason_for_logs,
+        )
         if not self._settings.password_auth.enabled or not self._settings.password_auth.verifier:
+            logger.warning(
+                "break_glass_blocked: request_id=%s client_ip=%s path=%s policy=disabled",
+                context.get("request_id", "-"),
+                client_ip or "unknown",
+                context.get("path", "-"),
+            )
             raise AuthError(status_code=503, detail="Password authentication is not configured.")
+        if not str(break_glass_reason or "").strip():
+            logger.warning(
+                "break_glass_blocked: request_id=%s client_ip=%s path=%s policy=missing_reason",
+                context.get("request_id", "-"),
+                client_ip or "unknown",
+                context.get("path", "-"),
+            )
+            raise AuthError(status_code=403, detail="Break-glass reason is required.")
+        if not _client_ip_allowed(client_ip, self._settings.password_auth.allowed_cidrs):
+            logger.warning(
+                "break_glass_blocked: request_id=%s client_ip=%s path=%s policy=cidr_denied allowed_cidrs=%s",
+                context.get("request_id", "-"),
+                client_ip or "unknown",
+                context.get("path", "-"),
+                self._settings.password_auth.allowed_cidrs,
+            )
+            raise AuthError(status_code=403, detail="Break-glass access is not allowed from this network.")
+        expires_at_epoch = self._settings.password_auth.expires_at_epoch or 0
+        if expires_at_epoch <= int(time.time()):
+            logger.warning(
+                "break_glass_blocked: request_id=%s client_ip=%s path=%s policy=expired expires_at_epoch=%s",
+                context.get("request_id", "-"),
+                client_ip or "unknown",
+                context.get("path", "-"),
+                expires_at_epoch,
+            )
+            raise AuthError(status_code=403, detail="Break-glass access has expired.")
 
         try:
             self._password_attempt_limiter.check(client_ip)
@@ -369,14 +456,16 @@ class AuthManager:
             "sub": self._settings.password_auth.session_subject,
             "name": self._settings.password_auth.session_display_name,
             "preferred_username": self._settings.password_auth.session_username,
-            "roles": [],
+            "roles": list(self._settings.password_auth.session_roles),
         }
         logger.info(
-            "Password auth accepted: request_id=%s client_ip=%s path=%s subject=%s",
+            "break_glass_granted: request_id=%s client_ip=%s path=%s subject=%s roles=%s reason=%s",
             context.get("request_id", "-"),
             client_ip or "unknown",
             context.get("path", "-"),
             self._settings.password_auth.session_subject,
+            list(self._settings.password_auth.session_roles),
+            reason_for_logs,
         )
         return AuthContext(
             mode="password",
@@ -403,7 +492,19 @@ class AuthManager:
         normalized = {str(k).lower(): str(v) for k, v in headers.items()}
         context = dict(request_context or {})
         authorization = (normalized.get("authorization") or "").strip()
-        if self._settings.oidc_auth_enabled and authorization and _is_bearer_auth(authorization):
+        if self._session_cookies.enabled and authorization and _is_bearer_auth(authorization):
+            logger.warning(
+                "POLICY_BLOCKED bearer auth rejected on non-bootstrap endpoint: request_id=%s method=%s path=%s",
+                context.get("request_id", "-"),
+                context.get("method", "-"),
+                context.get("path", "-"),
+            )
+            raise AuthError(
+                status_code=401,
+                detail="Bearer auth is only accepted on POST /api/auth/session.",
+                www_authenticate="Bearer",
+            )
+        if not self._session_cookies.enabled and self._settings.oidc_auth_enabled and authorization and _is_bearer_auth(authorization):
             token = _extract_bearer_token(authorization)
             ctx = self._verify_bearer_token(token, request_context=context)
             logger.info(
@@ -440,13 +541,15 @@ class AuthManager:
                     source="session-cookie",
                     csrf_token=verified.csrf_token,
                     session_renewal=verified.renewal,
+                    session_id=verified.session_id,
                 )
                 logger.info(
-                    "Auth success via session cookie: request_id=%s path=%s subject=%s mode=%s oid=%s tid=%s roles=%s scp=%s renewed=%s",
+                    "Auth success via session cookie: request_id=%s path=%s subject=%s mode=%s session_id=%s oid=%s tid=%s roles=%s scp=%s renewed=%s",
                     context.get("request_id", "-"),
                     context.get("path", "-"),
                     ctx.subject or "-",
                     ctx.mode,
+                    ctx.session_id or "-",
                     _claim_text(ctx.claims, "oid"),
                     _claim_text(ctx.claims, "tid"),
                     summarize_auth_claims_for_logs(ctx.claims).get("roles"),

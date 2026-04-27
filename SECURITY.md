@@ -10,9 +10,10 @@ If GitHub Security Advisories are not available for this repo, report the issue 
 
 - Production deploys must configure `API_OIDC_ISSUER`, `API_OIDC_AUDIENCE`, `UI_OIDC_CLIENT_ID`, `UI_OIDC_AUTHORITY`, `UI_OIDC_SCOPES`, `UI_OIDC_REDIRECT_URI`, and `ASSET_ALLOCATION_API_SCOPE`.
 - OIDC auth validates issuer and audience and can require scopes and roles. The service discovers JWKS from the issuer unless `API_OIDC_JWKS_URL` is set explicitly.
-- The UI receives its runtime auth and API base URL settings from `/config.js`, including the derived `oidcPostLogoutRedirectUri`.
-- Browser OIDC requires an explicit absolute `UI_OIDC_REDIRECT_URI`; deployed environments should use `https://.../auth/callback`, and the control plane derives `https://.../auth/logout-complete` from that callback origin for sign-out completion.
-- `GET /api/auth/session` returns a no-store auth session summary after the same bearer-token validation path used by other authenticated APIs; `401` and `403` still come from the shared auth validator.
+- The UI owns `/ui-config.js`; the control plane owns `POST /api/auth/session`, secure session cookies, CSRF enforcement, and role validation.
+- Browser OIDC requires an explicit absolute `UI_OIDC_REDIRECT_URI`; deployed environments should use `https://.../auth/callback`, and the control plane derives `https://.../auth/logout-complete` from that callback origin for sign-out completion unless `UI_OIDC_POST_LOGOUT_REDIRECT_URI` is set explicitly.
+- `POST /api/auth/session` accepts an Entra bearer only for the bootstrap exchange, then issues the backend cookie session used by later REST and realtime traffic. `GET /api/auth/session` returns a no-store auth session summary after the cookie session is established.
+- Shared-password auth is disabled by default. If it is enabled, it must be an explicit break-glass configuration with `UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true`, CIDR restriction, expiry, and assigned break-glass roles.
 - Local development can fall back to anonymous access only when no auth providers are configured and the runtime is local. Deployed environments do not allow anonymous auth.
 
 ## Secrets and Identities

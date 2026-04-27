@@ -14,6 +14,15 @@ def _configure_browser_oidc(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("UI_OIDC_SCOPES", "api://asset-allocation-api/user_impersonation")
 
 
+def _configure_break_glass(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", "true")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS", "127.0.0.1/32")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT", "2099-01-01T00:00:00Z")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ROLES", "AssetAllocation.System.Read")
+
+
 def test_browser_oidc_requires_redirect_uri(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure_browser_oidc(monkeypatch)
 
@@ -31,6 +40,8 @@ def test_browser_oidc_rejects_relative_redirect_uri(monkeypatch: pytest.MonkeyPa
 
 def test_browser_oidc_accepts_localhost_http_redirect_uri(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure_browser_oidc(monkeypatch)
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
     monkeypatch.setenv("UI_OIDC_REDIRECT_URI", "http://localhost:5174/auth/callback")
 
     settings = ServiceSettings.from_env()
@@ -45,16 +56,18 @@ def test_deployed_runtime_requires_api_oidc_configuration(monkeypatch: pytest.Mo
     monkeypatch.delenv("API_OIDC_ISSUER", raising=False)
     monkeypatch.delenv("API_OIDC_AUDIENCE", raising=False)
 
-    with pytest.raises(ValueError, match="Deployed runtime requires API OIDC configuration or UI shared password auth."):
+    with pytest.raises(
+        ValueError,
+        match="Deployed runtime requires API OIDC configuration or explicitly enabled break-glass password auth.",
+    ):
         ServiceSettings.from_env()
 
 
-def test_deployed_runtime_accepts_password_auth_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_deployed_runtime_accepts_break_glass_password_auth_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
     monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
-    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
-    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    _configure_break_glass(monkeypatch)
 
     settings = ServiceSettings.from_env()
 
@@ -62,6 +75,28 @@ def test_deployed_runtime_accepts_password_auth_configuration(monkeypatch: pytes
     assert settings.ui_auth_provider == "password"
     assert settings.auth_session_mode == "cookie"
     assert settings.auth_required is True
+    assert settings.password_auth.session_roles == ["AssetAllocation.System.Read"]
+    assert settings.password_auth.allowed_cidrs == ["127.0.0.1/32"]
+
+
+def test_ui_auth_provider_oidc_requires_cookie_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure_browser_oidc(monkeypatch)
+    monkeypatch.setenv("UI_OIDC_REDIRECT_URI", "https://asset-allocation.example.com/auth/callback")
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "bearer")
+
+    with pytest.raises(ValueError, match="UI_AUTH_PROVIDER=oidc requires API_AUTH_SESSION_MODE=cookie."):
+        ServiceSettings.from_env()
+
+
+def test_break_glass_requires_explicit_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", "true")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS", "127.0.0.1/32")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT", "2099-01-01T00:00:00Z")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ROLES", "AssetAllocation.System.Read")
+
+    with pytest.raises(ValueError, match="UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED requires UI_AUTH_PROVIDER=password."):
+        ServiceSettings.from_env()
 
 
 def test_symbol_enrichment_requires_allowed_jobs_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -373,8 +408,7 @@ def test_api_public_base_url_rejects_path(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_ui_auth_provider_password_requires_cookie_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
-    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    _configure_break_glass(monkeypatch)
     monkeypatch.setenv("API_AUTH_SESSION_MODE", "bearer")
 
     with pytest.raises(ValueError, match="UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie."):

@@ -230,12 +230,48 @@ def render_control_plane_manifest(template: str, env: dict[str, str]) -> str:
     ai_relay_api_key = env.get("AI_RELAY_API_KEY", "").strip()
     ai_relay_key_vault_url = env.get("AI_RELAY_API_KEY_KEY_VAULT_URL", "").strip()
     ui_auth_provider = env.get("UI_AUTH_PROVIDER", "").strip().lower()
+    break_glass_enabled = (
+        env.get("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", "").strip().lower() == "true"
+    )
     ui_shared_password_hash = env.get("UI_SHARED_PASSWORD_HASH", "").strip()
+    break_glass_roles = env.get("UI_BREAK_GLASS_PASSWORD_ROLES", "").strip()
+    break_glass_allowed_cidrs = env.get(
+        "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS", ""
+    ).strip()
+    break_glass_expires_at = env.get("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT", "").strip()
+    session_mode = env.get("API_AUTH_SESSION_MODE", "").strip().lower()
 
     if ai_relay_enabled and not (ai_relay_api_key or ai_relay_key_vault_url):
         raise ValueError("AI_RELAY_ENABLED=true but secret AI_RELAY_API_KEY is missing or empty.")
-    if ui_auth_provider == "password" and not ui_shared_password_hash:
-        raise ValueError("UI_AUTH_PROVIDER=password but secret UI_SHARED_PASSWORD_HASH is missing or empty.")
+    if break_glass_enabled and ui_auth_provider != "password":
+        raise ValueError(
+            "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true requires UI_AUTH_PROVIDER=password."
+        )
+    if ui_auth_provider == "password":
+        if not break_glass_enabled:
+            raise ValueError(
+                "UI_AUTH_PROVIDER=password requires UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true."
+            )
+        if session_mode != "cookie":
+            raise ValueError(
+                "UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie."
+            )
+        if not ui_shared_password_hash:
+            raise ValueError(
+                "UI_AUTH_PROVIDER=password but secret UI_SHARED_PASSWORD_HASH is missing or empty."
+            )
+        if not break_glass_roles:
+            raise ValueError(
+                "UI_AUTH_PROVIDER=password requires UI_BREAK_GLASS_PASSWORD_ROLES."
+            )
+        if not break_glass_allowed_cidrs:
+            raise ValueError(
+                "UI_AUTH_PROVIDER=password requires UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS."
+            )
+        if not break_glass_expires_at:
+            raise ValueError(
+                "UI_AUTH_PROVIDER=password requires UI_BREAK_GLASS_PASSWORD_EXPIRES_AT."
+            )
 
     lines = template.splitlines()
     if not (ai_relay_api_key or ai_relay_key_vault_url):

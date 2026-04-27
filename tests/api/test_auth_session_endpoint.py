@@ -12,6 +12,15 @@ PASSWORD_SECRET = "operator-secret"
 TEST_ORIGIN = "http://test"
 
 
+def _configure_break_glass(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
+    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", "true")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS", "127.0.0.1/32")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT", "2099-01-01T00:00:00Z")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ROLES", "AssetAllocation.System.Read")
+
+
 @pytest.mark.asyncio
 async def test_auth_session_endpoint_returns_anonymous_local_session() -> None:
     app = create_app()
@@ -195,7 +204,28 @@ async def test_auth_session_delete_clears_session_cookies(monkeypatch: pytest.Mo
     app = create_app()
 
     async with get_test_client(app) as client:
-        resp = await client.delete("/api/auth/session")
+        monkeypatch.setattr(
+            app.state.auth,
+            "authenticate_bearer_headers",
+            lambda _headers, **_kwargs: AuthContext(
+                mode="oidc",
+                subject="user-123",
+                claims={
+                    "sub": "user-123",
+                    "name": "Ada Lovelace",
+                    "roles": ["AssetAllocation.Access"],
+                },
+            ),
+        )
+        create_resp = await client.post(
+            "/api/auth/session",
+            headers={"Authorization": "Bearer token", "Origin": TEST_ORIGIN},
+        )
+        csrf_token = create_resp.cookies.get("aa_csrf_dev")
+        resp = await client.delete(
+            "/api/auth/session",
+            headers={"Origin": TEST_ORIGIN, "X-CSRF-Token": csrf_token or ""},
+        )
 
     assert resp.status_code == 204
     set_cookie = resp.headers.get_list("set-cookie")
@@ -204,11 +234,41 @@ async def test_auth_session_delete_clears_session_cookies(monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
-async def test_password_auth_session_sets_cookie_and_returns_password_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_auth_session_delete_requires_csrf(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_OIDC_ISSUER", "https://issuer.example.com")
+    monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation-api")
     monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
-    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
-    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+
+    app = create_app()
+
+    async with get_test_client(app) as client:
+        monkeypatch.setattr(
+            app.state.auth,
+            "authenticate_bearer_headers",
+            lambda _headers, **_kwargs: AuthContext(
+                mode="oidc",
+                subject="user-123",
+                claims={"sub": "user-123", "roles": ["AssetAllocation.Access"]},
+            ),
+        )
+        await client.post(
+            "/api/auth/session",
+            headers={"Authorization": "Bearer token", "Origin": TEST_ORIGIN},
+        )
+        resp = await client.delete("/api/auth/session", headers={"Origin": TEST_ORIGIN})
+
+    assert resp.status_code == 403
+    assert resp.json() == {"detail": "CSRF token is missing or invalid."}
+
+
+@pytest.mark.asyncio
+async def test_break_glass_password_auth_session_sets_cookie_and_returns_password_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
+    _configure_break_glass(monkeypatch)
 
     app = create_app()
 
@@ -216,27 +276,31 @@ async def test_password_auth_session_sets_cookie_and_returns_password_mode(monke
         create_resp = await client.post(
             "/api/auth/session",
             json={"password": PASSWORD_SECRET},
-            headers={"Origin": TEST_ORIGIN},
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-Break-Glass-Reason": "Emergency operator validation",
+                "X-Forwarded-For": "127.0.0.1",
+            },
         )
         get_resp = await client.get("/api/auth/session")
 
     assert create_resp.status_code == 200
     assert create_resp.json()["authMode"] == "password"
-    assert create_resp.json()["subject"] == "operator"
+    assert create_resp.json()["subject"] == "break-glass-operator"
     assert create_resp.cookies.get("aa_session_dev")
     assert create_resp.cookies.get("aa_csrf_dev")
     assert get_resp.status_code == 200
     assert get_resp.json()["authMode"] == "password"
     assert get_resp.json()["requiredRoles"] == []
-    assert get_resp.json()["username"] == "operator"
+    assert get_resp.json()["grantedRoles"] == ["AssetAllocation.System.Read"]
+    assert get_resp.json()["username"] == "break-glass"
 
 
 @pytest.mark.asyncio
-async def test_password_auth_requires_same_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_break_glass_password_auth_requires_same_origin(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
-    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
-    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+    _configure_break_glass(monkeypatch)
 
     app = create_app()
 
@@ -244,7 +308,11 @@ async def test_password_auth_requires_same_origin(monkeypatch: pytest.MonkeyPatc
         resp = await client.post(
             "/api/auth/session",
             json={"password": PASSWORD_SECRET},
-            headers={"Origin": "https://evil.example.com"},
+            headers={
+                "Origin": "https://evil.example.com",
+                "X-Break-Glass-Reason": "Emergency operator validation",
+                "X-Forwarded-For": "127.0.0.1",
+            },
         )
 
     assert resp.status_code == 403
@@ -252,11 +320,29 @@ async def test_password_auth_requires_same_origin(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_password_auth_rate_limits_failed_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_break_glass_password_auth_requires_reason_header(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
-    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
-    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+    _configure_break_glass(monkeypatch)
+
+    app = create_app()
+
+    async with get_test_client(app) as client:
+        resp = await client.post(
+            "/api/auth/session",
+            json={"password": PASSWORD_SECRET},
+            headers={"Origin": TEST_ORIGIN, "X-Forwarded-For": "127.0.0.1"},
+        )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"detail": "Break-glass reason is required."}
+
+
+@pytest.mark.asyncio
+async def test_break_glass_password_auth_rate_limits_failed_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
+    _configure_break_glass(monkeypatch)
     monkeypatch.setenv("UI_PASSWORD_RATE_LIMIT_MAX_ATTEMPTS_PER_IP", "2")
     monkeypatch.setenv("UI_PASSWORD_RATE_LIMIT_MAX_ATTEMPTS_GLOBAL", "2")
 
@@ -266,17 +352,29 @@ async def test_password_auth_rate_limits_failed_attempts(monkeypatch: pytest.Mon
         first = await client.post(
             "/api/auth/session",
             json={"password": "wrong-one"},
-            headers={"Origin": TEST_ORIGIN},
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-Break-Glass-Reason": "Emergency operator validation",
+                "X-Forwarded-For": "127.0.0.1",
+            },
         )
         second = await client.post(
             "/api/auth/session",
             json={"password": "wrong-two"},
-            headers={"Origin": TEST_ORIGIN},
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-Break-Glass-Reason": "Emergency operator validation",
+                "X-Forwarded-For": "127.0.0.1",
+            },
         )
         third = await client.post(
             "/api/auth/session",
             json={"password": "wrong-three"},
-            headers={"Origin": TEST_ORIGIN},
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-Break-Glass-Reason": "Emergency operator validation",
+                "X-Forwarded-For": "127.0.0.1",
+            },
         )
 
     assert first.status_code == 401
@@ -286,14 +384,13 @@ async def test_password_auth_rate_limits_failed_attempts(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
-async def test_password_auth_deployed_cookie_uses_host_prefix_and_secure_attributes(
+async def test_break_glass_password_auth_deployed_cookie_uses_host_prefix_and_secure_attributes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
     monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", SESSION_SECRET)
-    monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
-    monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for(PASSWORD_SECRET))
+    _configure_break_glass(monkeypatch)
 
     app = create_app()
 
@@ -301,7 +398,11 @@ async def test_password_auth_deployed_cookie_uses_host_prefix_and_secure_attribu
         resp = await client.post(
             "/api/auth/session",
             json={"password": PASSWORD_SECRET},
-            headers={"Origin": TEST_ORIGIN},
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-Break-Glass-Reason": "Emergency operator validation",
+                "X-Forwarded-For": "127.0.0.1",
+            },
         )
 
     assert resp.status_code == 200

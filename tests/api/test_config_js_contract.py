@@ -67,6 +67,8 @@ async def test_config_js_ignores_ui_api_base_url_override(monkeypatch: pytest.Mo
 async def test_config_js_is_public_when_runtime_auth_is_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_OIDC_ISSUER", "https://issuer.example.com")
     monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation-api")
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
     monkeypatch.setenv("UI_OIDC_CLIENT_ID", "spa-client-id")
     monkeypatch.setenv("UI_OIDC_AUTHORITY", "https://login.microsoftonline.com/tenant-id")
     monkeypatch.setenv("UI_OIDC_SCOPES", "api://asset-allocation-api/user_impersonation")
@@ -82,18 +84,25 @@ async def test_config_js_is_public_when_runtime_auth_is_enabled(monkeypatch: pyt
     assert validated.authProvider == "oidc"
     assert validated.authRequired is True
     assert validated.oidcEnabled is True
+    assert validated.authSessionMode == "cookie"
 
 
 @pytest.mark.asyncio
 async def test_config_js_preserves_explicit_oidc_redirect_uri(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_OIDC_ISSUER", "https://issuer.example.com")
     monkeypatch.setenv("API_OIDC_AUDIENCE", "asset-allocation-api")
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
     monkeypatch.setenv("UI_OIDC_CLIENT_ID", "spa-client-id")
     monkeypatch.setenv("UI_OIDC_AUTHORITY", "https://login.microsoftonline.com/tenant-id")
     monkeypatch.setenv("UI_OIDC_SCOPES", "api://asset-allocation-api/user_impersonation")
     monkeypatch.setenv(
         "UI_OIDC_REDIRECT_URI",
         "https://asset-allocation.example.com/auth/callback",
+    )
+    monkeypatch.setenv(
+        "UI_OIDC_POST_LOGOUT_REDIRECT_URI",
+        "https://asset-allocation.example.com/auth/logout-complete",
     )
 
     app = create_app()
@@ -120,6 +129,10 @@ async def test_config_js_emits_password_auth_runtime_config(monkeypatch: pytest.
     monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
     monkeypatch.setenv("UI_AUTH_PROVIDER", "password")
     monkeypatch.setenv("UI_SHARED_PASSWORD_HASH", password_verifier_for("operator-secret"))
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED", "true")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS", "127.0.0.1/32")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_EXPIRES_AT", "2099-01-01T00:00:00Z")
+    monkeypatch.setenv("UI_BREAK_GLASS_PASSWORD_ROLES", "AssetAllocation.System.Read")
 
     app = create_app()
     async with get_test_client(app) as client:

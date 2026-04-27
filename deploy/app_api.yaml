@@ -218,8 +218,16 @@ properties:
         value: "${API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS}"
       - name: API_AUTH_SESSION_SECRET_KEYS
         secretRef: api-auth-session-secret-keys
+      - name: UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED
+        value: "${UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED}"
       - name: UI_SHARED_PASSWORD_HASH
         secretRef: ui-shared-password-hash
+      - name: UI_BREAK_GLASS_PASSWORD_ROLES
+        value: "${UI_BREAK_GLASS_PASSWORD_ROLES}"
+      - name: UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS
+        value: "${UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS}"
+      - name: UI_BREAK_GLASS_PASSWORD_EXPIRES_AT
+        value: "${UI_BREAK_GLASS_PASSWORD_EXPIRES_AT}"
       - name: AI_RELAY_ENABLED
         value: "${AI_RELAY_ENABLED}"
       - name: AI_RELAY_MODEL
@@ -286,6 +294,8 @@ properties:
         value: "${UI_OIDC_SCOPES}"
       - name: UI_OIDC_REDIRECT_URI
         value: "${UI_OIDC_REDIRECT_URI}"
+      - name: UI_OIDC_POST_LOGOUT_REDIRECT_URI
+        value: "${UI_OIDC_POST_LOGOUT_REDIRECT_URI}"
       - name: UI_API_BASE_URL
         value: "${UI_API_BASE_URL}"
       - name: UI_AUTH_PROVIDER

@@ -37,6 +37,7 @@ class SessionCookieBundle:
     session_cookie: str
     csrf_token: str
     max_age_seconds: int
+    session_id: str
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class VerifiedSessionCookie:
     subject: str
     claims: dict[str, Any]
     csrf_token: str
+    session_id: str
     renewal: SessionCookieBundle | None = None
 
 
@@ -92,18 +94,21 @@ class SessionCookieManager:
 
         now = _now()
         csrf_token = secrets.token_urlsafe(32)
+        session_id = secrets.token_urlsafe(16)
         payload = self._build_payload(
             mode=mode,
             subject=subject,
             claims=claims,
             csrf_token=csrf_token,
+            session_id=session_id,
             issued_at=now,
             absolute_expires_at=now + self.absolute_ttl_seconds,
             idle_expires_at=now + self.idle_ttl_seconds,
         )
         logger.info(
-            "Auth session cookie issued: subject=%s idle_ttl_seconds=%s absolute_ttl_seconds=%s",
+            "session_cookie_issued: subject=%s session_id=%s idle_ttl_seconds=%s absolute_ttl_seconds=%s",
             subject or "-",
+            session_id,
             self.idle_ttl_seconds,
             self.absolute_ttl_seconds,
         )
@@ -111,6 +116,7 @@ class SessionCookieManager:
             session_cookie=self._encrypt_payload(payload),
             csrf_token=csrf_token,
             max_age_seconds=self.idle_ttl_seconds,
+            session_id=session_id,
         )
 
     def verify(self, cookies: dict[str, str]) -> VerifiedSessionCookie:
@@ -123,6 +129,7 @@ class SessionCookieManager:
         mode = str(payload.get("mode") or "oidc").strip() or "oidc"
         subject = str(payload.get("sub") or "").strip()
         csrf_token = str(payload.get("csrf") or "").strip()
+        session_id = str(payload.get("sid") or "").strip()
         claims = payload.get("claims")
         absolute_expires_at = _coerce_int(payload.get("absExp"))
         idle_expires_at = _coerce_int(payload.get("idleExp"))
@@ -139,8 +146,11 @@ class SessionCookieManager:
                 raise SessionCookieError("Invalid auth session cookie.")
             if session_version != self.session_version:
                 raise SessionCookieError("Auth session expired.")
+            if not session_id:
+                session_id = _legacy_session_id(subject=subject, issued_at=issued_at, csrf_token=csrf_token)
         else:
             mode = "oidc"
+            session_id = _legacy_session_id(subject=subject, issued_at=issued_at, csrf_token=csrf_token)
         if absolute_expires_at <= now:
             logger.info("Auth session cookie expired by absolute TTL: subject=%s", subject)
             raise SessionCookieError("Auth session expired.")
@@ -153,19 +163,21 @@ class SessionCookieManager:
             subject=subject,
             claims=claims,
             csrf_token=csrf_token,
+            session_id=session_id,
             issued_at=issued_at,
             absolute_expires_at=absolute_expires_at,
             idle_expires_at=idle_expires_at,
             now=now,
         )
         if renewal:
-            logger.info("Auth session cookie renewed: subject=%s", subject)
+            logger.info("session_cookie_renewed: subject=%s session_id=%s", subject, session_id)
 
         return VerifiedSessionCookie(
             mode=mode,
             subject=subject,
             claims=dict(claims),
             csrf_token=csrf_token,
+            session_id=session_id,
             renewal=renewal,
         )
 
@@ -212,6 +224,7 @@ class SessionCookieManager:
         subject: str,
         claims: dict[str, Any],
         csrf_token: str,
+        session_id: str,
         issued_at: int,
         absolute_expires_at: int,
         idle_expires_at: int,
@@ -230,6 +243,7 @@ class SessionCookieManager:
             subject=subject,
             claims=claims,
             csrf_token=csrf_token,
+            session_id=session_id,
             issued_at=issued_at,
             absolute_expires_at=absolute_expires_at,
             idle_expires_at=next_idle_expires_at,
@@ -238,6 +252,7 @@ class SessionCookieManager:
             session_cookie=self._encrypt_payload(payload),
             csrf_token=csrf_token,
             max_age_seconds=max(1, min(self.idle_ttl_seconds, absolute_expires_at - now)),
+            session_id=session_id,
         )
 
     def _build_payload(
@@ -247,6 +262,7 @@ class SessionCookieManager:
         subject: str | None,
         claims: dict[str, Any],
         csrf_token: str,
+        session_id: str,
         issued_at: int,
         absolute_expires_at: int,
         idle_expires_at: int,
@@ -264,6 +280,7 @@ class SessionCookieManager:
             "mode": str(mode or "oidc").strip() or "oidc",
             "sub": normalized_subject,
             "csrf": csrf_token,
+            "sid": str(session_id or "").strip(),
             "iat": issued_at,
             "absExp": absolute_expires_at,
             "idleExp": idle_expires_at,
@@ -305,6 +322,11 @@ def _build_fernet(secret: str) -> Fernet:
 
     digest = hashlib.sha256(normalized.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def _legacy_session_id(*, subject: str, issued_at: int, csrf_token: str) -> str:
+    digest = hashlib.sha256(f"{subject}|{issued_at}|{csrf_token}".encode("utf-8")).hexdigest()
+    return f"legacy-{digest[:16]}"
 
 
 def _compact_claims(claims: dict[str, Any]) -> dict[str, Any]:

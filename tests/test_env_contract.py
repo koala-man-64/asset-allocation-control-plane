@@ -156,11 +156,12 @@ def test_workflow_refs_are_documented() -> None:
 def test_deploy_workflow_maps_auth_session_config_to_correct_github_storage() -> None:
     text = (repo_root() / ".github" / "workflows" / "deploy-prod.yml").read_text(encoding="utf-8")
 
-    assert "API_AUTH_SESSION_MODE: ${{ vars.API_AUTH_SESSION_MODE }}" in text
-    assert "API_AUTH_SESSION_IDLE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_IDLE_TTL_SECONDS }}" in text
-    assert "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS }}" in text
+    assert "API_AUTH_SESSION_MODE: ${{ vars.API_AUTH_SESSION_MODE || 'cookie' }}" in text
+    assert "API_AUTH_SESSION_IDLE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_IDLE_TTL_SECONDS || '1800' }}" in text
+    assert "API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS: ${{ vars.API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS || '28800' }}" in text
     assert "API_AUTH_SESSION_SECRET_KEYS: ${{ secrets.API_AUTH_SESSION_SECRET_KEYS }}" in text
-    assert "UI_AUTH_PROVIDER: ${{ vars.UI_AUTH_PROVIDER }}" in text
+    assert "UI_AUTH_PROVIDER: ${{ vars.UI_AUTH_PROVIDER || 'oidc' }}" in text
+    assert "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED: ${{ vars.UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED || 'false' }}" in text
     assert "UI_SHARED_PASSWORD_HASH: ${{ secrets.UI_SHARED_PASSWORD_HASH }}" in text
     assert "API_AUTH_SESSION_SECRET_KEYS: ${{ vars.API_AUTH_SESSION_SECRET_KEYS }}" not in text
     assert "UI_SHARED_PASSWORD_HASH: ${{ vars.UI_SHARED_PASSWORD_HASH }}" not in text
@@ -488,7 +489,11 @@ def test_setup_env_hashes_plaintext_ui_password_override(tmp_path: Path) -> None
         build_contract_env_values(
             {
                 "UI_AUTH_PROVIDER": "password",
+                "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED": "true",
                 "UI_SHARED_PASSWORD_HASH": "",
+                "UI_BREAK_GLASS_PASSWORD_ROLES": "AssetAllocation.System.Read",
+                "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS": "127.0.0.1/32",
+                "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT": "2099-01-01T00:00:00Z",
                 "API_AUTH_SESSION_MODE": "cookie",
             }
         ),
@@ -519,6 +524,7 @@ def test_setup_env_hashes_plaintext_ui_password_override(tmp_path: Path) -> None
     values = env_map(env_file)
     verifier = values["UI_SHARED_PASSWORD_HASH"]
 
+    assert "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true [requirement=required;" in stdout
     assert "UI_SHARED_PASSWORD_HASH=<redacted> [requirement=required;" in stdout
     assert "source=derived" in stdout
     assert verifier.startswith("pbkdf2_sha256$")
@@ -539,6 +545,7 @@ def test_setup_env_marks_ui_password_hash_required_when_password_auth_selected(t
         build_contract_env_values(
             {
                 "UI_AUTH_PROVIDER": "password",
+                "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED": "false",
                 "UI_SHARED_PASSWORD_HASH": "",
             }
         ),
@@ -566,6 +573,7 @@ def test_setup_env_marks_ui_password_hash_required_when_password_auth_selected(t
 
     stdout = completed.stdout
     assert "UI_AUTH_PROVIDER=password [requirement=optional;" in stdout
+    assert "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=false [requirement=required;" in stdout
     assert "UI_SHARED_PASSWORD_HASH=<redacted> [requirement=required;" in stdout
 
 
@@ -590,7 +598,11 @@ def test_setup_env_rejects_password_auth_without_cookie_session_mode(tmp_path: P
         build_contract_env_values(
             {
                 "UI_AUTH_PROVIDER": "password",
+                "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED": "true",
                 "UI_SHARED_PASSWORD_HASH": "pbkdf2_sha256$600000$salt$hash",
+                "UI_BREAK_GLASS_PASSWORD_ROLES": "AssetAllocation.System.Read",
+                "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS": "127.0.0.1/32",
+                "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT": "2099-01-01T00:00:00Z",
                 "API_AUTH_SESSION_MODE": "bearer",
             }
         ),
@@ -1212,7 +1224,11 @@ def test_sync_script_requires_local_ui_password_hash_when_password_auth_enabled(
         build_contract_env_values(
             {
                 "UI_AUTH_PROVIDER": "password",
+                "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED": "true",
                 "UI_SHARED_PASSWORD_HASH": "",
+                "UI_BREAK_GLASS_PASSWORD_ROLES": "AssetAllocation.System.Read",
+                "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS": "127.0.0.1/32",
+                "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT": "2099-01-01T00:00:00Z",
                 "API_AUTH_SESSION_MODE": "cookie",
             }
         ),
@@ -1285,7 +1301,11 @@ def test_sync_script_requires_cookie_mode_when_password_auth_enabled(tmp_path: P
         build_contract_env_values(
             {
                 "UI_AUTH_PROVIDER": "password",
+                "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED": "true",
                 "UI_SHARED_PASSWORD_HASH": "pbkdf2_sha256$600000$salt$hash",
+                "UI_BREAK_GLASS_PASSWORD_ROLES": "AssetAllocation.System.Read",
+                "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS": "127.0.0.1/32",
+                "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT": "2099-01-01T00:00:00Z",
                 "API_AUTH_SESSION_MODE": "bearer",
             }
         ),

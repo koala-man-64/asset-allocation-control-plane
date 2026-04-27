@@ -227,8 +227,14 @@ foreach ($requiredKey in @(
 
 function Get-RequirementLevel {
     param([Parameter(Mandatory = $true)][string]$Name)
-    if ($Name -eq "UI_SHARED_PASSWORD_HASH") {
-        if ($script:UiAuthProvider -eq "password") { return "required" }
+    if ($Name -in @(
+        "UI_SHARED_PASSWORD_HASH",
+        "UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED",
+        "UI_BREAK_GLASS_PASSWORD_ROLES",
+        "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS",
+        "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT"
+    )) {
+        if ($script:UiAuthProvider -eq "password" -or $script:BreakGlassPasswordAuthEnabled) { return "required" }
         return "optional"
     }
     if ($Name -in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
@@ -251,7 +257,19 @@ function Assert-UiPasswordAuthConfiguration {
 
     $uiAuthProvider = if ($EnvMap.ContainsKey("UI_AUTH_PROVIDER")) { Normalize-EnvValue -Value $EnvMap["UI_AUTH_PROVIDER"] } else { "" }
     $uiAuthProvider = $uiAuthProvider.Trim().ToLowerInvariant()
-    if ($uiAuthProvider -ne "password") { return }
+    $breakGlassEnabled = if ($EnvMap.ContainsKey("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED")) {
+        Test-TruthyValue -Value (Normalize-EnvValue -Value $EnvMap["UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED"])
+    } else {
+        $false
+    }
+
+    if ($uiAuthProvider -ne "password" -and -not $breakGlassEnabled) { return }
+    if ($breakGlassEnabled -and $uiAuthProvider -ne "password") {
+        throw ".env.web UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true requires UI_AUTH_PROVIDER=password."
+    }
+    if (-not $breakGlassEnabled) {
+        throw ".env.web UI_AUTH_PROVIDER=password requires UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED=true before syncing."
+    }
 
     $passwordHash = if ($EnvMap.ContainsKey("UI_SHARED_PASSWORD_HASH")) { Normalize-EnvValue -Value $EnvMap["UI_SHARED_PASSWORD_HASH"] } else { "" }
     if ([string]::IsNullOrWhiteSpace($passwordHash)) {
@@ -261,6 +279,17 @@ function Assert-UiPasswordAuthConfiguration {
     $sessionMode = if ($EnvMap.ContainsKey("API_AUTH_SESSION_MODE")) { Normalize-EnvValue -Value $EnvMap["API_AUTH_SESSION_MODE"] } else { "" }
     if ($sessionMode.Trim().ToLowerInvariant() -ne "cookie") {
         throw ".env.web UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie before syncing."
+    }
+
+    foreach ($key in @(
+        "UI_BREAK_GLASS_PASSWORD_ROLES",
+        "UI_BREAK_GLASS_PASSWORD_ALLOWED_CIDRS",
+        "UI_BREAK_GLASS_PASSWORD_EXPIRES_AT"
+    )) {
+        $value = if ($EnvMap.ContainsKey($key)) { Normalize-EnvValue -Value $EnvMap[$key] } else { "" }
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            throw ".env.web UI_AUTH_PROVIDER=password requires $key before syncing."
+        }
     }
 }
 
@@ -294,6 +323,11 @@ $script:UiAuthProvider = if ($envMap.ContainsKey("UI_AUTH_PROVIDER")) {
     (Normalize-EnvValue -Value $envMap["UI_AUTH_PROVIDER"]).Trim().ToLowerInvariant()
 } else {
     ""
+}
+$script:BreakGlassPasswordAuthEnabled = if ($envMap.ContainsKey("UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED")) {
+    Test-TruthyValue -Value (Normalize-EnvValue -Value $envMap["UI_BREAK_GLASS_PASSWORD_AUTH_ENABLED"])
+} else {
+    $false
 }
 
 $missingRequired = New-Object System.Collections.Generic.List[string]
