@@ -235,10 +235,7 @@ def test_deploy_workflow_includes_etrade_and_schwab_runtime_env_and_secrets() ->
         "KALSHI_READ_RETRY_BASE_DELAY_SECONDS: ${{ vars.KALSHI_READ_RETRY_BASE_DELAY_SECONDS || '1' }}" in text
     )
     assert "KALSHI_TRADING_REQUIRED_ROLES: ${{ vars.KALSHI_TRADING_REQUIRED_ROLES || 'AssetAllocation.Kalshi.Trade' }}" in text
-    assert "KALSHI_DEMO_BASE_URL: ${{ vars.KALSHI_DEMO_BASE_URL || 'https://demo-api.kalshi.co/trade-api/v2' }}" in text
     assert "KALSHI_LIVE_BASE_URL: ${{ vars.KALSHI_LIVE_BASE_URL || 'https://api.elections.kalshi.com/trade-api/v2' }}" in text
-    assert "KALSHI_DEMO_API_KEY_ID: ${{ secrets.KALSHI_DEMO_API_KEY_ID }}" in text
-    assert "KALSHI_DEMO_PRIVATE_KEY_PEM: ${{ secrets.KALSHI_DEMO_PRIVATE_KEY_PEM }}" in text
     assert "KALSHI_LIVE_API_KEY_ID: ${{ secrets.KALSHI_LIVE_API_KEY_ID }}" in text
     assert "KALSHI_LIVE_PRIVATE_KEY_PEM: ${{ secrets.KALSHI_LIVE_PRIVATE_KEY_PEM }}" in text
     assert "ETRADE_ENABLED: ${{ vars.ETRADE_ENABLED || 'false' }}" in text

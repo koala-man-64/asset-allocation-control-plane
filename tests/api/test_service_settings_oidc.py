@@ -311,8 +311,6 @@ def test_alpaca_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_kalshi_settings_allow_unconfigured_environments(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("KALSHI_DEMO_API_KEY_ID", raising=False)
-    monkeypatch.delenv("KALSHI_DEMO_PRIVATE_KEY_PEM", raising=False)
     monkeypatch.delenv("KALSHI_LIVE_API_KEY_ID", raising=False)
     monkeypatch.delenv("KALSHI_LIVE_PRIVATE_KEY_PEM", raising=False)
 
@@ -330,17 +328,6 @@ def test_kalshi_trading_requires_kalshi_enabled(monkeypatch: pytest.MonkeyPatch)
         ServiceSettings.from_env()
 
 
-def test_kalshi_settings_require_demo_credentials_together(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("KALSHI_DEMO_API_KEY_ID", "demo-key")
-    monkeypatch.delenv("KALSHI_DEMO_PRIVATE_KEY_PEM", raising=False)
-
-    with pytest.raises(
-        ValueError,
-        match="KALSHI_DEMO_API_KEY_ID and KALSHI_DEMO_PRIVATE_KEY_PEM are required together.",
-    ):
-        ServiceSettings.from_env()
-
-
 def test_kalshi_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("KALSHI_ENABLED", "true")
     monkeypatch.setenv("KALSHI_TRADING_ENABLED", "true")
@@ -349,9 +336,6 @@ def test_kalshi_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("KALSHI_READ_RETRY_BASE_DELAY_SECONDS", "1.5")
     monkeypatch.setenv("KALSHI_REQUIRED_ROLES", "AssetAllocation.Kalshi.Read")
     monkeypatch.setenv("KALSHI_TRADING_REQUIRED_ROLES", "AssetAllocation.Kalshi.Trade,AssetAllocation.Admin")
-    monkeypatch.setenv("KALSHI_DEMO_API_KEY_ID", "demo-key")
-    monkeypatch.setenv("KALSHI_DEMO_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\\ndemo\\n-----END PRIVATE KEY-----")
-    monkeypatch.setenv("KALSHI_DEMO_BASE_URL", "https://demo-api.kalshi.co/trade-api/v2")
     monkeypatch.setenv("KALSHI_LIVE_API_KEY_ID", "live-key")
     monkeypatch.setenv("KALSHI_LIVE_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\\nlive\\n-----END PRIVATE KEY-----")
     monkeypatch.setenv("KALSHI_LIVE_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
@@ -368,9 +352,8 @@ def test_kalshi_settings_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None
         "AssetAllocation.Kalshi.Trade",
         "AssetAllocation.Admin",
     ]
-    assert settings.kalshi.demo_configured is True
+    assert settings.kalshi.demo_configured is False
     assert settings.kalshi.live_configured is True
-    assert settings.kalshi.demo_base_url == "https://demo-api.kalshi.co/trade-api/v2"
     assert settings.kalshi.live_base_url == "https://api.elections.kalshi.com/trade-api/v2"
 
 

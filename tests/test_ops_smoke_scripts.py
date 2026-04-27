@@ -27,7 +27,7 @@ def test_ops_readme_documents_kalshi_env_loading_and_market_override() -> None:
     text = readme.read_text(encoding="utf-8")
 
     assert "mirrors the env-file loading pattern used by the Schwab" in text
-    assert "KALSHI_DEMO_API_KEY_ID" in text
+    assert "KALSHI_DEMO_API_KEY_ID" not in text
     assert "KALSHI_LIVE_API_KEY_ID" in text
     assert "--market-ticker" in text
     assert "--env-file" in text

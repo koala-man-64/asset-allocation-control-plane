@@ -656,16 +656,13 @@ class KalshiSettings:
     read_retry_base_delay_seconds: float = 1.0
     required_roles: list[str] = field(default_factory=list)
     trading_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.Kalshi.Trade"])
-    demo_api_key_id: Optional[str] = None
-    demo_private_key_pem: Optional[str] = None
-    demo_base_url: str = "https://demo-api.kalshi.co/trade-api/v2"
     live_api_key_id: Optional[str] = None
     live_private_key_pem: Optional[str] = None
     live_base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
 
     @property
     def demo_configured(self) -> bool:
-        return bool(self.demo_api_key_id and self.demo_private_key_pem)
+        return False
 
     @property
     def live_configured(self) -> bool:
@@ -697,9 +694,6 @@ class KalshiSettings:
             required_roles=_split_csv(_get_optional_str("KALSHI_REQUIRED_ROLES")),
             trading_required_roles=_split_csv(_get_optional_str("KALSHI_TRADING_REQUIRED_ROLES"))
             or ["AssetAllocation.Kalshi.Trade"],
-            demo_api_key_id=_get_optional_str("KALSHI_DEMO_API_KEY_ID"),
-            demo_private_key_pem=_get_optional_str("KALSHI_DEMO_PRIVATE_KEY_PEM"),
-            demo_base_url=_get_optional_str("KALSHI_DEMO_BASE_URL") or "https://demo-api.kalshi.co/trade-api/v2",
             live_api_key_id=_get_optional_str("KALSHI_LIVE_API_KEY_ID"),
             live_private_key_pem=_get_optional_str("KALSHI_LIVE_PRIVATE_KEY_PEM"),
             live_base_url=_get_optional_str("KALSHI_LIVE_BASE_URL")
@@ -708,8 +702,6 @@ class KalshiSettings:
 
         if settings.trading_enabled and not settings.enabled:
             raise ValueError("KALSHI_TRADING_ENABLED requires KALSHI_ENABLED=true.")
-        if bool(settings.demo_api_key_id) != bool(settings.demo_private_key_pem):
-            raise ValueError("KALSHI_DEMO_API_KEY_ID and KALSHI_DEMO_PRIVATE_KEY_PEM are required together.")
         if bool(settings.live_api_key_id) != bool(settings.live_private_key_pem):
             raise ValueError("KALSHI_LIVE_API_KEY_ID and KALSHI_LIVE_PRIVATE_KEY_PEM are required together.")
 
@@ -721,9 +713,6 @@ class KalshiSettings:
             read_retry_base_delay_seconds=settings.read_retry_base_delay_seconds,
             required_roles=settings.required_roles,
             trading_required_roles=settings.trading_required_roles,
-            demo_api_key_id=settings.demo_api_key_id,
-            demo_private_key_pem=settings.demo_private_key_pem,
-            demo_base_url=_validate_absolute_http_url(settings.demo_base_url, env_name="KALSHI_DEMO_BASE_URL"),
             live_api_key_id=settings.live_api_key_id,
             live_private_key_pem=settings.live_private_key_pem,
             live_base_url=_validate_absolute_http_url(settings.live_base_url, env_name="KALSHI_LIVE_BASE_URL"),

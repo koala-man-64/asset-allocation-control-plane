@@ -86,9 +86,6 @@ class KalshiGateway:
         if environment == "demo":
             return KalshiEnvironmentConfig(
                 environment="demo",
-                api_key_id=self._settings.demo_api_key_id,
-                private_key_pem=self._settings.demo_private_key_pem,
-                base_url=self._settings.demo_base_url,
                 http=HttpConfig(
                     timeout_s=self._settings.timeout_seconds,
                     read_retry_attempts=self._settings.read_retry_attempts,

@@ -204,8 +204,6 @@ def test_renderer_omits_empty_kalshi_secret_bindings(tmp_path: Path) -> None:
                 "AI_RELAY_API_KEY": "",
                 "KALSHI_ENABLED": "false",
                 "KALSHI_TRADING_ENABLED": "false",
-                "KALSHI_DEMO_API_KEY_ID": "",
-                "KALSHI_DEMO_PRIVATE_KEY_PEM": "",
                 "KALSHI_LIVE_API_KEY_ID": "",
                 "KALSHI_LIVE_PRIVATE_KEY_PEM": "",
             },
@@ -222,12 +220,8 @@ def test_renderer_omits_empty_kalshi_secret_bindings(tmp_path: Path) -> None:
         entry["name"]
         for entry in doc["properties"]["template"]["containers"][0]["env"]
     }
-    assert "kalshi-demo-api-key-id" not in secrets
-    assert "kalshi-demo-private-key-pem" not in secrets
     assert "kalshi-live-api-key-id" not in secrets
     assert "kalshi-live-private-key-pem" not in secrets
-    assert "KALSHI_DEMO_API_KEY_ID" not in env_names
-    assert "KALSHI_DEMO_PRIVATE_KEY_PEM" not in env_names
     assert "KALSHI_LIVE_API_KEY_ID" not in env_names
     assert "KALSHI_LIVE_PRIVATE_KEY_PEM" not in env_names
     assert _manifest_env_value(output.read_text(encoding="utf-8"), "KALSHI_ENABLED") == "false"

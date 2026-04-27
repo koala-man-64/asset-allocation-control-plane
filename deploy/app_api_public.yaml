@@ -35,10 +35,6 @@ properties:
       value: "${ALPACA_LIVE_API_KEY_ID}"
     - name: alpaca-live-secret-key
       value: "${ALPACA_LIVE_SECRET_KEY}"
-    - name: kalshi-demo-api-key-id
-      value: "${KALSHI_DEMO_API_KEY_ID}"
-    - name: kalshi-demo-private-key-pem
-      value: "${KALSHI_DEMO_PRIVATE_KEY_PEM}"
     - name: kalshi-live-api-key-id
       value: "${KALSHI_LIVE_API_KEY_ID}"
     - name: kalshi-live-private-key-pem
@@ -144,12 +140,6 @@ properties:
         value: "${KALSHI_REQUIRED_ROLES}"
       - name: KALSHI_TRADING_REQUIRED_ROLES
         value: "${KALSHI_TRADING_REQUIRED_ROLES}"
-      - name: KALSHI_DEMO_BASE_URL
-        value: "${KALSHI_DEMO_BASE_URL}"
-      - name: KALSHI_DEMO_API_KEY_ID
-        secretRef: kalshi-demo-api-key-id
-      - name: KALSHI_DEMO_PRIVATE_KEY_PEM
-        secretRef: kalshi-demo-private-key-pem
       - name: KALSHI_LIVE_BASE_URL
         value: "${KALSHI_LIVE_BASE_URL}"
       - name: KALSHI_LIVE_API_KEY_ID

@@ -44,7 +44,6 @@ DEFAULT_SERIES_TICKER = "KXHIGHNY"
 DEFAULT_ORDER_PRICE_CENTS = 1
 DEFAULT_ORDER_DEPTH = 5
 _ENV_ALIASES = {
-    "demo": "demo",
     "prod": "live",
     "production": "live",
     "live": "live",
@@ -96,10 +95,10 @@ def _selected_env_paths(env_files: Sequence[str] | None) -> list[Path]:
 
 
 def _resolve_environment(explicit_environment: str | None) -> str:
-    raw = (explicit_environment or _get_optional_env("KALSHI_ENV") or "demo").lower()
+    raw = (explicit_environment or _get_optional_env("KALSHI_ENV") or "live").lower()
     environment = _ENV_ALIASES.get(raw)
     if environment is None:
-        raise SmokeError(f"Unsupported KALSHI_ENV={raw!r}; use demo, prod, production, or live.")
+        raise SmokeError(f"Unsupported KALSHI_ENV={raw!r}; use prod, production, or live.")
     return environment
 
 
@@ -121,12 +120,11 @@ def _legacy_environment_config(settings: KalshiSettings, environment: str) -> Ka
     if not api_key_id or not private_key_pem:
         return None
 
-    base_url = settings.demo_base_url if environment == "demo" else settings.live_base_url
     return KalshiEnvironmentConfig(
         environment=environment,  # type: ignore[arg-type]
         api_key_id=api_key_id,
         private_key_pem=private_key_pem,
-        base_url=base_url,
+        base_url=settings.live_base_url,
         http=HttpConfig(
             timeout_s=settings.timeout_seconds,
             read_retry_attempts=settings.read_retry_attempts,
@@ -136,18 +134,6 @@ def _legacy_environment_config(settings: KalshiSettings, environment: str) -> Ka
 
 
 def _configured_environment_config(settings: KalshiSettings, environment: str) -> KalshiEnvironmentConfig:
-    if environment == "demo":
-        return KalshiEnvironmentConfig(
-            environment="demo",
-            api_key_id=settings.demo_api_key_id,
-            private_key_pem=settings.demo_private_key_pem,
-            base_url=settings.demo_base_url,
-            http=HttpConfig(
-                timeout_s=settings.timeout_seconds,
-                read_retry_attempts=settings.read_retry_attempts,
-                read_retry_base_s=settings.read_retry_base_delay_seconds,
-            ),
-        )
     return KalshiEnvironmentConfig(
         environment="live",
         api_key_id=settings.live_api_key_id,
@@ -175,14 +161,10 @@ def _resolve_config(environment: str) -> KalshiEnvironmentConfig:
     if legacy is not None:
         return legacy
 
-    prefix = "KALSHI_DEMO" if environment == "demo" else "KALSHI_LIVE"
     raise SmokeError(
-        "Missing Kalshi credentials for {environment}. Set {prefix}_API_KEY_ID with "
-        "{prefix}_PRIVATE_KEY_PEM, or use the legacy KALSHI_API_KEY_ID with "
-        "KALSHI_PRIVATE_KEY_PEM or KALSHI_PRIVATE_KEY_PATH.".format(
-            environment=environment,
-            prefix=prefix,
-        )
+        "Missing Kalshi live credentials. Set KALSHI_LIVE_API_KEY_ID with "
+        "KALSHI_LIVE_PRIVATE_KEY_PEM, or use the legacy KALSHI_API_KEY_ID with "
+        "KALSHI_PRIVATE_KEY_PEM or KALSHI_PRIVATE_KEY_PATH."
     )
 
 
@@ -249,9 +231,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--environment",
-        choices=("demo", "live"),
+        choices=("live",),
         default=None,
-        help="Kalshi environment to use. Defaults to KALSHI_ENV or demo.",
+        help="Kalshi environment to use. Defaults to KALSHI_ENV or live.",
     )
     parser.add_argument(
         "--series-ticker",

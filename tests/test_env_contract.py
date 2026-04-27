@@ -692,7 +692,6 @@ def test_broker_runtime_secrets_and_trade_gates_are_documented() -> None:
         "KALSHI_READ_RETRY_BASE_DELAY_SECONDS",
         "KALSHI_REQUIRED_ROLES",
         "KALSHI_TRADING_REQUIRED_ROLES",
-        "KALSHI_DEMO_BASE_URL",
         "KALSHI_LIVE_BASE_URL",
     ):
         assert contract[name]["github_storage"] == "var"
@@ -702,8 +701,6 @@ def test_broker_runtime_secrets_and_trade_gates_are_documented() -> None:
         "ETRADE_SANDBOX_CONSUMER_SECRET",
         "ETRADE_LIVE_CONSUMER_KEY",
         "ETRADE_LIVE_CONSUMER_SECRET",
-        "KALSHI_DEMO_API_KEY_ID",
-        "KALSHI_DEMO_PRIVATE_KEY_PEM",
         "KALSHI_LIVE_API_KEY_ID",
         "KALSHI_LIVE_PRIVATE_KEY_PEM",
         "SCHWAB_CLIENT_ID",

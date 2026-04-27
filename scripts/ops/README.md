@@ -23,13 +23,6 @@ Override or extend that list with repeated `--env-file` arguments.
 Preferred environment variables:
 
 ```powershell
-$env:KALSHI_DEMO_API_KEY_ID="your-demo-api-key-id"
-$env:KALSHI_DEMO_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----`n...`n-----END PRIVATE KEY-----"
-```
-
-or for live:
-
-```powershell
 $env:KALSHI_LIVE_API_KEY_ID="your-live-api-key-id"
 $env:KALSHI_LIVE_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----`n...`n-----END PRIVATE KEY-----"
 ```
@@ -51,10 +44,10 @@ $env:KALSHI_PRIVATE_KEY_PATH="C:\path\to\kalshi-private-key.pem"
 Optional:
 
 ```powershell
-$env:KALSHI_ENV="demo"
+$env:KALSHI_ENV="live"
 ```
 
-`KALSHI_ENV` defaults to `demo`. Supported values are `demo`, `prod`, `production`, and `live`.
+`KALSHI_ENV` defaults to `live`. Supported values are `prod`, `production`, and `live`.
 
 ### Run
 
@@ -67,7 +60,7 @@ python .\scripts\ops\kalshi_nyc_weather_smoke.py
 Explicit market ticker:
 
 ```powershell
-python .\scripts\ops\kalshi_nyc_weather_smoke.py --environment demo --market-ticker KXHIGHNY-26APR25-B80
+python .\scripts\ops\kalshi_nyc_weather_smoke.py --environment live --market-ticker KXHIGHNY-26APR25-B80
 ```
 
 Custom price and env file:

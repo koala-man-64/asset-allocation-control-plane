@@ -36,8 +36,6 @@ _UI_PASSWORD_HASH_ENV_BLOCK = (
     "        secretRef: ui-shared-password-hash",
 )
 _OPTIONAL_SECRET_ENV_BINDINGS = {
-    "kalshi-demo-api-key-id": "KALSHI_DEMO_API_KEY_ID",
-    "kalshi-demo-private-key-pem": "KALSHI_DEMO_PRIVATE_KEY_PEM",
     "kalshi-live-api-key-id": "KALSHI_LIVE_API_KEY_ID",
     "kalshi-live-private-key-pem": "KALSHI_LIVE_PRIVATE_KEY_PEM",
 }

@@ -119,7 +119,6 @@ KALSHI_READ_RETRY_ATTEMPTS,deploy_var,var,deploy_config,true,Maximum retry attem
 KALSHI_READ_RETRY_BASE_DELAY_SECONDS,deploy_var,var,deploy_config,true,Base backoff in seconds between retryable Kalshi read requests.
 KALSHI_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific roles required for Kalshi read access.
 KALSHI_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Kalshi create amend and cancel access.
-KALSHI_DEMO_BASE_URL,deploy_var,var,deploy_config,true,Optional Kalshi demo API base URL override.
 KALSHI_LIVE_BASE_URL,deploy_var,var,deploy_config,true,Optional Kalshi live API base URL override.
 SYMBOL_ENRICHMENT_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the symbol cleanup and AI enrichment workflow.
 SYMBOL_ENRICHMENT_MODEL,deploy_var,var,deploy_config,true,Deploy-time fixed OpenAI model used by symbol enrichment resolve.
@@ -182,8 +181,6 @@ ALPACA_PAPER_API_KEY_ID,secret,secret,secret_store,true,Alpaca paper Trading API
 ALPACA_PAPER_SECRET_KEY,secret,secret,secret_store,true,Alpaca paper Trading API secret key for simulated trading requests.
 ALPACA_LIVE_API_KEY_ID,secret,secret,secret_store,true,Alpaca live Trading API key id for live brokerage requests.
 ALPACA_LIVE_SECRET_KEY,secret,secret,secret_store,true,Alpaca live Trading API secret key for live brokerage requests.
-KALSHI_DEMO_API_KEY_ID,secret,secret,secret_store,true,Kalshi demo API key id for signed requests against the demo exchange environment.
-KALSHI_DEMO_PRIVATE_KEY_PEM,secret,secret,secret_store,true,Kalshi demo RSA private key in PEM format for signing demo requests.
 KALSHI_LIVE_API_KEY_ID,secret,secret,secret_store,true,Kalshi live API key id for signed requests against the production exchange environment.
 KALSHI_LIVE_PRIVATE_KEY_PEM,secret,secret,secret_store,true,Kalshi live RSA private key in PEM format for signing production requests.
 AZURE_STORAGE_CONNECTION_STRING,secret,secret,secret_store,true,Storage connection string. Never auto-discovered.

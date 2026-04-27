@@ -22,7 +22,6 @@ Deferred for v2:
 Set the following environment variables before using the routes:
 
 - `KALSHI_ENABLED=true`
-- `KALSHI_DEMO_API_KEY_ID` and `KALSHI_DEMO_PRIVATE_KEY_PEM` for demo authenticated routes
 - `KALSHI_LIVE_API_KEY_ID` and `KALSHI_LIVE_PRIVATE_KEY_PEM` for live authenticated routes
 
 Optional controls:
@@ -33,7 +32,7 @@ Optional controls:
 - `KALSHI_REQUIRED_ROLES`
 - `KALSHI_TRADING_REQUIRED_ROLES`
 - `KALSHI_TRADING_ENABLED=true` only when create, amend, and cancel should be allowed
-- `KALSHI_DEMO_BASE_URL` and `KALSHI_LIVE_BASE_URL` only for explicit endpoint overrides
+- `KALSHI_LIVE_BASE_URL` only for explicit endpoint overrides
 
 Store the private keys as PEM text. Escaped `\n` sequences are accepted and normalized back to real newlines before the key is loaded.
 
@@ -51,7 +50,7 @@ The signed headers are:
 - `KALSHI-ACCESS-SIGNATURE`
 - `KALSHI-ACCESS-TIMESTAMP`
 
-Public market data routes still go through normal control-plane auth and the optional `KALSHI_REQUIRED_ROLES`, but they do not require exchange credentials. Authenticated portfolio and order routes require the relevant demo or live keypair for the requested `environment`.
+Public market data routes still go through normal control-plane auth and the optional `KALSHI_REQUIRED_ROLES`, but they do not require exchange credentials. Authenticated portfolio and order routes require the live keypair.
 
 ## Market And Portfolio Routes
 
@@ -74,7 +73,7 @@ Write routes:
 - `POST /api/providers/kalshi/orders/{order_id}/amend`
 - `DELETE /api/providers/kalshi/orders/{order_id}`
 
-All routes require `environment=demo|live`. The control-plane keeps Kalshi’s provider-shaped fields intact instead of mapping them into the shared trade-desk contract surface.
+All routes currently retain the `environment=demo|live` request field for compatibility, but deployed operator credentials are live-only. The control-plane keeps Kalshi’s provider-shaped fields intact instead of mapping them into the shared trade-desk contract surface.
 
 ## Fixed-Point Handling
 
