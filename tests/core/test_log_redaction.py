@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import sys
 
+from uvicorn.logging import AccessFormatter
+
 from core.log_redaction import REDACTED, install_log_redaction, redact_text, redact_value
 
 
@@ -98,6 +100,32 @@ def test_installed_log_redaction_formats_before_redacting_sensitive_placeholder_
 
     record = next(record for record in caplog.records if record.name == "tests.redaction.formatting")
     assert record.args == ()
+
+
+def test_installed_log_redaction_preserves_uvicorn_access_formatter_args() -> None:
+    install_log_redaction()
+    logger = logging.getLogger("uvicorn.access")
+
+    record = logger.makeRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        1,
+        '%s - "%s %s HTTP/%s" %d',
+        ("127.0.0.1:12345", "GET", "/readyz?apikey=access-secret&symbol=AAPL", "1.1", 200),
+        None,
+    )
+
+    rendered = AccessFormatter(
+        fmt='%(client_addr)s - "%(request_line)s" %(status_code)s',
+        use_colors=False,
+    ).format(record)
+
+    assert len(record.args) == 5
+    assert "access-secret" not in rendered
+    assert "apikey=[REDACTED]" in rendered
+    assert "symbol=AAPL" in rendered
+    assert '"GET /readyz?' in rendered
 
 
 def test_installed_log_redaction_sanitizes_formatter_exception_text() -> None:

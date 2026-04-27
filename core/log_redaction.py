@@ -151,7 +151,28 @@ def redact_value(value: Any, *, key_hint: object | None = None, _depth: int = 0,
     return redact_text(str(value))
 
 
+def _is_uvicorn_access_record(record: logging.LogRecord) -> bool:
+    return record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) == 5
+
+
+def _redact_uvicorn_access_record(record: logging.LogRecord) -> logging.LogRecord:
+    # Uvicorn's AccessFormatter unpacks the original five-item args tuple.
+    # Preserve that shape while redacting the request path, which may contain query-string secrets.
+    client_addr, method, full_path, http_version, status_code = record.args
+    record.args = (
+        redact_text(str(client_addr)),
+        redact_text(str(method)),
+        redact_text(str(full_path)),
+        redact_text(str(http_version)),
+        status_code,
+    )
+    return record
+
+
 def _redact_log_record(record: logging.LogRecord) -> logging.LogRecord:
+    if _is_uvicorn_access_record(record):
+        return _redact_uvicorn_access_record(record)
+
     safe_args = redact_value(record.args) if record.args else record.args
     try:
         message = str(record.msg)
