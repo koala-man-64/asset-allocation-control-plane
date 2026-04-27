@@ -95,6 +95,7 @@ def powershell_exe() -> str:
 
 def normalize_process_output(output: str) -> str:
     plain_output = ANSI_ESCAPE_PATTERN.sub("", output)
+    plain_output = re.sub(r"\s+\|\s+", " ", plain_output)
     return re.sub(r"\s+", " ", plain_output)
 
 
