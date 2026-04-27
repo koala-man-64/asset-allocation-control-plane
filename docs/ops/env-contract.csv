@@ -49,6 +49,7 @@ API_AUTH_SESSION_MODE,deploy_var,var,deploy_config,true,Auth session transport m
 API_AUTH_SESSION_IDLE_TTL_SECONDS,deploy_var,var,deploy_config,true,Sliding idle lifetime in seconds for API auth session cookies.
 API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS,deploy_var,var,deploy_config,true,Absolute maximum lifetime in seconds for API auth session cookies.
 API_AUTH_SESSION_SECRET_KEYS,secret,secret,secret_store,true,Comma-separated auth session signing/encryption secrets; first key signs new cookies and later keys support rotation.
+UI_SHARED_PASSWORD_HASH,secret,secret,secret_store,true,Password verifier used when UI_AUTH_PROVIDER=password. Generate a pbkdf2_sha256 or scrypt hash instead of storing the plaintext password.
 DATA_DISCOVERY_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for data discovery catalog and raw Postgres read access.
 DATA_DISCOVERY_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for raw Postgres update and purge access.
 DATA_DISCOVERY_VISIBLE_SCHEMAS,deploy_var,var,deploy_config,true,Comma-separated schema allowlist exposed by the data discovery surface and raw Postgres explorer.
@@ -126,6 +127,7 @@ SYMBOL_ENRICHMENT_CONFIDENCE_MIN,deploy_var,var,deploy_config,true,Minimum AI co
 SYMBOL_ENRICHMENT_MAX_SYMBOLS_PER_RUN,deploy_var,var,deploy_config,true,Upper bound for symbols enqueued in a single symbol enrichment run.
 SYMBOL_ENRICHMENT_ALLOWED_JOBS,deploy_var,var,deploy_config,true,Comma-separated caller-job allowlist permitted to claim and resolve symbol enrichment work.
 UI_API_BASE_URL,deploy_var,var,deploy_config,true,Public UI base url used by control-plane runtime config and auth.
+UI_AUTH_PROVIDER,deploy_var,var,deploy_config,true,UI auth provider surfaced by config.js and auth/session routes. Leave blank to auto-resolve or set password to force shared-password login.
 UI_PUBLIC_HOSTNAME,deploy_var,var,deploy_config,true,Stable public UI hostname used for Entra redirect registration and the external UI edge after custom-domain cutover.
 UI_OIDC_CLIENT_ID,deploy_var,var,deploy_config,true,UI Entra app client id.
 UI_OIDC_AUTHORITY,deploy_var,var,deploy_config,true,UI OIDC authority.

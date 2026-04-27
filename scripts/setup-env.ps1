@@ -219,6 +219,52 @@ function New-RandomHexSecret {
     return (($bytes | ForEach-Object { $_.ToString("x2") }) -join "")
 }
 
+function New-RandomBytes {
+    param([int]$ByteLength = 32)
+    $bytes = New-Object byte[] $ByteLength
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    } finally {
+        if ($null -ne $rng) { $rng.Dispose() }
+    }
+    return $bytes
+}
+
+function ConvertTo-Base64Url {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+    $encoded = [Convert]::ToBase64String($Bytes).TrimEnd("=")
+    return $encoded.Replace("+", "-").Replace("/", "_")
+}
+
+function New-UiSharedPasswordHash {
+    param(
+        [Parameter(Mandatory = $true)][string]$Password,
+        [int]$Iterations = 600000,
+        [int]$SaltByteLength = 16,
+        [int]$DigestByteLength = 32
+    )
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        throw "UI shared password must not be blank."
+    }
+
+    $saltText = ConvertTo-Base64Url -Bytes (New-RandomBytes -ByteLength $SaltByteLength)
+    $saltBytes = [System.Text.Encoding]::UTF8.GetBytes($saltText)
+    $derive = [System.Security.Cryptography.Rfc2898DeriveBytes]::new(
+        $Password,
+        $saltBytes,
+        $Iterations,
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256
+    )
+    try {
+        $digestBytes = $derive.GetBytes($DigestByteLength)
+    } finally {
+        $derive.Dispose()
+    }
+    $digestText = ConvertTo-Base64Url -Bytes $digestBytes
+    return ("pbkdf2_sha256" + '$' + $Iterations + '$' + $saltText + '$' + $digestText)
+}
+
 function Resolve-GeneratedSecretValue {
     param([Parameter(Mandatory = $true)][string]$Name)
     switch ($Name) {
@@ -369,8 +415,36 @@ function Get-ResolvedAiRelayEnabled {
     return $false
 }
 
+function Get-ResolvedUiAuthProvider {
+    $candidates = @()
+    if ($overrideMap.ContainsKey("UI_AUTH_PROVIDER")) {
+        $candidate = Normalize-EnvValueForKey -Name "UI_AUTH_PROVIDER" -Value $overrideMap["UI_AUTH_PROVIDER"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
+    if ($existingMap.ContainsKey("UI_AUTH_PROVIDER")) {
+        $candidate = Normalize-EnvValueForKey -Name "UI_AUTH_PROVIDER" -Value $existingMap["UI_AUTH_PROVIDER"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
+    $githubValue = Get-GitHubVariableValue -Name "UI_AUTH_PROVIDER"
+    if (-not [string]::IsNullOrWhiteSpace($githubValue)) { $candidates += $githubValue }
+    if ($templateMap.ContainsKey("UI_AUTH_PROVIDER")) {
+        $candidate = Normalize-EnvValueForKey -Name "UI_AUTH_PROVIDER" -Value $templateMap["UI_AUTH_PROVIDER"]
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $candidates += $candidate }
+    }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        return $candidate.Trim().ToLowerInvariant()
+    }
+    return ""
+}
+
 function Get-RequirementLevel {
     param([Parameter(Mandatory = $true)][string]$Name)
+    if ($Name -eq "UI_SHARED_PASSWORD_HASH") {
+        if ((Get-ResolvedUiAuthProvider) -eq "password") { return "required" }
+        return "optional"
+    }
     if ($Name -in @("AI_RELAY_API_KEY", "AI_RELAY_REQUIRED_ROLES")) {
         if (Get-ResolvedAiRelayEnabled) { return "required" }
         return "optional"
@@ -403,6 +477,28 @@ function Test-ResolvedValuePresent {
     if ($Source -eq "github-secret") { return $true }
     if ($PromptRequired) { return $false }
     return (-not [string]::IsNullOrWhiteSpace((Normalize-EnvValue -Value $Value)))
+}
+
+function Assert-UiPasswordAuthConfiguration {
+    param([Parameter(Mandatory = $true)][object[]]$Results)
+
+    $values = @{}
+    foreach ($result in $Results) {
+        $values[$result.Name] = Normalize-EnvValue -Value $result.Value
+    }
+
+    $uiAuthProvider = if ($values.ContainsKey("UI_AUTH_PROVIDER")) { $values["UI_AUTH_PROVIDER"].Trim().ToLowerInvariant() } else { "" }
+    if ($uiAuthProvider -ne "password") { return }
+
+    $passwordHash = if ($values.ContainsKey("UI_SHARED_PASSWORD_HASH")) { $values["UI_SHARED_PASSWORD_HASH"] } else { "" }
+    if ([string]::IsNullOrWhiteSpace($passwordHash)) {
+        throw "UI_AUTH_PROVIDER=password requires UI_SHARED_PASSWORD_HASH. Re-run scripts/setup-env.ps1 and provide the shared password or a precomputed verifier."
+    }
+
+    $sessionMode = if ($values.ContainsKey("API_AUTH_SESSION_MODE")) { $values["API_AUTH_SESSION_MODE"].Trim().ToLowerInvariant() } else { "" }
+    if ($sessionMode -ne "cookie") {
+        throw "UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie. Update that value before continuing."
+    }
 }
 
 function Get-GitHubRepoInfo {
@@ -1206,6 +1302,36 @@ function Prompt-SecretValue {
     }
 }
 
+function Prompt-UiSharedPasswordValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [string]$Description = "",
+        [Parameter(Mandatory = $true)][string]$Requirement
+    )
+    if ($Description) { Write-Host "# $Description" -ForegroundColor DarkGray }
+    Write-Host ("# Requirement: {0}" -f $Requirement) -ForegroundColor DarkGray
+    Write-Host "# Enter the plaintext shared password. setup-env will hash it before writing .env.web." -ForegroundColor DarkGray
+    Write-Host ("# Suggested default: {0}" -f (Format-SuggestedDisplayValue -Value "" -Requirement $Requirement -IsSecret $true)) -ForegroundColor DarkGray
+    while ($true) {
+        $secure = Read-Host "UI_SHARED_PASSWORD [secret plaintext; hash stored]" -AsSecureString
+        $value = ConvertFrom-SecureStringPlain -Secure $secure
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            if ($Requirement -ne "required") { return "" }
+            Write-Host ("# {0} is required and cannot be blank." -f $Name) -ForegroundColor Yellow
+            continue
+        }
+
+        $confirmSecure = Read-Host "Confirm UI_SHARED_PASSWORD" -AsSecureString
+        $confirmValue = ConvertFrom-SecureStringPlain -Secure $confirmSecure
+        if ($value -cne $confirmValue) {
+            Write-Host "# UI shared password entries did not match. Try again." -ForegroundColor Yellow
+            continue
+        }
+
+        return (New-UiSharedPasswordHash -Password $value)
+    }
+}
+
 function Prompt-SecretFileValue {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -1247,6 +1373,14 @@ foreach ($row in $contractRows) {
         $value = $overrideValue
         $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = $value; Requirement = $requirement; Source = "prompted"; IsSecret = $isSecret; PromptRequired = $false })
         continue
+    }
+    if ($name -eq "UI_SHARED_PASSWORD_HASH" -and $overrideMap.ContainsKey("UI_SHARED_PASSWORD")) {
+        $plaintextPassword = Normalize-EnvValue -Value $overrideMap["UI_SHARED_PASSWORD"]
+        if (-not [string]::IsNullOrWhiteSpace($plaintextPassword)) {
+            $value = New-UiSharedPasswordHash -Password $plaintextPassword
+            $results.Add([pscustomobject]@{ Name = $name; Value = $value; SuggestedValue = ""; Requirement = $requirement; Source = "derived"; IsSecret = $true; PromptRequired = $false })
+            continue
+        }
     }
 
     if ($isSecret -and (Test-GitHubSecretExists -Name $name)) {
@@ -1291,6 +1425,8 @@ foreach ($row in $contractRows) {
     }
     $secretValue = if ($name -eq "DISPATCH_APP_PRIVATE_KEY") {
         Prompt-SecretFileValue -Name $name -Description $description -Requirement $requirement
+    } elseif ($name -eq "UI_SHARED_PASSWORD_HASH") {
+        Prompt-UiSharedPasswordValue -Name $name -Description $description -Requirement $requirement
     } else {
         Prompt-SecretValue -Name $name -Description $description -Requirement $requirement
     }
@@ -1298,12 +1434,17 @@ foreach ($row in $contractRows) {
         "default"
     } elseif ($name -eq "DISPATCH_APP_PRIVATE_KEY") {
         "file"
+    } elseif ($name -eq "UI_SHARED_PASSWORD_HASH") {
+        "derived"
     } else {
         "prompted"
     }
     $results.Add([pscustomobject]@{ Name = $name; Value = (Normalize-EnvValue -Value $secretValue); SuggestedValue = $defaultValue; Requirement = $requirement; Source = $secretSource; IsSecret = $true; PromptRequired = $false })
 }
 
+if (-not $DryRun) {
+    Assert-UiPasswordAuthConfiguration -Results $results.ToArray()
+}
 Assert-DeployAzureClientIdIsNotAcrPullIdentity -Results $results.ToArray()
 
 $lines = foreach ($result in $results) { "{0}={1}" -f $result.Name, $result.Value }

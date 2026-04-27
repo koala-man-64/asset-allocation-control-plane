@@ -264,6 +264,8 @@ def test_deploy_workflow_exports_manifest_runtime_env_surface() -> None:
     assert "API_PUBLIC_BASE_URL: ${{ vars.API_PUBLIC_BASE_URL }}" in text
     assert "ETRADE_CALLBACK_URL: ${{ vars.ETRADE_CALLBACK_URL }}" in text
     assert "SCHWAB_APP_CALLBACK_URL: ${{ vars.SCHWAB_APP_CALLBACK_URL }}" in text
+    assert "UI_AUTH_PROVIDER: ${{ vars.UI_AUTH_PROVIDER }}" in text
+    assert "UI_SHARED_PASSWORD_HASH: ${{ secrets.UI_SHARED_PASSWORD_HASH }}" in text
     assert "SYMBOL_ENRICHMENT_ENABLED: ${{ vars.SYMBOL_ENRICHMENT_ENABLED || 'false' }}" in text
     assert "SYMBOL_ENRICHMENT_MODEL: ${{ vars.SYMBOL_ENRICHMENT_MODEL }}" in text
     assert "SYMBOL_ENRICHMENT_CONFIDENCE_MIN: ${{ vars.SYMBOL_ENRICHMENT_CONFIDENCE_MIN }}" in text
