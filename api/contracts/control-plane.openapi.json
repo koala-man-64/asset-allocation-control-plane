@@ -12452,19 +12452,6 @@
               }
             ]
           },
-          "riskProfileName": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Riskprofilename"
-          },
           "topN": {
             "default": 20,
             "minimum": 1.0,
