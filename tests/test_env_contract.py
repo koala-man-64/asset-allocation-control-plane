@@ -16,6 +16,7 @@ ALLOWED_STORAGE = {"var", "secret"}
 ALLOWED_SOURCES = {"deploy_config", "secret_store"}
 WORKFLOW_VAR_PATTERN = re.compile(r"\bvars\.([A-Z][A-Z0-9_]+)\b")
 WORKFLOW_SECRET_PATTERN = re.compile(r"\bsecrets\.([A-Z][A-Z0-9_]+)\b")
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def repo_root() -> Path:
@@ -90,6 +91,11 @@ def powershell_exe() -> str:
         except Exception:
             continue
     raise AssertionError("PowerShell executable not found for setup-env dry-run test")
+
+
+def normalize_process_output(output: str) -> str:
+    plain_output = ANSI_ESCAPE_PATTERN.sub("", output)
+    return re.sub(r"\s+", " ", plain_output)
 
 
 def write_stub_command(directory: Path, name: str, python_body: str) -> None:
@@ -1317,7 +1323,7 @@ else:
     )
 
     assert completed.returncode != 0
-    error_output = completed.stdout + completed.stderr
+    error_output = normalize_process_output(completed.stdout + completed.stderr)
     assert "UI_AUTH_PROVIDER=password requires API_AUTH_SESSION_MODE=cookie before syncing." in error_output
 
 
