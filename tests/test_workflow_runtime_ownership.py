@@ -165,7 +165,8 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert 'Refusing public API ingress manifest without ALLOW_PUBLIC_API_INGRESS=true.' in text
     assert 'Unsupported API_DEPLOY_MANIFEST' in text
     assert "--output rendered-control-plane.yaml" in text
-    assert 'expect_status 401 "https://${fqdn}/config.js"' in text
+    assert 'echo "Expected HTTP ${expected}, got ${actual}: $*" >&2' in text
+    assert 'expect_status 200 "https://${fqdn}/config.js"' in text
     assert 'expect_status 401 "https://${fqdn}/api/openapi.json"' in text
     assert 'expect_status 401 "https://${fqdn}/api/docs"' in text
     assert 'az account get-access-token \\' in text
@@ -193,6 +194,10 @@ def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> Non
     assert "API_RUNTIME_IDENTITY_NAME: ${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}" in text
     assert "API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}" in text
     assert "API_RUNTIME_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.api_runtime_identity_client_id }}" in text
+    assert "ACR_PULL_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.identity_id }}" in text
+    assert 'az containerapp identity assign \\' in text
+    assert '--user-assigned "${ACR_PULL_IDENTITY_RESOURCE_ID}" \\' in text
+    assert '--user-assigned "${API_RUNTIME_IDENTITY_RESOURCE_ID}" \\' in text
 
 
 def test_deploy_workflow_includes_ai_relay_runtime_env_and_smoke_checks() -> None:

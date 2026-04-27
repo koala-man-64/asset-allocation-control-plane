@@ -64,6 +64,7 @@ param(
   [string]$NatGatewayName = "asset-allocation-nat-prod",
   [string]$NatPublicIpName = "asset-allocation-egress-ip-prod",
   [string]$NetworkSmokeJobName = "asset-allocation-network-smoke",
+  [switch]$SkipParallelPrivateRuntime,
   [switch]$CorrectApiStorageAuthMode,
   [ValidateSet("ManagedIdentity", "ConnectionString")]
   [string]$ApiStorageAuthMode = "ManagedIdentity",
@@ -1791,7 +1792,13 @@ if ($doContainerAppsEnv) {
 }
 
 $parallelPrivateRuntime = $null
-$doParallelPrivateRuntime = Get-YesNo "Ensure parallel VNet Container Apps environment exists: ${VnetContainerAppsEnvironmentName}?" $true
+$doParallelPrivateRuntime = $false
+if ($SkipParallelPrivateRuntime) {
+  Write-Host "Skipping parallel VNet Container Apps environment because -SkipParallelPrivateRuntime was supplied."
+}
+else {
+  $doParallelPrivateRuntime = Get-YesNo "Ensure parallel VNet Container Apps environment exists: ${VnetContainerAppsEnvironmentName}?" $true
+}
 if ($doParallelPrivateRuntime) {
   if (-not $lawCustomerId -or -not $lawSharedKey) {
     throw "Log Analytics workspace details missing; cannot create the parallel VNet Container Apps environment. Enable Log Analytics or provide workspace info."

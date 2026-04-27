@@ -317,6 +317,12 @@ def test_shared_provisioner_supports_parallel_private_runtime_and_network_smoke(
     assert "Ensure parallel VNet Container Apps environment exists: ${VnetContainerAppsEnvironmentName}?" in text, (
         "Shared Azure provisioning must prompt for the parallel VNet runtime separately from the legacy public environment"
     )
+    assert "[switch]$SkipParallelPrivateRuntime" in text, (
+        "Shared Azure provisioning must allow recovery workflows to defer private-runtime provisioning"
+    )
+    assert "Skipping parallel VNet Container Apps environment because -SkipParallelPrivateRuntime was supplied." in text, (
+        "Shared Azure provisioning must make private-runtime skips explicit in logs"
+    )
     assert "containerAppsEnvironmentVnetName" in text, (
         "Shared Azure provisioning outputs must expose the parallel VNet environment name"
     )
@@ -342,6 +348,9 @@ def test_infra_shared_workflow_passes_parallel_private_runtime_inputs() -> None:
     assert "disable_public_data_plane_access:" in text, (
         "Shared infra workflow must expose the public data-plane cutover as an explicit operator input"
     )
+    assert "provision_private_runtime:" in text, (
+        "Shared infra workflow must keep private-runtime provisioning as an explicit operator input"
+    )
     assert "CONTAINER_APPS_ENVIRONMENT_VNET_NAME=" in text, (
         "Shared infra workflow must write the VNet-backed Container Apps environment name into the env file"
     )
@@ -357,28 +366,46 @@ def test_infra_shared_workflow_passes_parallel_private_runtime_inputs() -> None:
     assert "UI_PUBLIC_HOSTNAME=" in text, (
         "Shared infra workflow must surface the stable UI hostname for custom-domain cutover"
     )
-    assert "'-VnetContainerAppsEnvironmentName'" in text, (
+    assert "$provisionArgs = @{" in text, (
+        "Shared infra workflow must use hash-table splatting so PowerShell binds provisioner arguments by name"
+    )
+    assert "$args = @(" not in text, (
+        "Shared infra workflow must not use array splatting for named provisioner parameters"
+    )
+    assert "& .\\scripts\\ops\\provision\\provision_azure.ps1 @provisionArgs" in text, (
+        "Shared infra workflow must splat the named provisioner argument hash"
+    )
+    assert "NonInteractive = $true" in text, (
+        "Shared infra workflow must keep provisioning non-interactive"
+    )
+    assert "PromptForResources = $false" in text, (
+        "Shared infra workflow must disable resource prompts through named binding"
+    )
+    assert "$provisionArgs.SkipParallelPrivateRuntime = $true" in text, (
+        "Shared infra workflow must skip private-runtime provisioning unless explicitly requested"
+    )
+    assert "VnetContainerAppsEnvironmentName =" in text, (
         "Shared infra workflow must pass the VNet-backed Container Apps environment name to the provisioner"
     )
-    assert "'-NatGatewayName'" in text, (
+    assert "NatGatewayName =" in text, (
         "Shared infra workflow must pass the NAT Gateway name to the provisioner"
     )
-    assert "'-NetworkSmokeJobName'" in text, (
+    assert "NetworkSmokeJobName =" in text, (
         "Shared infra workflow must pass the network smoke job name to the provisioner"
     )
-    assert "'-UiPublicHostname'" in text, (
+    assert "UiPublicHostname =" in text, (
         "Shared infra workflow must pass the stable UI hostname to the provisioner"
     )
-    assert "'-DisablePublicDataPlaneAccess'" in text, (
+    assert "$provisionArgs.DisablePublicDataPlaneAccess = $true" in text, (
         "Shared infra workflow must only disable the public data plane when the explicit cutover input is enabled"
     )
     assert "private_runtime_verified=true is required before disabling public Storage/Postgres data-plane access." in text, (
         "Shared infra workflow must require a private-runtime smoke confirmation before data-plane cutover"
     )
-    assert "'-ApiRuntimeIdentityName'" in text, (
+    assert "ApiRuntimeIdentityName =" in text, (
         "Shared infra workflow must pass the API runtime identity name to the provisioner"
     )
-    assert "'-EnableAcrPrivateLink'" in text, (
+    assert "$provisionArgs.EnableAcrPrivateLink = $true" in text, (
         "Shared infra workflow must pass the ACR private link input to the provisioner"
     )
 
