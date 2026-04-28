@@ -176,9 +176,15 @@ def test_deploy_workflow_manual_runs_auto_resolve_latest_release_digest() -> Non
     assert 'deploy_smoke_scope="${deploy_smoke_scope}/.default"' in text
     assert '--scope "${deploy_smoke_scope}" \\' in text
     assert 'Normalized quoted API_OIDC_AUDIENCE before deploy smoke token minting.' in text
-    assert 'expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/docs"' in text
-    assert 'expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/openapi.json"' in text
-    assert '-H "Authorization: Bearer ${deploy_smoke_token}" \\' in text
+    assert 'bootstrap_session_cookie() {' in text
+    assert 'deploy_smoke_cookie_jar="$(bootstrap_session_cookie "${deploy_smoke_token}")"' in text
+    assert 'expect_status 200 -b "${cookie_jar}" "https://${fqdn}/api/auth/session"' in text
+    assert 'expect_status 307 -b "${deploy_smoke_cookie_jar}" "https://${fqdn}/docs"' in text
+    assert 'expect_status 307 -b "${deploy_smoke_cookie_jar}" "https://${fqdn}/openapi.json"' in text
+    assert '-b "${deploy_smoke_cookie_jar}" \\' in text
+    assert 'extract_session_csrf_token() {' in text
+    assert '-H "Origin: https://${fqdn}" \\' in text
+    assert '-H "X-CSRF-Token: ${ai_csrf_token}" \\' in text
     assert 'if [ "${API_DEPLOY_MANIFEST}" = "deploy/app_api.yaml" ]; then' in text
     assert "az containerapp job start \\" in text
     assert "az containerapp job execution show \\" in text

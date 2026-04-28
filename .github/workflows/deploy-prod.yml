@@ -337,6 +337,35 @@ jobs:
             fi
           }
 
+          bootstrap_session_cookie() {
+            local bearer_token="$1"
+            local cookie_jar
+            cookie_jar="$(mktemp)"
+            curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
+              -X POST \
+              -H "Authorization: Bearer ${bearer_token}" \
+              -c "${cookie_jar}" \
+              "https://${fqdn}/api/auth/session" > /dev/null
+            expect_status 200 -b "${cookie_jar}" "https://${fqdn}/api/auth/session"
+            printf '%s\n' "${cookie_jar}"
+          }
+
+          extract_cookie_value() {
+            local cookie_jar="$1"
+            local cookie_name="$2"
+            awk -v name="${cookie_name}" '($0 !~ /^#/ && $6 == name) { print $7 }' "${cookie_jar}" | tail -n 1
+          }
+
+          extract_session_csrf_token() {
+            local cookie_jar="$1"
+            local csrf_token
+            csrf_token="$(extract_cookie_value "${cookie_jar}" "__Host-aa_csrf")"
+            if [ -z "${csrf_token}" ]; then
+              csrf_token="$(extract_cookie_value "${cookie_jar}" "aa_csrf_dev")"
+            fi
+            printf '%s\n' "${csrf_token}"
+          }
+
           fqdn="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.configuration.ingress.fqdn' -o tsv 2>/dev/null || true)"
           actual_image="$(az containerapp show --name "${API_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query 'properties.template.containers[0].image' -o tsv)"
           test "${actual_image}" = "${{ steps.inputs.outputs.image_digest }}"
@@ -423,19 +452,20 @@ jobs:
                 --only-show-errors
             )"
             : "${deploy_smoke_token:?Failed to mint deploy smoke bearer token. Ensure the Azure deploy principal has the AssetAllocation.Access app role.}"
+            deploy_smoke_cookie_jar="$(bootstrap_session_cookie "${deploy_smoke_token}")"
+            trap 'rm -f "${deploy_smoke_cookie_jar:-}" "${forbidden_cookie_jar:-}" "${ai_cookie_jar:-}" "${ai_stream:-}"' EXIT
             expect_status 200 "https://${fqdn}/config.js"
             expect_status 401 "https://${fqdn}/api/openapi.json"
             expect_status 401 "https://${fqdn}/api/docs"
-            expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/docs"
-            expect_status 307 -H "Authorization: Bearer ${deploy_smoke_token}" "https://${fqdn}/openapi.json"
+            expect_status 307 -b "${deploy_smoke_cookie_jar}" "https://${fqdn}/docs"
+            expect_status 307 -b "${deploy_smoke_cookie_jar}" "https://${fqdn}/openapi.json"
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
-              -H "Authorization: Bearer ${deploy_smoke_token}" \
               "https://${fqdn}/config.js" > /dev/null
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
-              -H "Authorization: Bearer ${deploy_smoke_token}" \
+              -b "${deploy_smoke_cookie_jar}" \
               "https://${fqdn}/api/openapi.json" > /dev/null
             curl --fail --retry 12 --retry-delay 10 --retry-connrefused \
-              -H "Authorization: Bearer ${deploy_smoke_token}" \
+              -b "${deploy_smoke_cookie_jar}" \
               "https://${fqdn}/api/docs" > /dev/null
             unauth_status="$(curl -sS -o /dev/null -w '%{http_code}' \
               -X POST \
@@ -446,10 +476,15 @@ jobs:
 
             if [ "${AI_RELAY_ENABLED}" = "true" ]; then
               if [ -n "${AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN}" ]; then
+                forbidden_cookie_jar="$(bootstrap_session_cookie "${AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN}")"
+                forbidden_csrf_token="$(extract_session_csrf_token "${forbidden_cookie_jar}")"
+                : "${forbidden_csrf_token:?Failed to capture forbidden-role session CSRF token.}"
                 forbidden_status="$(curl -sS -o /dev/null -w '%{http_code}' \
                   -X POST \
+                  -b "${forbidden_cookie_jar}" \
                   -H 'Content-Type: application/json' \
-                  -H "Authorization: Bearer ${AI_RELAY_SMOKE_FORBIDDEN_BEARER_TOKEN}" \
+                  -H "Origin: https://${fqdn}" \
+                  -H "X-CSRF-Token: ${forbidden_csrf_token}" \
                   --data '{"prompt":"deployment smoke"}' \
                   "https://${fqdn}/api/ai/chat/stream")"
                 test "${forbidden_status}" = "403"
@@ -458,11 +493,16 @@ jobs:
               fi
 
               if [ -n "${AI_RELAY_SMOKE_BEARER_TOKEN}" ]; then
+                ai_cookie_jar="$(bootstrap_session_cookie "${AI_RELAY_SMOKE_BEARER_TOKEN}")"
+                ai_csrf_token="$(extract_session_csrf_token "${ai_cookie_jar}")"
+                : "${ai_csrf_token:?Failed to capture AI relay session CSRF token.}"
                 ai_stream="$(mktemp)"
                 curl --fail --retry 6 --retry-delay 5 --retry-connrefused \
                   -X POST \
+                  -b "${ai_cookie_jar}" \
                   -H 'Content-Type: application/json' \
-                  -H "Authorization: Bearer ${AI_RELAY_SMOKE_BEARER_TOKEN}" \
+                  -H "Origin: https://${fqdn}" \
+                  -H "X-CSRF-Token: ${ai_csrf_token}" \
                   --data '{"prompt":"Return the single word ok."}' \
                   "https://${fqdn}/api/ai/chat/stream" > "${ai_stream}"
                 grep -q 'event: completed' "${ai_stream}"
@@ -470,10 +510,15 @@ jobs:
                 echo "AI relay authorized smoke skipped because AI_RELAY_SMOKE_BEARER_TOKEN is not configured."
               fi
             elif [ -n "${AI_RELAY_SMOKE_BEARER_TOKEN}" ]; then
+              ai_cookie_jar="$(bootstrap_session_cookie "${AI_RELAY_SMOKE_BEARER_TOKEN}")"
+              ai_csrf_token="$(extract_session_csrf_token "${ai_cookie_jar}")"
+              : "${ai_csrf_token:?Failed to capture disabled-state AI relay session CSRF token.}"
               disabled_status="$(curl -sS -o /dev/null -w '%{http_code}' \
                 -X POST \
+                -b "${ai_cookie_jar}" \
                 -H 'Content-Type: application/json' \
-                -H "Authorization: Bearer ${AI_RELAY_SMOKE_BEARER_TOKEN}" \
+                -H "Origin: https://${fqdn}" \
+                -H "X-CSRF-Token: ${ai_csrf_token}" \
                 --data '{"prompt":"deployment smoke"}' \
                 "https://${fqdn}/api/ai/chat/stream")"
               test "${disabled_status}" = "503"
