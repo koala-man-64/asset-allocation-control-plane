@@ -201,3 +201,40 @@ async def test_swagger_routes_allow_bearer_auth_when_deployed(monkeypatch: pytes
     assert docs_redirect.headers.get("location") == "/api/docs"
     assert openapi_redirect.status_code == 307
     assert openapi_redirect.headers.get("location") == "/api/openapi.json"
+
+
+@pytest.mark.asyncio
+async def test_swagger_routes_allow_session_cookie_when_deployed(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure_deployed_auth(monkeypatch)
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "cookie")
+    monkeypatch.setenv("API_AUTH_SESSION_SECRET_KEYS", "test-session-secret-key-value-at-least-32-chars")
+
+    app = create_app()
+
+    monkeypatch.setattr(
+        app.state.auth,
+        "authenticate_bearer_headers",
+        lambda _headers, **_kwargs: AuthContext(
+            mode="oidc",
+            subject="user-1",
+            claims={"sub": "user-1", "roles": ["AssetAllocation.Access"]},
+        ),
+    )
+
+    async with get_test_client(app) as client:
+        session = await client.post("/api/auth/session", headers={"Authorization": "Bearer token"})
+        docs = await client.get("/api/docs")
+        openapi = await client.get("/api/openapi.json")
+        docs_redirect = await client.get("/docs", follow_redirects=False)
+        openapi_redirect = await client.get("/openapi.json", follow_redirects=False)
+
+    assert session.status_code == 200
+    assert session.cookies.get("aa_session_dev")
+    assert docs.status_code == 200
+    assert "Swagger UI" in docs.text
+    assert openapi.status_code == 200
+    assert openapi.json()["info"]["title"] == "Asset Allocation API"
+    assert docs_redirect.status_code == 307
+    assert docs_redirect.headers.get("location") == "/api/docs"
+    assert openapi_redirect.status_code == 307
+    assert openapi_redirect.headers.get("location") == "/api/openapi.json"
