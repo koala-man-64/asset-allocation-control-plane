@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 ARG CONTRACTS_VERSION=3.10.0
-ARG RUNTIME_COMMON_VERSION=3.4.5
+ARG RUNTIME_COMMON_VERSION=3.4.6
 
 COPY asset-allocation-control-plane/requirements.lock.txt ./
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
