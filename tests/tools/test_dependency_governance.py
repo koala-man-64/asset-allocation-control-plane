@@ -4,6 +4,7 @@ import contextlib
 import io
 import importlib.util
 from pathlib import Path
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -154,6 +155,25 @@ def test_validate_shared_dependency_compatibility_reports_runtime_pin_skew() -> 
     assert "python-dotenv==1.2.1" in incompatibility
     assert "asset-allocation-runtime-common==3.1.0" in incompatibility
     assert "python-dotenv==1.2.2" in incompatibility
+
+
+def test_download_exact_wheel_metadata_bypasses_pip_cache(monkeypatch, tmp_path: Path) -> None:
+    dependency_governance = _load_dependency_governance_module()
+    captured: dict[str, list[str]] = {}
+
+    def run(command: list[str], *, check: bool, capture_output: bool, text: bool) -> subprocess.CompletedProcess[str]:
+        captured["command"] = command
+        download_dir = Path(command[command.index("--dest") + 1])
+        (download_dir / "asset_allocation_runtime_common-3.5.0-py3-none-any.whl").write_bytes(b"wheel")
+        return subprocess.CompletedProcess(command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(dependency_governance.subprocess, "run", run)
+    monkeypatch.setattr(dependency_governance, "read_wheel_metadata", lambda path: "Metadata-Version: 2.4\n")
+
+    assert dependency_governance.download_exact_wheel_metadata("asset-allocation-runtime-common==3.5.0")
+    assert "--no-cache-dir" in captured["command"]
+    assert "--disable-pip-version-check" in captured["command"]
+    assert "--no-deps" in captured["command"]
 
 
 def test_read_shared_version_matrix_reads_exact_versions(tmp_path: Path) -> None:
