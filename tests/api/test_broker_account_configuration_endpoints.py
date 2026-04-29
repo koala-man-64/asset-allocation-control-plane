@@ -160,3 +160,27 @@ async def test_broker_account_configuration_endpoints_round_trip_contract_shape(
     assert allocation_response.status_code == 200
     assert allocation_response.json()["allocation"]["allocationMode"] == "notional_base_ccy"
     assert allocation_response.json()["allocation"]["items"][0]["targetNotionalBaseCcy"] == 150000.0
+
+
+async def test_broker_account_trading_policy_endpoint_returns_conflict_for_stale_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    def raise_version_conflict(self, account_id, payload, *, actor, request_id, granted_roles):
+        raise ValueError("Configuration version conflict for account 'acct-paper': expected 4, found 5.")
+
+    monkeypatch.setattr(BrokerAccountConfigurationService, "save_trading_policy", raise_version_conflict)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.put(
+            "/api/broker-accounts/acct-paper/trading-policy",
+            json={
+                "expectedConfigurationVersion": 4,
+                "requestedPolicy": _configuration_payload()["requestedPolicy"],
+            },
+        )
+
+    assert response.status_code == 409
+    assert "Configuration version conflict" in response.json()["detail"]

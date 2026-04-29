@@ -56,6 +56,20 @@ def _account(*, readiness: str = "ready", freshness: TradeDataFreshness | None =
     )
 
 
+def _configuration(policy: BrokerTradingPolicy, *, version: int = 3) -> BrokerAccountConfiguration:
+    return BrokerAccountConfiguration(
+        accountId="acct-paper",
+        configurationVersion=version,
+        requestedPolicy=policy,
+        effectivePolicy=policy,
+        allocation={"allocatableCapital": 100000.0},
+    )
+
+
+def _risk_codes(checks) -> set[str]:
+    return {check.code for check in checks}
+
+
 class FakeTradeDeskRepository:
     def __init__(self, account: TradeAccountSummary) -> None:
         self.account = account
@@ -180,13 +194,7 @@ def test_trade_desk_place_persists_and_replays_idempotent_response() -> None:
 
 def test_trade_desk_place_blocks_when_confirmation_policy_is_not_satisfied() -> None:
     repo = FakeTradeDeskRepository(_account())
-    configuration = BrokerAccountConfiguration(
-        accountId="acct-paper",
-        configurationVersion=3,
-        requestedPolicy=BrokerTradingPolicy(requireOrderConfirmation=True, allowedSides=["long"]),
-        effectivePolicy=BrokerTradingPolicy(requireOrderConfirmation=True, allowedSides=["long"]),
-        allocation={"allocatableCapital": 100000.0},
-    )
+    configuration = _configuration(BrokerTradingPolicy(requireOrderConfirmation=True, allowedSides=["long"]))
     service = TradeDeskService(
         repo,
         TradeDeskSettings(paper_execution_enabled=True, simulated_execution_enabled=True),
@@ -220,3 +228,86 @@ def test_trade_desk_place_blocks_when_confirmation_policy_is_not_satisfied() -> 
     assert response.confirmationRequired is True
     assert response.policyVersion == 3
     assert response.message == "The account policy changed after preview; re-preview before submitting."
+
+
+def test_trade_desk_preview_enforces_trading_policy_opening_order_limits() -> None:
+    account = _account().model_copy(update={"positionCount": 1, "openOrderCount": 0})
+    repo = FakeTradeDeskRepository(account)
+    configuration = _configuration(
+        BrokerTradingPolicy(
+            maxOpenPositions=1,
+            maxSinglePositionExposure={"mode": "notional_base_ccy", "value": 1000.0},
+            allowedSides=["long"],
+            allowedAssetClasses=["equity"],
+        )
+    )
+    service = TradeDeskService(
+        repo,
+        TradeDeskSettings(paper_execution_enabled=True, simulated_execution_enabled=True),
+        configuration_repository=FakeConfigurationRepository(configuration),
+    )
+
+    response = service.preview_order(
+        "acct-paper",
+        TradeOrderPreviewRequest(
+            accountId="acct-paper",
+            environment="paper",
+            clientRequestId="client-policy-limits",
+            symbol="MSFT",
+            side="sell",
+            orderType="limit",
+            assetClass="option",
+            quantity=10,
+            limitPrice=200,
+        ),
+        actor="desk@example.com",
+    )
+
+    assert response.blocked is True
+    assert {
+        "account_policy_side",
+        "account_policy_asset_class",
+        "account_policy_max_open_positions",
+        "account_policy_max_single_position_exposure",
+    }.issubset(_risk_codes(response.riskChecks))
+
+
+def test_trade_desk_place_blocks_stale_confirmation_token() -> None:
+    repo = FakeTradeDeskRepository(_account())
+    configuration = _configuration(BrokerTradingPolicy(requireOrderConfirmation=True, allowedSides=["long"]))
+    service = TradeDeskService(
+        repo,
+        TradeDeskSettings(paper_execution_enabled=True, simulated_execution_enabled=True),
+        confirmation_release_required_roles=["AssetAllocation.TradeConfirmation.Release"],
+        configuration_repository=FakeConfigurationRepository(configuration),
+    )
+    preview_payload = TradeOrderPreviewRequest(
+        accountId="acct-paper",
+        environment="paper",
+        clientRequestId="client-confirm-token",
+        symbol="MSFT",
+        side="buy",
+        orderType="market",
+        quantity=1,
+    )
+    preview = service.preview_order("acct-paper", preview_payload, actor="desk@example.com")
+
+    response = service.place_order(
+        "acct-paper",
+        TradeOrderPlaceRequest(
+            **preview_payload.model_dump(mode="python"),
+            idempotencyKey="idem-000000000001",
+            previewId=preview.previewId,
+            confirmedAt=_now(),
+            policyVersion=preview.policyVersion,
+            orderHash=preview.orderHash,
+            confirmationToken="stale-token",
+        ),
+        actor="desk@example.com",
+        granted_roles=["AssetAllocation.TradeConfirmation.Release"],
+    )
+
+    assert response.submitted is False
+    assert response.confirmationRequired is True
+    assert response.message == "Order confirmation token is missing or stale; re-preview before submitting."
+    assert "stale_confirmation_token" in _risk_codes(response.order.riskChecks)
