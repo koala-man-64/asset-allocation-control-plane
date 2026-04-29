@@ -1072,3 +1072,50 @@ async def test_get_closed_positions_returns_paginated_payload(monkeypatch: pytes
     assert payload["total"] == 1
     assert payload["positions"][0]["position_id"] == "pos-1"
     assert payload["positions"][0]["exit_rule_id"] == "tp-1"
+
+
+@pytest.mark.asyncio
+async def test_get_policy_events_returns_paginated_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_policy_events", lambda self, run_id: 1)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_policy_events",
+        lambda self, run_id, **kwargs: [
+            {
+                "run_id": run_id,
+                "event_seq": 1,
+                "bar_ts": "2026-03-08T10:00:00Z",
+                "scope": "strategy",
+                "policy_type": "rebalance",
+                "decision": "applied",
+                "reason_code": "scheduled",
+                "symbol": None,
+                "position_id": None,
+                "policy_id": None,
+                "observed_value": 12.5,
+                "threshold_value": None,
+                "action": "rebalance",
+                "details": {"frequency": "every_bar"},
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/policy-events?limit=50&offset=0")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["events"][0]["reason_code"] == "scheduled"
+    assert payload["events"][0]["details"] == {"frequency": "every_bar"}
