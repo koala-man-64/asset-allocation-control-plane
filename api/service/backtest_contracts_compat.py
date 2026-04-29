@@ -9,6 +9,7 @@ try:  # pragma: no cover - exercised once the published shared package includes 
     from asset_allocation_contracts.backtest import (  # type: ignore[attr-defined]
         BacktestLookupRequest,
         BacktestLookupResponse,
+        BacktestPolicyEventListResponse,
         BacktestResultLinks,
         BacktestRunRequest,
         BacktestRunResponse,
@@ -37,6 +38,9 @@ except Exception:  # pragma: no cover - default path while control-plane depends
 
     BacktestLookupState = Literal["not_run", "queued", "running", "completed", "failed"]
     BacktestStreamEventType = Literal["accepted", "status", "heartbeat", "completed", "failed"]
+    BacktestPolicyEventScope = Literal["strategy", "sleeve", "position", "symbol", "portfolio"]
+    BacktestPolicyEventType = Literal["rebalance", "strategy_risk", "position_exit", "reentry"]
+    BacktestPolicyDecision = Literal["applied", "skipped", "blocked"]
 
     class StrategyReferenceInput(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -119,9 +123,38 @@ except Exception:  # pragma: no cover - default path while control-plane depends
         links: BacktestResultLinks | None = None
 
 
+    class BacktestPolicyEvent(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        run_id: str
+        event_seq: int = Field(..., ge=1)
+        bar_ts: datetime
+        scope: BacktestPolicyEventScope
+        policy_type: BacktestPolicyEventType
+        decision: BacktestPolicyDecision
+        reason_code: str = Field(..., min_length=1)
+        symbol: str | None = None
+        position_id: str | None = None
+        policy_id: str | None = None
+        observed_value: float | None = None
+        threshold_value: float | None = None
+        action: str | None = None
+        details: dict[str, object] = Field(default_factory=dict)
+
+
+    class BacktestPolicyEventListResponse(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        events: list[BacktestPolicyEvent]
+        total: int = Field(..., ge=0)
+        limit: int = Field(..., ge=1)
+        offset: int = Field(..., ge=0)
+
+
 __all__ = [
     "BacktestLookupRequest",
     "BacktestLookupResponse",
+    "BacktestPolicyEventListResponse",
     "BacktestResultLinks",
     "BacktestRunRequest",
     "BacktestRunResponse",

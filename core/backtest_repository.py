@@ -231,6 +231,31 @@ def _map_closed_position_row(row: tuple[Any, ...]) -> dict[str, Any]:
     }
 
 
+def _map_policy_event_row(row: tuple[Any, ...]) -> dict[str, Any]:
+    details = row[12]
+    if isinstance(details, str):
+        try:
+            details = json.loads(details)
+        except json.JSONDecodeError:
+            details = {"raw": details}
+    return {
+        "run_id": row[0],
+        "event_seq": row[1],
+        "bar_ts": _serialize_timestamp(row[2]),
+        "scope": row[3],
+        "policy_type": row[4],
+        "decision": row[5],
+        "reason_code": row[6],
+        "symbol": row[7],
+        "position_id": row[8],
+        "policy_id": row[9],
+        "observed_value": row[10],
+        "threshold_value": row[11],
+        "details": details if isinstance(details, dict) else {},
+        "action": row[13],
+    }
+
+
 class BacktestResultsNotReadyError(RuntimeError):
     """Raised when a run exists but its Postgres result set is not fully published."""
 
@@ -975,6 +1000,45 @@ class BacktestRepository:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM core.backtest_closed_positions WHERE run_id = %s", (run_id,))
+                row = cur.fetchone()
+        return int((row or (0,))[0] or 0)
+
+    def list_policy_events(self, run_id: str, *, limit: int, offset: int) -> list[dict[str, Any]]:
+        dsn = self._require_dsn()
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        run_id,
+                        event_seq,
+                        bar_ts,
+                        scope,
+                        policy_type,
+                        decision,
+                        reason_code,
+                        symbol,
+                        position_id,
+                        policy_id,
+                        observed_value,
+                        threshold_value,
+                        details,
+                        action
+                    FROM core.backtest_policy_events
+                    WHERE run_id = %s
+                    ORDER BY event_seq ASC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (run_id, max(1, int(limit)), max(0, int(offset))),
+                )
+                rows = cur.fetchall()
+        return [_map_policy_event_row(row) for row in rows]
+
+    def count_policy_events(self, run_id: str) -> int:
+        dsn = self._require_dsn()
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM core.backtest_policy_events WHERE run_id = %s", (run_id,))
                 row = cur.fetchone()
         return int((row or (0,))[0] or 0)
 

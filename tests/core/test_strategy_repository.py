@@ -246,3 +246,44 @@ def test_save_strategy_strips_legacy_enabled_fields(monkeypatch) -> None:
     persisted = json.loads(params[1])
     assert persisted["regimePolicy"] == {"modelName": "steady"}
     assert persisted["exits"] == [{"kind": "take_profit", "threshold": 0.2}]
+
+
+def test_save_strategy_round_trips_structured_policy_fields(monkeypatch) -> None:
+    cursor = _FakeCursor()
+
+    monkeypatch.setattr(
+        "core.strategy_repository.connect",
+        lambda _dsn: _FakeConnection(cursor),
+    )
+
+    repo = StrategyRepository("postgresql://user:pass@localhost/db")
+    repo.save_strategy(
+        name="momentum",
+        config={
+            "rebalance": "weekly",
+            "rebalancePolicy": {
+                "frequency": "every_bar",
+                "executionTiming": "next_bar_open",
+                "driftThresholdPct": 2.0,
+                "minTradeNotional": 100.0,
+            },
+            "strategyRiskPolicy": {
+                "stopLoss": {
+                    "thresholdPct": 8.0,
+                    "action": "reduce_exposure",
+                    "reductionPct": 50.0,
+                },
+                "reentry": {"cooldownBars": 3, "requireApproval": True},
+            },
+        },
+        strategy_type="configured",
+        description="Policy momentum",
+    )
+
+    _sql, params = cursor.execute_calls[0]
+    assert params is not None
+    persisted = json.loads(params[1])
+    assert persisted["rebalancePolicy"]["frequency"] == "every_bar"
+    assert persisted["rebalancePolicy"]["driftThresholdPct"] == 2.0
+    assert persisted["strategyRiskPolicy"]["stopLoss"]["thresholdPct"] == 8.0
+    assert persisted["strategyRiskPolicy"]["reentry"]["requireApproval"] is True
