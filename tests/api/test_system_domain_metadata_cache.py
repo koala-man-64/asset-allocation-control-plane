@@ -294,7 +294,7 @@ async def test_system_status_view_overlays_live_domain_job_runtime(
 ) -> None:
     monkeypatch.setenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", "sub")
     monkeypatch.setenv("SYSTEM_HEALTH_ARM_RESOURCE_GROUP", "rg")
-    monkeypatch.setenv("SYSTEM_HEALTH_ARM_JOBS", "aca-job-market")
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_JOBS", raising=False)
     monkeypatch.setattr(system, "_utc_timestamp", lambda: "2026-03-17T12:00:00+00:00")
     monkeypatch.setattr(
         system,

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from asset_allocation_contracts.ui_config import UiRuntimeConfig
+from dotenv import dotenv_values
 
 
 def _repo_root() -> Path:
@@ -20,6 +21,7 @@ def _repo_root() -> Path:
 
 ROOT = _repo_root()
 OUTPUT_DIR = ROOT / "api" / "contracts"
+ENV_WEB_PATH = ROOT / ".env.web"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -38,7 +40,35 @@ def _serialize_json(payload: object) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
+def _dotenv_loading_disabled() -> bool:
+    value = (os.environ.get("DISABLE_DOTENV") or "").strip().lower()
+    return value in {"1", "true", "t", "yes", "y", "on"}
+
+
+def _load_env_web_overrides() -> dict[str, str | None]:
+    if _dotenv_loading_disabled() or not ENV_WEB_PATH.exists():
+        return {}
+
+    previous_values: dict[str, str | None] = {}
+    for raw_key, raw_value in dotenv_values(ENV_WEB_PATH).items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        previous_values[key] = os.environ.get(key)
+        os.environ[key] = "" if raw_value is None else str(raw_value)
+    return previous_values
+
+
+def _restore_env(previous_values: dict[str, str | None]) -> None:
+    for key, value in previous_values.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
 def _render_artifact_texts() -> dict[Path, str]:
+    previous_env_values = _load_env_web_overrides()
     previous_api_root_prefix = os.environ.get("API_ROOT_PREFIX")
     os.environ["API_ROOT_PREFIX"] = _CANONICAL_API_ROOT_PREFIX
     try:
@@ -53,6 +83,7 @@ def _render_artifact_texts() -> dict[Path, str]:
             os.environ.pop("API_ROOT_PREFIX", None)
         else:
             os.environ["API_ROOT_PREFIX"] = previous_api_root_prefix
+        _restore_env(previous_env_values)
 
     return {
         OUTPUT_DIR / "control-plane.openapi.json": openapi_text,

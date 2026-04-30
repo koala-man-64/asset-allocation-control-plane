@@ -40,7 +40,7 @@ from api.service.dependencies import (
 )
 from api.service.realtime import manager as realtime_manager
 from monitoring.arm_client import ArmConfig, AzureArmClient
-from monitoring.control_plane import collect_jobs_and_executions
+from monitoring.control_plane import collect_jobs_and_executions, resolve_container_app_job_names
 from monitoring.domain_metadata import collect_domain_metadata
 from monitoring.log_analytics import AzureLogAnalyticsClient, extract_first_table_rows
 from monitoring.system_health import collect_system_health_snapshot
@@ -93,6 +93,7 @@ _LEGACY_EXPORTS = (
     ArmConfig,
     AzureArmClient,
     collect_jobs_and_executions,
+    resolve_container_app_job_names,
     collect_domain_metadata,
     AzureLogAnalyticsClient,
     extract_first_table_rows,
@@ -684,7 +685,10 @@ RUNTIME_CONFIG_CATALOG: Dict[str, Dict[str, str]] = {
         "example": "asset-allocation-api,asset-allocation-ui",
     },
     "SYSTEM_HEALTH_ARM_JOBS": {
-        "description": "Comma-separated list of Container App Job names to probe via ARM.",
+        "description": (
+            "Optional comma-separated Container App Job allowlist. "
+            "When unset, the API discovers all Container App Jobs in the configured resource group."
+        ),
         "example": "silver-market-job,gold-finance-job",
     },
     "SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB": {

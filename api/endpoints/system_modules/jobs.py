@@ -37,6 +37,17 @@ _ACTIVE_JOB_EXECUTION_STATUS_TOKENS = frozenset(
 )
 
 
+def _configured_job_allowlist(os_module: Any) -> List[str]:
+    raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
+    return [item.strip() for item in (raw or "").split(",") if item.strip()]
+
+
+def _job_name_allowed(job_name: str, allowlist: Sequence[str]) -> bool:
+    if not allowlist or "*" in {item.strip() for item in allowlist}:
+        return True
+    return job_name in allowlist
+
+
 def _normalize_job_execution_status_token(value: Optional[str]) -> str:
     return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
 
@@ -176,16 +187,15 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
         resource_group_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_RESOURCE_GROUP")
         resource_group = resource_group_raw.strip() if resource_group_raw else ""
-        job_names_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
-        job_allowlist = [item.strip() for item in (job_names_raw or "").split(",") if item.strip()]
+        job_allowlist = _configured_job_allowlist(os_module)
 
-        if not (subscription_id and resource_group and job_allowlist):
+        if not (subscription_id and resource_group):
             raise HTTPException(status_code=503, detail="Azure job triggering is not configured.")
 
         resolved = (job_name or "").strip()
         if not re_module.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?", resolved or ""):
             raise HTTPException(status_code=400, detail="Invalid job name.")
-        if resolved not in job_allowlist:
+        if not _job_name_allowed(resolved, job_allowlist):
             raise HTTPException(status_code=404, detail="Job not found.")
 
         api_version_env = os_module.environ.get("SYSTEM_HEALTH_ARM_API_VERSION")
@@ -311,16 +321,15 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
         resource_group_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_RESOURCE_GROUP")
         resource_group = resource_group_raw.strip() if resource_group_raw else ""
-        job_names_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
-        job_allowlist = [item.strip() for item in (job_names_raw or "").split(",") if item.strip()]
+        job_allowlist = _configured_job_allowlist(os_module)
 
-        if not (subscription_id and resource_group and job_allowlist):
+        if not (subscription_id and resource_group):
             raise HTTPException(status_code=503, detail="Azure job log retrieval is not configured.")
 
         resolved = (job_name or "").strip()
         if not re_module.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?", resolved or ""):
             raise HTTPException(status_code=400, detail="Invalid job name.")
-        if resolved not in job_allowlist:
+        if not _job_name_allowed(resolved, job_allowlist):
             raise HTTPException(status_code=404, detail="Job not found.")
 
         workspace_id_raw = os_module.environ.get("SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID")
@@ -543,16 +552,15 @@ def _job_state_command(*, runtime: ModuleType, request: Request, job_name: str, 
     subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
     resource_group_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_RESOURCE_GROUP")
     resource_group = resource_group_raw.strip() if resource_group_raw else ""
-    job_names_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
-    job_allowlist = [item.strip() for item in (job_names_raw or "").split(",") if item.strip()]
+    job_allowlist = _configured_job_allowlist(os_module)
 
-    if not (subscription_id and resource_group and job_allowlist):
+    if not (subscription_id and resource_group):
         raise HTTPException(status_code=503, detail="Azure job control is not configured.")
 
     resolved = (job_name or "").strip()
     if not re_module.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?", resolved or ""):
         raise HTTPException(status_code=400, detail="Invalid job name.")
-    if resolved not in job_allowlist:
+    if not _job_name_allowed(resolved, job_allowlist):
         raise HTTPException(status_code=404, detail="Job not found.")
 
     api_version_env = os_module.environ.get("SYSTEM_HEALTH_ARM_API_VERSION")

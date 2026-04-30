@@ -323,6 +323,75 @@ def test_system_health_control_plane_redacts_resource_ids(monkeypatch: pytest.Mo
     assert all("azureId" in item for item in verbose["resources"])
 
 
+def test_system_health_discovers_arm_jobs_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", "sub")
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_RESOURCE_GROUP", "rg")
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_CONTAINERAPPS", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_JOBS", raising=False)
+
+    monkeypatch.setattr(system_health, "_default_layer_specs", lambda: [])
+    monkeypatch.setattr(system_health, "collect_backtest_operational_summary", lambda _dsn: None)
+
+    now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    job_id = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/jobs/bronze-market-job"
+    job_url = f"https://management.azure.com{job_id}"
+    jobs_url = "https://management.azure.com/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/jobs"
+    responses: Dict[str, Dict[str, Any]] = {
+        jobs_url: {"value": [{"name": "bronze-market-job"}]},
+        job_url: {
+            "id": job_id,
+            "properties": {"provisioningState": "Succeeded"},
+        },
+        f"{job_url}/executions": {
+            "value": [
+                {
+                    "properties": {
+                        "status": "Succeeded",
+                        "startTime": "2024-01-01T00:00:00Z",
+                        "endTime": "2024-01-01T00:01:00Z",
+                    }
+                }
+            ]
+        },
+    }
+
+    class FakeAzureArmClient:
+        def __init__(self, cfg: Any) -> None:
+            self._cfg = cfg
+
+        def __enter__(self) -> "FakeAzureArmClient":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+            return None
+
+        def resource_collection_url(self, *, provider: str, resource_type: str) -> str:
+            return (
+                f"https://management.azure.com/subscriptions/{self._cfg.subscription_id}"
+                f"/resourceGroups/{self._cfg.resource_group}"
+                f"/providers/{provider}/{resource_type}"
+            )
+
+        def resource_url(self, *, provider: str, resource_type: str, name: str) -> str:
+            return (
+                f"https://management.azure.com/subscriptions/{self._cfg.subscription_id}"
+                f"/resourceGroups/{self._cfg.resource_group}"
+                f"/providers/{provider}/{resource_type}/{name}"
+            )
+
+        def get_json(self, url: str, *, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+            return responses[url]
+
+    monkeypatch.setattr(system_health, "AzureArmClient", FakeAzureArmClient)
+
+    payload = system_health.collect_system_health_snapshot(now=now, include_resource_ids=False)
+
+    assert payload["overall"] == "healthy"
+    assert payload["resources"][0]["name"] == "bronze-market-job"
+    assert payload["recentJobs"][0]["jobName"] == "bronze-market-job"
+
+
 def test_system_health_includes_intraday_monitor_summary(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
     monkeypatch.delenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", raising=False)

@@ -146,7 +146,8 @@ def _load_streaming_config() -> Optional[LogStreamingConfig]:
 
 def _resource_is_allowlisted(spec: LogStreamSpec) -> bool:
     if spec.resource_type == "job":
-        return spec.resource_name in _split_csv(os.environ.get("SYSTEM_HEALTH_ARM_JOBS"))
+        job_names = _split_csv(os.environ.get("SYSTEM_HEALTH_ARM_JOBS"))
+        return not job_names or "*" in job_names or spec.resource_name in job_names
     return spec.resource_name in _split_csv(os.environ.get("SYSTEM_HEALTH_ARM_CONTAINERAPPS"))
 
 

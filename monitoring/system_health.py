@@ -14,7 +14,12 @@ from monitoring.backtest_health import (
     build_backtest_operational_alerts,
     collect_backtest_operational_summary,
 )
-from monitoring.control_plane import ResourceHealthItem, collect_container_apps, collect_jobs_and_executions
+from monitoring.control_plane import (
+    ResourceHealthItem,
+    collect_container_apps,
+    collect_jobs_and_executions,
+    resolve_container_app_job_names,
+)
 from monitoring.log_analytics import (
     AzureLogAnalyticsClient,
     collect_log_analytics_signals,
@@ -136,6 +141,7 @@ _LEGACY_EXPORTS = (
     ResourceHealthItem,
     collect_container_apps,
     collect_jobs_and_executions,
+    resolve_container_app_job_names,
     AzureLogAnalyticsClient,
     collect_log_analytics_signals,
     parse_log_analytics_queries_json,

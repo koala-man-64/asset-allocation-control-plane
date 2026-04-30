@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sys
+from types import ModuleType, SimpleNamespace
 
 
 def _load_export_module():
@@ -114,3 +115,47 @@ def test_openapi_export_uses_canonical_unprefixed_api_surface(monkeypatch) -> No
     assert "/api/ai/chat/stream" in paths
     assert "/asset-allocation/api/ai/chat/stream" not in paths
     assert os.environ["API_ROOT_PREFIX"] == "asset-allocation"
+
+
+def test_openapi_export_uses_env_web_over_process_environment(tmp_path: Path, monkeypatch) -> None:
+    env_web_path = tmp_path / ".env.web"
+    env_web_path.write_text(
+        "\n".join(
+            [
+                "API_AUTH_SESSION_MODE=cookie",
+                "UI_AUTH_PROVIDER=password",
+                "API_ROOT_PREFIX=from-env-web",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("API_AUTH_SESSION_MODE", "bearer")
+    monkeypatch.delenv("DISABLE_DOTENV", raising=False)
+    monkeypatch.delenv("UI_AUTH_PROVIDER", raising=False)
+    monkeypatch.setenv("API_ROOT_PREFIX", "from-shell")
+
+    captured_env: dict[str, str | None] = {}
+
+    def create_app() -> SimpleNamespace:
+        captured_env["API_AUTH_SESSION_MODE"] = os.environ.get("API_AUTH_SESSION_MODE")
+        captured_env["UI_AUTH_PROVIDER"] = os.environ.get("UI_AUTH_PROVIDER")
+        captured_env["API_ROOT_PREFIX"] = os.environ.get("API_ROOT_PREFIX")
+        return SimpleNamespace(openapi=lambda: {"paths": {"/api/fake": {}}})
+
+    fake_app_module = ModuleType("api.service.app")
+    fake_app_module.create_app = create_app  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "api.service.app", fake_app_module)
+
+    export = _load_export_module()
+    monkeypatch.setattr(export, "ENV_WEB_PATH", env_web_path)
+
+    export._render_artifact_texts()
+
+    assert captured_env == {
+        "API_AUTH_SESSION_MODE": "cookie",
+        "UI_AUTH_PROVIDER": "password",
+        "API_ROOT_PREFIX": "",
+    }
+    assert os.environ["API_AUTH_SESSION_MODE"] == "bearer"
+    assert "UI_AUTH_PROVIDER" not in os.environ
+    assert os.environ["API_ROOT_PREFIX"] == "from-shell"

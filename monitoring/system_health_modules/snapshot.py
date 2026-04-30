@@ -456,7 +456,7 @@ def collect_system_health_snapshot(
     app_names = _runtime_attr(runtime, "_split_csv")(os.environ.get("SYSTEM_HEALTH_ARM_CONTAINERAPPS", ""))
     job_names = _runtime_attr(runtime, "_split_csv")(os.environ.get("SYSTEM_HEALTH_ARM_JOBS", ""))
     logger_runtime.info(
-        "System health ARM probe config: subscription_set=%s resource_group_set=%s apps=%s jobs=%s "
+        "System health ARM probe config: subscription_set=%s resource_group_set=%s apps=%s jobs_configured=%s "
         "arm_api_version_set=%s arm_timeout_set=%s resource_health_api_version_set=%s monitor_metrics_api_version_set=%s "
         "log_analytics_workspace_set=%s job_exec_limit_set=%s",
         bool(subscription_id),
@@ -470,7 +470,7 @@ def collect_system_health_snapshot(
         _runtime_attr(runtime, "_env_has_value")("SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID"),
         _runtime_attr(runtime, "_env_has_value")("SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB"),
     )
-    if subscription_id and resource_group and (app_names or job_names):
+    if subscription_id and resource_group:
         _collect_control_plane_snapshot(
             runtime=runtime,
             now=now,
@@ -486,7 +486,7 @@ def collect_system_health_snapshot(
         )
     else:
         logger_runtime.warning(
-            "System health ARM probes not configured: subscription_set=%s resource_group_set=%s apps=%s jobs=%s",
+            "System health ARM probes not configured: subscription_set=%s resource_group_set=%s apps=%s jobs_configured=%s",
             bool(subscription_id),
             bool(resource_group),
             len(app_names),
@@ -567,6 +567,7 @@ def _collect_control_plane_snapshot(
     azure_log_analytics_client = _runtime_attr(runtime, "AzureLogAnalyticsClient")
     collect_container_apps = _runtime_attr(runtime, "collect_container_apps")
     collect_jobs_and_executions = _runtime_attr(runtime, "collect_jobs_and_executions")
+    resolve_container_app_job_names = _runtime_attr(runtime, "resolve_container_app_job_names")
     collect_monitor_metrics = _runtime_attr(runtime, "collect_monitor_metrics")
     collect_log_analytics_signals = _runtime_attr(runtime, "collect_log_analytics_signals")
     parse_metric_thresholds_json = _runtime_attr(runtime, "parse_metric_thresholds_json")
@@ -613,7 +614,7 @@ def _collect_control_plane_snapshot(
         default_resource_health_api_version,
     )
     containerapp_metric_names = _runtime_attr(runtime, "_split_csv")(os.environ.get("SYSTEM_HEALTH_MONITOR_METRICS_CONTAINERAPP_METRICS")) or (list(default_containerapp_metric_names) if app_names else [])
-    job_metric_names = _runtime_attr(runtime, "_split_csv")(os.environ.get("SYSTEM_HEALTH_MONITOR_METRICS_JOB_METRICS")) or (list(default_job_metric_names) if job_names else [])
+    job_metric_names = _runtime_attr(runtime, "_split_csv")(os.environ.get("SYSTEM_HEALTH_MONITOR_METRICS_JOB_METRICS")) or (list(default_job_metric_names) if job_names or not _runtime_attr(runtime, "_env_has_value")("SYSTEM_HEALTH_ARM_JOBS") else [])
     monitor_metrics_enabled = bool(containerapp_metric_names or job_metric_names)
     monitor_metrics_api_version = (
         env_or_default("SYSTEM_HEALTH_MONITOR_METRICS_API_VERSION", default_monitor_metrics_api_version)
@@ -683,6 +684,20 @@ def _collect_control_plane_snapshot(
     backtest_summary: Dict[str, Any] | None = None
     try:
         with azure_arm_client(arm_cfg) as arm:
+            configured_job_names = list(job_names)
+            try:
+                job_names = resolve_container_app_job_names(
+                    arm,
+                    configured_job_names=configured_job_names,
+                )
+                if configured_job_names:
+                    logger_runtime.info("Using configured Azure Container App Jobs: count=%s", len(job_names))
+                else:
+                    logger_runtime.info("Discovered Azure Container App Jobs: count=%s", len(job_names))
+            except Exception as exc:
+                job_names = configured_job_names
+                logger_runtime.warning("Azure Container App Job discovery failed: %s", exc, exc_info=True)
+
             log_client: Optional[Any] = None
             if log_analytics_enabled:
                 log_client = azure_log_analytics_client(timeout_seconds=log_analytics_timeout_seconds)

@@ -14,6 +14,7 @@ logger = logging.getLogger("asset_allocation.monitoring.control_plane")
 _ACTIVE_EXECUTION_STATUS_TOKENS = frozenset(
     {"running", "processing", "inprogress", "starting", "queued", "waiting", "scheduling"}
 )
+_CONTAINER_APP_RESOURCE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?$")
 _MEMORY_QUANTITY_RE = re.compile(r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]*)\s*$")
 _MEMORY_UNIT_FACTORS = {
     "": 1,
@@ -66,6 +67,64 @@ def _normalize_job_status_token(raw: str) -> str:
 
 def _is_active_execution_status(raw: str) -> bool:
     return _normalize_job_status_token(raw) in _ACTIVE_EXECUTION_STATUS_TOKENS
+
+
+def _dedupe_resource_names(names: Sequence[str]) -> List[str]:
+    out: List[str] = []
+    seen: set[str] = set()
+    for raw in names:
+        name = str(raw or "").strip()
+        if not name or not _CONTAINER_APP_RESOURCE_NAME_RE.fullmatch(name):
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(name)
+    return out
+
+
+def discover_container_app_job_names(arm: AzureArmClient) -> List[str]:
+    """
+    List Container App Jobs in the configured ARM resource group.
+
+    An explicit SYSTEM_HEALTH_ARM_JOBS value can still narrow the monitored set, but
+    the default should be resource-group discovery so new jobs are available without
+    an application config edit.
+    """
+    names: List[str] = []
+    seen: set[str] = set()
+    url = arm.resource_collection_url(provider="Microsoft.App", resource_type="jobs")
+
+    while url:
+        payload = arm.get_json(url)
+        values = payload.get("value") if isinstance(payload.get("value"), list) else []
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name or not _CONTAINER_APP_RESOURCE_NAME_RE.fullmatch(name):
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            names.append(name)
+        next_link = payload.get("nextLink")
+        url = str(next_link or "").strip()
+
+    return sorted(names, key=str.lower)
+
+
+def resolve_container_app_job_names(
+    arm: AzureArmClient,
+    *,
+    configured_job_names: Sequence[str],
+) -> List[str]:
+    configured = _dedupe_resource_names(configured_job_names)
+    if configured:
+        return configured
+    return discover_container_app_job_names(arm)
 
 
 def _include_anchored_active_execution(

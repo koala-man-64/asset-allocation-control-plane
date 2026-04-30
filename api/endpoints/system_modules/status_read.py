@@ -326,19 +326,27 @@ def _overlay_live_domain_job_runtime(system_health_payload: Dict[str, Any]) -> D
     resource_group = resource_group_raw.strip() if resource_group_raw else ""
     allowlist = split_csv(os.environ.get("SYSTEM_HEALTH_ARM_JOBS"))
 
-    if not (subscription_id and resource_group and allowlist):
+    if not (subscription_id and resource_group):
         return system_health_payload
 
-    allowlist_index = {_normalize_job_name_key(name): name for name in allowlist}
     requested_job_names: List[str] = []
     seen: set[str] = set()
-    for job_name in job_names:
-        key = _normalize_job_name_key(job_name)
-        resolved = allowlist_index.get(key)
-        if not resolved or key in seen:
-            continue
-        seen.add(key)
-        requested_job_names.append(resolved)
+    if allowlist and "*" not in allowlist:
+        allowlist_index = {_normalize_job_name_key(name): name for name in allowlist}
+        for job_name in job_names:
+            key = _normalize_job_name_key(job_name)
+            resolved = allowlist_index.get(key)
+            if not resolved or key in seen:
+                continue
+            seen.add(key)
+            requested_job_names.append(resolved)
+    else:
+        for job_name in job_names:
+            key = _normalize_job_name_key(job_name)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            requested_job_names.append(job_name)
 
     if not requested_job_names:
         return system_health_payload
