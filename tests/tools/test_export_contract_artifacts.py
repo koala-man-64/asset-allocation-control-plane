@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import json
 import os
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
+
+import pytest
+
+
+_SHARED_PINS = {
+    "asset-allocation-contracts": "3.12.0",
+    "asset-allocation-runtime-common": "3.5.0",
+}
 
 
 def _load_export_module():
@@ -16,6 +25,36 @@ def _load_export_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _patch_shared_versions(export, monkeypatch: pytest.MonkeyPatch, versions: dict[str, str]) -> None:
+    original_version = export.importlib.metadata.version
+
+    def version(name: str) -> str:
+        if name in versions:
+            return versions[name]
+        return original_version(name)
+
+    monkeypatch.setattr(export, "_shared_dependency_pins", lambda: dict(_SHARED_PINS))
+    monkeypatch.setattr(export.importlib.metadata, "version", version)
+
+
+def _install_fake_ui_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeUiRuntimeConfig:
+        @staticmethod
+        def model_json_schema() -> dict[str, object]:
+            return {"type": "object"}
+
+    fake_ui_config_module = ModuleType("asset_allocation_contracts.ui_config")
+    fake_ui_config_module.UiRuntimeConfig = FakeUiRuntimeConfig  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "asset_allocation_contracts.ui_config", fake_ui_config_module)
+
+
+def _install_fake_export_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_app_module = ModuleType("api.service.app")
+    fake_app_module.create_app = lambda: SimpleNamespace(openapi=lambda: {"paths": {"/api/fake": {}}})  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "api.service.app", fake_app_module)
+    _install_fake_ui_config(monkeypatch)
 
 
 def test_check_mode_passes_when_artifacts_are_current(tmp_path: Path, monkeypatch) -> None:
@@ -104,9 +143,74 @@ def test_check_mode_reports_format_only_json_drift(tmp_path: Path, monkeypatch, 
     assert "Semantic JSON matches; drift is formatting-only." in captured.err
 
 
+def test_shared_dependency_guard_allows_matching_versions(tmp_path: Path, monkeypatch) -> None:
+    export = _load_export_module()
+    _patch_shared_versions(export, monkeypatch, dict(_SHARED_PINS))
+    _install_fake_export_dependencies(monkeypatch)
+    monkeypatch.setattr(export, "ENV_WEB_PATH", tmp_path / ".env.web")
+
+    artifacts = export._render_artifact_texts()
+
+    openapi = json.loads(artifacts[export.OUTPUT_DIR / "control-plane.openapi.json"])
+    ui_schema = json.loads(artifacts[export.OUTPUT_DIR / "ui-runtime-config.schema.json"])
+    assert openapi["paths"] == {"/api/fake": {}}
+    assert ui_schema == {"type": "object"}
+
+
+def test_shared_dependency_guard_rejects_mismatch_before_app_import(monkeypatch) -> None:
+    export = _load_export_module()
+    _patch_shared_versions(
+        export,
+        monkeypatch,
+        {
+            "asset-allocation-contracts": "3.11.0",
+            "asset-allocation-runtime-common": "3.5.0",
+        },
+    )
+    imported_app = False
+    original_import = builtins.__import__
+
+    def tracking_import(name: str, *args, **kwargs):
+        nonlocal imported_app
+        if name == "api.service.app":
+            imported_app = True
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", tracking_import)
+
+    with pytest.raises(SystemExit) as exc_info:
+        export._render_artifact_texts()
+
+    message = str(exc_info.value)
+    assert "asset-allocation-contracts: required 3.12.0, installed 3.11.0" in message
+    assert "python -m pip install asset-allocation-contracts==3.12.0" in message
+    assert "asset-allocation-runtime-common==3.5.0 --no-deps" in message
+    assert imported_app is False
+
+
+def test_shared_dependency_guard_rejects_missing_package(monkeypatch) -> None:
+    export = _load_export_module()
+    monkeypatch.setattr(export, "_shared_dependency_pins", lambda: dict(_SHARED_PINS))
+
+    def version(name: str) -> str:
+        if name == "asset-allocation-contracts":
+            raise export.importlib.metadata.PackageNotFoundError(name)
+        return _SHARED_PINS[name]
+
+    monkeypatch.setattr(export.importlib.metadata, "version", version)
+
+    with pytest.raises(SystemExit) as exc_info:
+        export._assert_shared_dependency_versions_current()
+
+    message = str(exc_info.value)
+    assert "asset-allocation-contracts: required 3.12.0, installed not installed" in message
+    assert "python -m pip install asset-allocation-contracts==3.12.0" in message
+
+
 def test_openapi_export_uses_canonical_unprefixed_api_surface(monkeypatch) -> None:
     monkeypatch.setenv("API_ROOT_PREFIX", "asset-allocation")
     export = _load_export_module()
+    _patch_shared_versions(export, monkeypatch, dict(_SHARED_PINS))
 
     artifacts = export._render_artifact_texts()
     openapi = json.loads(artifacts[export.OUTPUT_DIR / "control-plane.openapi.json"])
@@ -145,8 +249,10 @@ def test_openapi_export_uses_env_web_over_process_environment(tmp_path: Path, mo
     fake_app_module = ModuleType("api.service.app")
     fake_app_module.create_app = create_app  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "api.service.app", fake_app_module)
+    _install_fake_ui_config(monkeypatch)
 
     export = _load_export_module()
+    monkeypatch.setattr(export, "_assert_shared_dependency_versions_current", lambda: None)
     monkeypatch.setattr(export, "ENV_WEB_PATH", env_web_path)
 
     export._render_artifact_texts()
