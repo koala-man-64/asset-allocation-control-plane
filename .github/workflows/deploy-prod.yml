@@ -278,6 +278,7 @@ jobs:
           ACR_PULL_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.identity_client_id }}
           API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}
           API_RUNTIME_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.api_runtime_identity_client_id }}
+          API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS: ${{ vars.API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS || steps.azure.outputs.identity_client_id }}
           CONTAINER_APPS_ENVIRONMENT_ID: ${{ steps.azure.outputs.environment_id }}
         shell: bash
         run: |
