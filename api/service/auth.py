@@ -80,6 +80,19 @@ def _claim_text_list(claims: Dict[str, Any], name: str) -> list[str]:
     return []
 
 
+def _normalized_client_ids(values: list[str]) -> set[str]:
+    return {str(value or "").strip().lower() for value in values if str(value or "").strip()}
+
+
+def _claim_client_ids(claims: Dict[str, Any]) -> set[str]:
+    out: set[str] = set()
+    for name in ("azp", "appid", "client_id"):
+        value = claims.get(name)
+        if isinstance(value, str) and value.strip():
+            out.add(value.strip().lower())
+    return out
+
+
 def _expected_tenant_id_from_issuer(issuer: str) -> str | None:
     parsed = urlparse(str(issuer or "").strip())
     host = (parsed.hostname or "").strip().lower()
@@ -493,12 +506,51 @@ class AuthManager:
         context = dict(request_context or {})
         authorization = (normalized.get("authorization") or "").strip()
         if self._session_cookies.enabled and authorization and _is_bearer_auth(authorization):
-            logger.warning(
-                "POLICY_BLOCKED bearer auth rejected on non-bootstrap endpoint: request_id=%s method=%s path=%s",
-                context.get("request_id", "-"),
-                context.get("method", "-"),
-                context.get("path", "-"),
-            )
+            allowed_client_ids = _normalized_client_ids(self._settings.cookie_auth_bearer_allowed_client_ids)
+            if allowed_client_ids:
+                token = _extract_bearer_token(authorization)
+                ctx = self._verify_bearer_token(token, request_context=context)
+                token_scopes = _claim_text_list(ctx.claims, "scp")
+                if token_scopes:
+                    logger.warning(
+                        "POLICY_BLOCKED delegated bearer auth rejected in cookie mode: request_id=%s method=%s path=%s scp=%s",
+                        context.get("request_id", "-"),
+                        context.get("method", "-"),
+                        context.get("path", "-"),
+                        " ".join(token_scopes),
+                    )
+                    raise AuthError(
+                        status_code=401,
+                        detail="Bearer auth is only accepted on POST /api/auth/session.",
+                        www_authenticate="Bearer",
+                    )
+                token_client_ids = _claim_client_ids(ctx.claims)
+                matched_client_ids = sorted(token_client_ids & allowed_client_ids)
+                if matched_client_ids:
+                    logger.info(
+                        "Auth success via cookie-mode bearer allowlist: request_id=%s path=%s subject=%s client_id=%s roles=%s scp=%s",
+                        context.get("request_id", "-"),
+                        context.get("path", "-"),
+                        ctx.subject or "-",
+                        matched_client_ids[0],
+                        summarize_auth_claims_for_logs(ctx.claims).get("roles"),
+                        summarize_auth_claims_for_logs(ctx.claims).get("scp"),
+                    )
+                    return ctx
+                logger.warning(
+                    "POLICY_BLOCKED bearer auth client not allowed in cookie mode: request_id=%s method=%s path=%s token_client_ids=%s",
+                    context.get("request_id", "-"),
+                    context.get("method", "-"),
+                    context.get("path", "-"),
+                    sorted(token_client_ids),
+                )
+            else:
+                logger.warning(
+                    "POLICY_BLOCKED bearer auth rejected on non-bootstrap endpoint: request_id=%s method=%s path=%s",
+                    context.get("request_id", "-"),
+                    context.get("method", "-"),
+                    context.get("path", "-"),
+                )
             raise AuthError(
                 status_code=401,
                 detail="Bearer auth is only accepted on POST /api/auth/session.",

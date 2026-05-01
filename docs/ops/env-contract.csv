@@ -46,6 +46,7 @@ API_OIDC_JWKS_URL,deploy_var,var,deploy_config,true,Explicit JWKS url when disco
 API_OIDC_REQUIRED_SCOPES,deploy_var,var,deploy_config,true,Optional required scopes for API access.
 API_OIDC_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional required roles for API access.
 API_AUTH_SESSION_MODE,deploy_var,var,deploy_config,true,Auth session transport mode. Standard browser deployments use cookie.
+API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS,deploy_var,var,deploy_config,true,Comma-separated OIDC client ids allowed to use direct bearer auth while API_AUTH_SESSION_MODE=cookie. Prod deploy defaults this to the jobs managed identity client id unless an explicit variable is configured.
 API_AUTH_SESSION_IDLE_TTL_SECONDS,deploy_var,var,deploy_config,true,Sliding idle lifetime in seconds for API auth session cookies. Standard browser default is 1800.
 API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS,deploy_var,var,deploy_config,true,Absolute maximum lifetime in seconds for API auth session cookies. Standard browser default is 28800.
 API_AUTH_SESSION_SECRET_KEYS,secret,secret,secret_store,true,Comma-separated auth session signing/encryption secrets; first key signs new cookies and later keys support rotation.
