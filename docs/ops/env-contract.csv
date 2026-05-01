@@ -218,3 +218,5 @@ POSTGRES_ADMIN_PASSWORD,secret,secret,secret_store,true,Azure Postgres administr
 POSTGRES_DSN,secret,secret,secret_store,true,Control-plane Postgres connection string. Never auto-discovered.
 PYTHON_PACKAGE_INDEX_URL,secret,secret,secret_store,true,Optional primary Python package index used by CI and release workflows when private package publication is enabled.
 PYTHON_PACKAGE_EXTRA_INDEX_URL,secret,secret,secret_store,true,Optional extra Python package index used by CI and release workflows when private package publication is enabled.
+ASSET_ALLOCATION_API_SCOPE,deploy_var,var,deploy_config,true,OAuth scope used by gateway clients when authenticating to the Asset Allocation API via managed identity. Provisioned by provision_entra_oidc.ps1.
+ENTRA_OPERATOR_USER_OBJECT_ID,deploy_var,var,deploy_config,true,Azure AD object ID of the operator user assigned application roles during Entra OIDC provisioning. Provisioned by provision_entra_oidc.ps1.
