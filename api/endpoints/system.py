@@ -251,7 +251,11 @@ def _get_actor(request: Request) -> Optional[str]:
     if settings.anonymous_local_auth_enabled:
         return None
     auth = get_auth_manager(request)
-    ctx = auth.authenticate_headers(dict(request.headers))
+    authenticate = getattr(auth, "authenticate_request", None)
+    if callable(authenticate):
+        ctx = authenticate(dict(request.headers), dict(request.cookies))
+    else:
+        ctx = auth.authenticate_headers(dict(request.headers))
     if ctx.subject:
         return ctx.subject
     for key in ("preferred_username", "email", "upn"):
