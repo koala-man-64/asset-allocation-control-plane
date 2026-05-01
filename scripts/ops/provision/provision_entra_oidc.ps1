@@ -469,6 +469,28 @@ function ConvertTo-ScopePayload {
   }
 }
 
+function Get-AssetAllocationAppRoleDefinitions {
+  return @(
+    [pscustomobject]@{ Value = "AssetAllocation.Access";               Description = "Access the Asset Allocation operator API and UI.";                  AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.AiRelay.Use";          Description = "Use the Asset Allocation AI relay endpoint.";                       AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.System.Read";          Description = "Read system status, runtime config, and operational metadata.";     AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.System.Logs.Read";     Description = "Stream and read live job logs.";                                     AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.System.Operate";       Description = "Trigger system maintenance and operational actions.";               AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.RuntimeConfig.Write";  Description = "Modify runtime configuration.";                                     AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.Jobs.Operate";         Description = "Trigger, cancel, and operate background jobs.";                     AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.Purge.Write";          Description = "Execute purge and destructive cleanup operations.";                 AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.Notifications.Read";   Description = "Read operator notifications.";                                      AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.Notifications.Write";  Description = "Acknowledge, mute, or write operator notifications.";               AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.DataDiscovery.Read";   Description = "Browse and sample discovered data assets.";                         AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.DataDiscovery.Write";  Description = "Modify data discovery metadata and assignments.";                   AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.Quiver.Read";          Description = "Read Quiver Quant data via the Asset Allocation API.";              AssignToOperator = $true  },
+    [pscustomobject]@{ Value = "AssetAllocation.ETrade.Trade";         Description = "Place trades against the E*TRADE broker integration.";              AssignToOperator = $false },
+    [pscustomobject]@{ Value = "AssetAllocation.Schwab.Trade";         Description = "Place trades against the Charles Schwab broker integration.";       AssignToOperator = $false },
+    [pscustomobject]@{ Value = "AssetAllocation.Alpaca.Trade";         Description = "Place trades against the Alpaca broker integration.";               AssignToOperator = $false },
+    [pscustomobject]@{ Value = "AssetAllocation.Kalshi.Trade";         Description = "Place trades against the Kalshi event-contract integration.";       AssignToOperator = $false }
+  )
+}
+
 function Ensure-ApiApplicationConfiguration {
   param([Parameter(Mandatory = $true)][object]$Application)
 
@@ -502,42 +524,45 @@ function Ensure-ApiApplicationConfiguration {
     value                   = "user_impersonation"
   }
 
-  $accessAppRoleId = ""
-  $aiRelayAppRoleId = ""
-  $existingRoles = @()
+  $definitions = Get-AssetAllocationAppRoleDefinitions
+  $definedValues = @{}
+  foreach ($definition in $definitions) {
+    $definedValues[[string]$definition.Value] = $true
+  }
+
+  $existingIdsByValue = @{}
+  $preservedRoles = @()
   foreach ($role in @($graphApp.appRoles)) {
     if ($null -eq $role) { continue }
-    if ([string]$role.value -eq "AssetAllocation.Access") {
-      $accessAppRoleId = [string]$role.id
+    $value = [string]$role.value
+    if ($definedValues.ContainsKey($value)) {
+      if (-not [string]::IsNullOrWhiteSpace([string]$role.id)) {
+        $existingIdsByValue[$value] = [string]$role.id
+      }
       continue
     }
-    if ([string]$role.value -eq "AssetAllocation.AiRelay.Use") {
-      $aiRelayAppRoleId = [string]$role.id
-      continue
+    $preservedRoles += (ConvertTo-AppRolePayload -Role $role -FallbackId ([guid]::NewGuid().Guid))
+  }
+
+  $roleIdsByValue = [ordered]@{}
+  $targetRoles = @()
+  foreach ($definition in $definitions) {
+    $value = [string]$definition.Value
+    if ($existingIdsByValue.ContainsKey($value)) {
+      $roleId = $existingIdsByValue[$value]
     }
-    $existingRoles += (ConvertTo-AppRolePayload -Role $role -FallbackId ([guid]::NewGuid().Guid))
-  }
-  if ([string]::IsNullOrWhiteSpace($accessAppRoleId)) {
-    $accessAppRoleId = [guid]::NewGuid().Guid
-  }
-  if ([string]::IsNullOrWhiteSpace($aiRelayAppRoleId)) {
-    $aiRelayAppRoleId = [guid]::NewGuid().Guid
-  }
-  $accessTargetRole = [ordered]@{
-    allowedMemberTypes = @("User", "Application")
-    description        = "Access the Asset Allocation operator API and UI."
-    displayName        = "AssetAllocation.Access"
-    id                 = $accessAppRoleId
-    isEnabled          = $true
-    value              = "AssetAllocation.Access"
-  }
-  $aiRelayTargetRole = [ordered]@{
-    allowedMemberTypes = @("User", "Application")
-    description        = "Use the Asset Allocation AI relay endpoint."
-    displayName        = "AssetAllocation.AiRelay.Use"
-    id                 = $aiRelayAppRoleId
-    isEnabled          = $true
-    value              = "AssetAllocation.AiRelay.Use"
+    else {
+      $roleId = [guid]::NewGuid().Guid
+    }
+    $roleIdsByValue[$value] = $roleId
+    $targetRoles += [ordered]@{
+      allowedMemberTypes = @("User", "Application")
+      description        = [string]$definition.Description
+      displayName        = $value
+      id                 = $roleId
+      isEnabled          = $true
+      value              = $value
+    }
   }
 
   $patch = [ordered]@{
@@ -547,14 +572,15 @@ function Ensure-ApiApplicationConfiguration {
       requestedAccessTokenVersion = 2
       oauth2PermissionScopes      = @($existingScopes + $targetScope)
     }
-    appRoles       = @($existingRoles + $accessTargetRole + $aiRelayTargetRole)
+    appRoles       = @($preservedRoles + $targetRoles)
   }
 
   Invoke-GraphJson -Method PATCH -Url "https://graph.microsoft.com/v1.0/applications/$($Application.id)" -Body $patch | Out-Null
   return [pscustomobject]@{
     ScopeId          = $scopeId
-    AccessAppRoleId  = $accessAppRoleId
-    AiRelayAppRoleId = $aiRelayAppRoleId
+    AccessAppRoleId  = [string]$roleIdsByValue["AssetAllocation.Access"]
+    AiRelayAppRoleId = [string]$roleIdsByValue["AssetAllocation.AiRelay.Use"]
+    RoleIdsByValue   = $roleIdsByValue
   }
 }
 
@@ -921,10 +947,6 @@ Ensure-UiDelegatedPermission -UiAppId $uiApp.appId -ApiAppId $apiApp.appId -Scop
 $deploySpResult = Ensure-ServicePrincipal -AppId $deployAzureClientId
 $deployServicePrincipal = $deploySpResult.ServicePrincipal
 $managedIdentityPrincipalId = Resolve-ManagedIdentityPrincipalId -IdentityName $AcrPullIdentityName -ResourceGroupName $ResourceGroup
-$operatorAssignmentCreated = Ensure-AppRoleAssignment `
-  -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
-  -PrincipalObjectId $OperatorUserObjectId `
-  -AppRoleId $apiConfig.AccessAppRoleId
 $deployAssignmentCreated = Ensure-AppRoleAssignment `
   -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
   -PrincipalObjectId $deployServicePrincipal.id `
@@ -933,10 +955,23 @@ $runtimeAssignmentCreated = Ensure-AppRoleAssignment `
   -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
   -PrincipalObjectId $managedIdentityPrincipalId `
   -AppRoleId $apiConfig.AccessAppRoleId
-$operatorAiRelayAssignmentCreated = Ensure-AppRoleAssignment `
-  -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
-  -PrincipalObjectId $OperatorUserObjectId `
-  -AppRoleId $apiConfig.AiRelayAppRoleId
+
+$operatorRoleAssignmentsCreated = [ordered]@{}
+foreach ($definition in Get-AssetAllocationAppRoleDefinitions) {
+  if (-not $definition.AssignToOperator) { continue }
+  $value = [string]$definition.Value
+  $roleId = [string]$apiConfig.RoleIdsByValue[$value]
+  if ([string]::IsNullOrWhiteSpace($roleId)) {
+    throw "Missing app role id for '$value' after API application configuration."
+  }
+  $created = Ensure-AppRoleAssignment `
+    -ResourceServicePrincipalObjectId $apiServicePrincipal.id `
+    -PrincipalObjectId $OperatorUserObjectId `
+    -AppRoleId $roleId
+  $operatorRoleAssignmentsCreated[$value] = [bool]$created
+}
+$operatorAssignmentCreated = [bool]$operatorRoleAssignmentsCreated["AssetAllocation.Access"]
+$operatorAiRelayAssignmentCreated = [bool]$operatorRoleAssignmentsCreated["AssetAllocation.AiRelay.Use"]
 
 $authority = "https://login.microsoftonline.com/$tenantId"
 $issuer = "$authority/v2.0"
@@ -977,6 +1012,7 @@ $outputs = [ordered]@{
   apiAppRoleId                        = $apiConfig.AccessAppRoleId
   apiAccessAppRoleId                  = $apiConfig.AccessAppRoleId
   apiAiRelayAppRoleId                 = $apiConfig.AiRelayAppRoleId
+  apiAppRoleIds                       = $apiConfig.RoleIdsByValue
   operatorUserObjectId                = $OperatorUserObjectId
   operatorUserPrincipalName           = $operatorUserAssignment.UserPrincipalName
   operatorUserResolutionSource        = $operatorUserAssignment.Source
@@ -985,6 +1021,7 @@ $outputs = [ordered]@{
   deployPrincipalRoleAssignmentCreated = [bool]$deployAssignmentCreated
   operatorAiRelayRoleAssignmentCreated = [bool]$operatorAiRelayAssignmentCreated
   managedIdentityRoleAssignmentCreated = [bool]$runtimeAssignmentCreated
+  operatorRoleAssignmentsCreated      = $operatorRoleAssignmentsCreated
 }
 
 Write-Host ""

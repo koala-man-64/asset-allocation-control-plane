@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($errors = $null; $tokens = [System.Management.Automation.Language.Parser]::ParseFile\\(\\(Resolve-Path 'scripts/ops/provision/provision_entra_oidc.ps1'\\).Path, [ref]$null, [ref]$errors\\); if \\($errors\\) { $errors | ForEach-Object { Write-Output $_ } } else { Write-Output 'parse-ok' })"
+    ]
+  }
+}
