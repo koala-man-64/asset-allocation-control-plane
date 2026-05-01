@@ -63,7 +63,7 @@ SYSTEM_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for 
 SYSTEM_LOGS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for job and Container App log retrieval endpoints.
 SYSTEM_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to start and stop Container Apps.
 RUNTIME_CONFIG_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to modify runtime config and debug-symbol state.
-JOB_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to run suspend stop or resume Container Apps jobs.
+JOB_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to suspend stop or resume Container Apps jobs. Job run triggers require baseline API auth only.
 PURGE_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for purge rule mutation and purge execution endpoints.
 NOTIFICATIONS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification read access.
 NOTIFICATIONS_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification write access.

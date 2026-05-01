@@ -161,7 +161,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
 
     @router.post("/jobs/{job_name}/run")
     def trigger_job_run(job_name: str, request: Request) -> JSONResponse:
-        require_job_operate_access = _runtime_attr(runtime, "require_job_operate_access")
+        validate_auth = _runtime_attr(runtime, "validate_auth")
         job_control_context = _runtime_attr(runtime, "_job_control_context")
         logger = _runtime_attr(runtime, "logger")
         os_module = _runtime_attr(runtime, "os")
@@ -174,7 +174,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         jobs_topic = _runtime_attr(runtime, "REALTIME_TOPIC_JOBS")
         system_health_topic = _runtime_attr(runtime, "REALTIME_TOPIC_SYSTEM_HEALTH")
 
-        require_job_operate_access(request)
+        validate_auth(request)
         control_context = job_control_context(request)
         logger.info(
             "Trigger job run requested: job=%s actor=%s requestId=%s",
