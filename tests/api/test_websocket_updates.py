@@ -104,9 +104,9 @@ class _FakeStreamingLogAnalyticsClient:
                 {
                     "columns": [
                         {"name": "TimeGenerated", "type": "datetime"},
-                        {"name": "executionName", "type": "string"},
-                        {"name": "stream_s", "type": "string"},
-                        {"name": "msg", "type": "string"},
+                        {"name": "ContainerGroupName", "type": "string"},
+                        {"name": "Stream", "type": "string"},
+                        {"name": "Log", "type": "string"},
                     ],
                     "rows": [
                         [
@@ -171,6 +171,10 @@ async def test_websocket_job_log_stream(tmp_path: Path, monkeypatch: pytest.Monk
     assert payload["lines"][0]["stream_s"] == "stderr"
     assert fake_logs.queries
     assert "let execFilter = 'bronze-market-job-exec-001';" in fake_logs.queries[0][1]
+    assert "ContainerAppName" in fake_logs.queries[0][1]
+    assert "let nonempty = " in fake_logs.queries[0][1]
+    assert "nonempty(column_ifexists('ContainerAppName', ''))" in fake_logs.queries[0][1]
+    assert "| where msg != ''" in fake_logs.queries[0][1]
 
 
 @pytest.mark.asyncio

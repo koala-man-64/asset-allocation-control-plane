@@ -157,59 +157,60 @@ def _build_job_query(job_name: str, *, execution_name: Optional[str] = None, lim
     return f"""
 let jobName = '{job_kql}';
 let execFilter = '{execution_kql}';
+let nonempty = (value:dynamic) {{ iff(isnotempty(tostring(value)), tostring(value), dynamic(null)) }};
 union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
-| extend job = tostring(
-    column_ifexists('ContainerJobName_s',
-        column_ifexists('ContainerName_s',
-            column_ifexists('ContainerAppJobName_s',
-                column_ifexists('JobName_s',
-                    column_ifexists('JobName',
-                        column_ifexists('ContainerAppName_s', '')
-                    )
-                )
-            )
-        )
-    )
-)
-| extend executionName = tostring(
-    column_ifexists('ContainerGroupName_s',
-        column_ifexists('ContainerGroupName',
-            column_ifexists('ContainerAppJobExecutionName_s',
-                column_ifexists('ExecutionName_s',
-                    column_ifexists('ExecutionName',
-                        column_ifexists('ContainerGroupId_g',
-                            column_ifexists('ContainerAppJobExecutionId_g',
-                                column_ifexists('ContainerAppJobExecutionId_s', '')
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+| extend job = tostring(coalesce(
+    nonempty(column_ifexists('ContainerJobName_s', '')),
+    nonempty(column_ifexists('ContainerJobName', '')),
+    nonempty(column_ifexists('ContainerAppJobName_s', '')),
+    nonempty(column_ifexists('ContainerAppJobName', '')),
+    nonempty(column_ifexists('JobName_s', '')),
+    nonempty(column_ifexists('JobName', '')),
+    nonempty(column_ifexists('ContainerAppName_s', '')),
+    nonempty(column_ifexists('ContainerAppName', '')),
+    nonempty(column_ifexists('ContainerName_s', '')),
+    nonempty(column_ifexists('ContainerName', '')),
+    ''
+))
+| extend executionName = tostring(coalesce(
+    nonempty(column_ifexists('ContainerGroupName_s', '')),
+    nonempty(column_ifexists('ContainerGroupName_g', '')),
+    nonempty(column_ifexists('ContainerGroupName', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionName_s', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionName', '')),
+    nonempty(column_ifexists('ExecutionName_s', '')),
+    nonempty(column_ifexists('ExecutionName', '')),
+    nonempty(column_ifexists('ContainerGroupId_s', '')),
+    nonempty(column_ifexists('ContainerGroupId_g', '')),
+    nonempty(column_ifexists('ContainerGroupId', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionId_s', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionId_g', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionId', '')),
+    ''
+))
 | extend resource = tostring(column_ifexists('_ResourceId', column_ifexists('ResourceId', '')))
-| extend msg = tostring(
-    column_ifexists('Log_s',
-        column_ifexists('Log',
-            column_ifexists('LogMessage_s',
-                column_ifexists('Message',
-                    column_ifexists('message', '')
-                )
-            )
-        )
-    )
+| extend msg = tostring(coalesce(
+    nonempty(column_ifexists('Log_s', '')),
+    nonempty(column_ifexists('Log', '')),
+    nonempty(column_ifexists('LogMessage_s', '')),
+    nonempty(column_ifexists('LogMessage', '')),
+    nonempty(column_ifexists('Message_s', '')),
+    nonempty(column_ifexists('Message', '')),
+    nonempty(column_ifexists('message', '')),
+    ''
+))
+| extend stream_s = tostring(coalesce(
+    nonempty(column_ifexists('Stream_s', '')),
+    nonempty(column_ifexists('stream_s', '')),
+    nonempty(column_ifexists('Stream', '')),
+    nonempty(column_ifexists('stream', '')),
+    ''
+))
+| extend matchesJob = (
+    (job != '' and job contains jobName)
+    or (resource contains strcat('/jobs/', jobName))
+    or (resource contains jobName)
 )
-| extend stream_s = tostring(
-    column_ifexists('Stream_s',
-        column_ifexists('stream_s',
-            column_ifexists('Stream',
-                column_ifexists('stream', '')
-            )
-        )
-    )
-)
-| extend matchesJob = ((job != '' and job contains jobName) or (resource contains strcat('/jobs/', jobName)) or (resource contains jobName))
 | extend matchesExecution = (
     execFilter == ''
     or (execFilter != '' and executionName == execFilter)
@@ -279,11 +280,41 @@ def _extract_stream_lines(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        message = redact_sensitive_text(_coalesce_string(row, "msg", "message", "log"))
+        message = redact_sensitive_text(
+            _coalesce_string(
+                row,
+                "msg",
+                "Log_s",
+                "Log",
+                "LogMessage_s",
+                "LogMessage",
+                "Message_s",
+                "Message",
+                "message",
+                "log",
+            )
+        )
         if not message:
             continue
         timestamp = _coalesce_string(row, "TimeGenerated", "timegenerated") or datetime.now(timezone.utc).isoformat()
-        execution_name = _coalesce_string(row, "executionName")
+        execution_name = _coalesce_string(
+            row,
+            "executionName",
+            "ExecutionName",
+            "exec",
+            "Exec",
+            "ContainerGroupName_s",
+            "ContainerGroupName_g",
+            "ContainerGroupName",
+            "ContainerGroupId_s",
+            "ContainerGroupId_g",
+            "ContainerGroupId",
+            "ContainerAppJobExecutionName_s",
+            "ContainerAppJobExecutionName",
+            "ContainerAppJobExecutionId_s",
+            "ContainerAppJobExecutionId_g",
+            "ContainerAppJobExecutionId",
+        )
         stream_name = _coalesce_string(row, "stream_s", "Stream_s", "stream", "Stream")
         digest_source = "|".join([timestamp, execution_name, stream_name, message])
         entry_id = hashlib.sha1(digest_source.encode("utf-8")).hexdigest()
@@ -392,7 +423,22 @@ class LogStreamManager:
                             timespan=timespan,
                         )
                         entries = _extract_stream_lines(payload)
-                        new_entries = [entry for entry in entries if history.remember(str(entry.get("id") or ""))]
+                        row_count = len(extract_first_table_rows(payload))
+                        if row_count == 0:
+                            logger.info(
+                                "Console log stream query returned no rows: "
+                                "topic=%s resource_type=%s resource_name=%s execution=%s "
+                                "timespan=%s row_count=%d",
+                                spec.topic,
+                                spec.resource_type,
+                                spec.resource_name,
+                                spec.execution_name or "-",
+                                timespan,
+                                row_count,
+                            )
+                        new_entries = [
+                            entry for entry in entries if history.remember(str(entry.get("id") or ""))
+                        ]
                         if new_entries:
                             await self._realtime.broadcast(
                                 spec.topic,

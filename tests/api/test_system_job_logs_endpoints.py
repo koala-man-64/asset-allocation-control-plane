@@ -80,6 +80,41 @@ class _FakeJobLogAnalyticsClient:
         }
 
 
+class _UnsuffixedJobLogAnalyticsClient:
+    def __init__(self, *, timeout_seconds: float = 5.0) -> None:
+        self.timeout_seconds = timeout_seconds
+        self.queries: list[tuple[str, str, str | None]] = []
+
+    def __enter__(self) -> "_UnsuffixedJobLogAnalyticsClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def query(self, *, workspace_id: str, query: str, timespan: str | None = None):
+        self.queries.append((workspace_id, query, timespan))
+        return {
+            "tables": [
+                {
+                    "columns": [
+                        {"name": "TimeGenerated", "type": "datetime"},
+                        {"name": "ContainerGroupName", "type": "string"},
+                        {"name": "Stream", "type": "string"},
+                        {"name": "Log", "type": "string"},
+                    ],
+                    "rows": [
+                        [
+                            "2026-02-10T00:00:02Z",
+                            "bronze-market-job-exec-001",
+                            "stdout",
+                            "current schema line",
+                        ],
+                    ],
+                }
+            ]
+        }
+
+
 class _AnchoredJobArmClient:
     def __init__(self, _cfg) -> None:
         return None
@@ -218,6 +253,44 @@ async def test_get_job_logs_returns_console_log_metadata(monkeypatch: pytest.Mon
     assert workspace_id == "workspace-id"
     assert "stream_s" in query
     assert timespan is not None
+
+
+@pytest.mark.asyncio
+async def test_get_job_logs_supports_current_unsuffixed_console_log_columns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_job_env(monkeypatch)
+
+    fake_logs = _UnsuffixedJobLogAnalyticsClient()
+    with patch("api.endpoints.system.AzureArmClient", _FakeJobArmClient), patch(
+        "api.endpoints.system.AzureLogAnalyticsClient", return_value=fake_logs
+    ):
+        app = create_app()
+        async with get_test_client(app) as client:
+            resp = await client.get("/api/system/jobs/bronze-market-job/logs?runs=1")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    run = payload["runs"][0]
+    assert run["tail"] == ["current schema line"]
+    assert run["consoleLogs"] == [
+        {
+            "timestamp": "2026-02-10T00:00:02Z",
+            "stream_s": "stdout",
+            "executionName": "bronze-market-job-exec-001",
+            "message": "current schema line",
+        }
+    ]
+
+    assert len(fake_logs.queries) == 1
+    _workspace_id, query, _timespan = fake_logs.queries[0]
+    assert "ContainerAppName" in query
+    assert "ContainerAppName_s" in query
+    assert "let nonempty = " in query
+    assert "nonempty(column_ifexists('ContainerAppName', ''))" in query
+    assert "Log" in query
+    assert "Stream" in query
+    assert "| where msg != ''" in query
 
 
 @pytest.mark.asyncio
