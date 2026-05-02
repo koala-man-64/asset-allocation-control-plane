@@ -45,6 +45,55 @@ def normalize_strategy_config_document(config: Any) -> Dict:
 
     return normalized
 
+
+def _as_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _resolve_revision(
+    cur,
+    *,
+    table: str,
+    name_column: str,
+    label: str,
+    name: str,
+    version: int | None,
+) -> dict[str, Any]:
+    if version is None:
+        cur.execute(
+            f"""
+            SELECT {name_column}, version, description, config
+            FROM {table}
+            WHERE {name_column} = %s
+            ORDER BY version DESC
+            LIMIT 1
+            """,
+            (name,),
+        )
+    else:
+        cur.execute(
+            f"""
+            SELECT {name_column}, version, description, config
+            FROM {table}
+            WHERE {name_column} = %s AND version = %s
+            """,
+            (name, int(version)),
+        )
+    row = cur.fetchone()
+    if not row:
+        suffix = f" version {version}" if version is not None else ""
+        raise ValueError(f"{label} '{name}'{suffix} not found.")
+    return dict(zip(["name", "version", "description", "config"], row))
+
+
 class StrategyRepository:
     def __init__(self, dsn: Optional[str] = None):
         self.dsn = dsn or os.environ.get("POSTGRES_DSN")
@@ -115,13 +164,102 @@ class StrategyRepository:
             with connect(self.dsn) as conn:
                 with conn.cursor() as cur:
                     output_table_name = slugify_strategy_output_table(name)
+                    ranking_schema_name = str(normalized_config.get("rankingSchemaName") or "").strip() or None
+                    universe_name = str(normalized_config.get("universeConfigName") or "").strip() or None
+                    ranking_schema_version = _optional_int(normalized_config.get("rankingSchemaVersion"))
+                    universe_version = _optional_int(normalized_config.get("universeConfigVersion"))
+
+                    if ranking_schema_name:
+                        ranking_revision = _resolve_revision(
+                            cur,
+                            table="core.ranking_schema_revisions",
+                            name_column="schema_name",
+                            label="Ranking schema",
+                            name=ranking_schema_name,
+                            version=ranking_schema_version,
+                        )
+                        ranking_schema_version = int(ranking_revision["version"])
+                        normalized_config["rankingSchemaVersion"] = ranking_schema_version
+                        ranking_config = _as_mapping(ranking_revision.get("config"))
+                        if universe_name is None:
+                            universe_name = str(ranking_config.get("universeConfigName") or "").strip() or None
+                            if universe_name:
+                                normalized_config["universeConfigName"] = universe_name
+
+                    if universe_name:
+                        universe_revision = _resolve_revision(
+                            cur,
+                            table="core.universe_config_revisions",
+                            name_column="universe_name",
+                            label="Universe config",
+                            name=universe_name,
+                            version=universe_version,
+                        )
+                        universe_version = int(universe_revision["version"])
+                        normalized_config["universeConfigVersion"] = universe_version
+
+                    regime_policy_name = str(normalized_config.get("regimePolicyConfigName") or "").strip() or None
+                    regime_policy_version = _optional_int(normalized_config.get("regimePolicyConfigVersion"))
+                    if regime_policy_name:
+                        regime_policy_revision = _resolve_revision(
+                            cur,
+                            table="core.regime_policy_config_revisions",
+                            name_column="policy_name",
+                            label="Regime policy config",
+                            name=regime_policy_name,
+                            version=regime_policy_version,
+                        )
+                        regime_policy_version = int(regime_policy_revision["version"])
+                        normalized_config["regimePolicyConfigVersion"] = regime_policy_version
+                        normalized_config["regimePolicy"] = _as_mapping(regime_policy_revision.get("config"))
+
+                    risk_policy_name = str(normalized_config.get("riskPolicyName") or "").strip() or None
+                    risk_policy_version = _optional_int(normalized_config.get("riskPolicyVersion"))
+                    if risk_policy_name:
+                        risk_policy_revision = _resolve_revision(
+                            cur,
+                            table="core.risk_policy_config_revisions",
+                            name_column="policy_name",
+                            label="Risk policy config",
+                            name=risk_policy_name,
+                            version=risk_policy_version,
+                        )
+                        risk_policy_version = int(risk_policy_revision["version"])
+                        normalized_config["riskPolicyVersion"] = risk_policy_version
+                        risk_policy_config = _as_mapping(risk_policy_revision.get("config"))
+                        resolved_policy = risk_policy_config.get("policy", risk_policy_config)
+                        normalized_config["strategyRiskPolicy"] = resolved_policy
+
+                    exit_rule_set_name = str(normalized_config.get("exitRuleSetName") or "").strip() or None
+                    exit_rule_set_version = _optional_int(normalized_config.get("exitRuleSetVersion"))
+                    if exit_rule_set_name:
+                        exit_rule_set_revision = _resolve_revision(
+                            cur,
+                            table="core.exit_rule_set_revisions",
+                            name_column="rule_set_name",
+                            label="Exit rule set",
+                            name=exit_rule_set_name,
+                            version=exit_rule_set_version,
+                        )
+                        exit_rule_set_version = int(exit_rule_set_revision["version"])
+                        normalized_config["exitRuleSetVersion"] = exit_rule_set_version
+                        exit_rule_set_config = _as_mapping(exit_rule_set_revision.get("config"))
+                        normalized_config["intrabarConflictPolicy"] = (
+                            str(exit_rule_set_config.get("intrabarConflictPolicy") or "").strip() or "stop_first"
+                        )
+                        normalized_config["exits"] = (
+                            exit_rule_set_config.get("exits")
+                            if isinstance(exit_rule_set_config.get("exits"), list)
+                            else []
+                        )
+
                     config_hash = _stable_config_hash(normalized_config)
                     cur.execute(
                         f"""
                         INSERT INTO {STRATEGIES_TABLE} (name, config, type, description, output_table_name, updated_at)
                         VALUES (%s, %s, %s, %s, %s, NOW())
-                        ON CONFLICT (name) 
-                        DO UPDATE SET 
+                        ON CONFLICT (name)
+                        DO UPDATE SET
                             config = EXCLUDED.config,
                             type = EXCLUDED.type,
                             description = EXCLUDED.description,
@@ -130,31 +268,6 @@ class StrategyRepository:
                         """,
                         (name, json.dumps(normalized_config), strategy_type, description, output_table_name)
                     )
-                    ranking_schema_name = str(normalized_config.get("rankingSchemaName") or "").strip() or None
-                    universe_name = str(normalized_config.get("universeConfigName") or "").strip() or None
-                    ranking_schema_version: int | None = None
-                    universe_version: int | None = None
-
-                    if ranking_schema_name:
-                        cur.execute(
-                            "SELECT version, config FROM core.ranking_schemas WHERE name = %s",
-                            (ranking_schema_name,),
-                        )
-                        ranking_row = cur.fetchone()
-                        if ranking_row:
-                            ranking_schema_version = int(ranking_row[0])
-                            ranking_config = ranking_row[1] if isinstance(ranking_row[1], dict) else {}
-                            if universe_name is None and isinstance(ranking_config, dict):
-                                universe_name = str(ranking_config.get("universeConfigName") or "").strip() or None
-
-                    if universe_name:
-                        cur.execute(
-                            "SELECT version FROM core.universe_configs WHERE name = %s",
-                            (universe_name,),
-                        )
-                        universe_row = cur.fetchone()
-                        if universe_row:
-                            universe_version = int(universe_row[0])
 
                     cur.execute(
                         """
@@ -177,12 +290,22 @@ class StrategyRepository:
                             ranking_schema_version,
                             universe_name,
                             universe_version,
+                            regime_policy_name,
+                            regime_policy_version,
+                            risk_policy_name,
+                            risk_policy_version,
+                            exit_rule_set_name,
+                            exit_rule_set_version,
                             status,
                             config_hash,
                             published_at,
                             created_at
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'published', %s, NOW(), NOW())
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s,
+                            'published', %s, NOW(), NOW()
+                        )
                         """,
                         (
                             name,
@@ -193,6 +316,12 @@ class StrategyRepository:
                             ranking_schema_version,
                             universe_name,
                             universe_version,
+                            regime_policy_name,
+                            regime_policy_version,
+                            risk_policy_name,
+                            risk_policy_version,
+                            exit_rule_set_name,
+                            exit_rule_set_version,
                             config_hash,
                         ),
                     )
@@ -261,6 +390,12 @@ class StrategyRepository:
                                 ranking_schema_version,
                                 universe_name,
                                 universe_version,
+                                regime_policy_name,
+                                regime_policy_version,
+                                risk_policy_name,
+                                risk_policy_version,
+                                exit_rule_set_name,
+                                exit_rule_set_version,
                                 status,
                                 config_hash,
                                 published_at,
@@ -284,6 +419,12 @@ class StrategyRepository:
                                 ranking_schema_version,
                                 universe_name,
                                 universe_version,
+                                regime_policy_name,
+                                regime_policy_version,
+                                risk_policy_name,
+                                risk_policy_version,
+                                exit_rule_set_name,
+                                exit_rule_set_version,
                                 status,
                                 config_hash,
                                 published_at,
@@ -305,6 +446,12 @@ class StrategyRepository:
                         "ranking_schema_version",
                         "universe_name",
                         "universe_version",
+                        "regime_policy_name",
+                        "regime_policy_version",
+                        "risk_policy_name",
+                        "risk_policy_version",
+                        "exit_rule_set_name",
+                        "exit_rule_set_version",
                         "status",
                         "config_hash",
                         "published_at",
