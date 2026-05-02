@@ -177,7 +177,7 @@ GitHub variables:
 
 - If `ci.yml` fails on artifact drift, regenerate `api/contracts/*` with `python scripts/automation/export_contract_artifacts.py` and commit the changes.
 - To check artifact drift locally without rewriting files, run `python scripts/automation/run_quality_gate.py contract-artifacts`.
-- To block stale contract artifacts before commit in your local clone, run `python scripts/dev/install_git_hooks.py`.
+- To block stale contract artifacts before commits to `main` in your local clone, run `python scripts/dev/install_git_hooks.py`.
 - Treat OpenAPI-facing route model changes as contract changes even when runtime behavior is unchanged. Imported shared Pydantic models used directly in FastAPI route signatures can change generated component names and should ship with regenerated `api/contracts/*` in the same PR.
 - If `release.yml` fails in preflight, fix the named prerequisite first:
   - missing `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`, `ACR_NAME`, `DISPATCH_APP_ID`, or `DISPATCH_APP_PRIVATE_KEY`
