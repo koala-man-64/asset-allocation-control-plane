@@ -164,13 +164,13 @@ def test_download_exact_wheel_metadata_bypasses_pip_cache(monkeypatch, tmp_path:
     def run(command: list[str], *, check: bool, capture_output: bool, text: bool) -> subprocess.CompletedProcess[str]:
         captured["command"] = command
         download_dir = Path(command[command.index("--dest") + 1])
-        (download_dir / "asset_allocation_runtime_common-3.5.0-py3-none-any.whl").write_bytes(b"wheel")
+        (download_dir / "asset_allocation_runtime_common-3.5.3-py3-none-any.whl").write_bytes(b"wheel")
         return subprocess.CompletedProcess(command, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(dependency_governance.subprocess, "run", run)
     monkeypatch.setattr(dependency_governance, "read_wheel_metadata", lambda path: "Metadata-Version: 2.4\n")
 
-    assert dependency_governance.download_exact_wheel_metadata("asset-allocation-runtime-common==3.5.0")
+    assert dependency_governance.download_exact_wheel_metadata("asset-allocation-runtime-common==3.5.3")
     assert "--no-cache-dir" in captured["command"]
     assert "--disable-pip-version-check" in captured["command"]
     assert "--no-deps" in captured["command"]

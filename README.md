@@ -8,8 +8,8 @@ Runtime-owned control-plane repository for:
 Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
-python -m pip install asset-allocation-contracts==3.12.0
-python -m pip install asset-allocation-runtime-common==3.5.0 --no-deps
+python -m pip install asset-allocation-contracts==3.14.0
+python -m pip install asset-allocation-runtime-common==3.5.3 --no-deps
 python -m pytest tests/api tests/monitoring -q
 ```
 
@@ -50,7 +50,7 @@ This is a contracts-repo-first change area. The control-plane now exposes `POST 
 - Requests support `application/json` when no files are sent and `multipart/form-data` with a JSON `request` part plus repeated `files` parts when attachments are included.
 - Responses stream typed SSE events: `started`, `status`, `reasoning_summary_delta`, `output_text_delta`, `completed`, and `error`.
 - Runtime configuration is disabled by default. Enable it with `AI_RELAY_ENABLED=true` plus a real `AI_RELAY_API_KEY`.
-- The repo currently ships a compatibility shim for the AI request and stream event models. Publish the shared `asset-allocation-contracts` AI types and then bump the package here to remove the fallback.
+- AI request and stream event models are imported from `asset-allocation-contracts`; regenerate `api/contracts/*` whenever those shared route models change.
 
 ## Operations
 

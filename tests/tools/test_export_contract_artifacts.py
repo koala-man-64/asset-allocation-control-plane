@@ -12,8 +12,8 @@ import pytest
 
 
 _SHARED_PINS = {
-    "asset-allocation-contracts": "3.12.0",
-    "asset-allocation-runtime-common": "3.5.0",
+    "asset-allocation-contracts": "3.14.0",
+    "asset-allocation-runtime-common": "3.5.3",
 }
 
 
@@ -164,7 +164,7 @@ def test_shared_dependency_guard_rejects_mismatch_before_app_import(monkeypatch)
         monkeypatch,
         {
             "asset-allocation-contracts": "3.11.0",
-            "asset-allocation-runtime-common": "3.5.0",
+            "asset-allocation-runtime-common": "3.5.3",
         },
     )
     imported_app = False
@@ -182,9 +182,9 @@ def test_shared_dependency_guard_rejects_mismatch_before_app_import(monkeypatch)
         export._render_artifact_texts()
 
     message = str(exc_info.value)
-    assert "asset-allocation-contracts: required 3.12.0, installed 3.11.0" in message
-    assert "python -m pip install asset-allocation-contracts==3.12.0" in message
-    assert "asset-allocation-runtime-common==3.5.0 --no-deps" in message
+    assert "asset-allocation-contracts: required 3.14.0, installed 3.11.0" in message
+    assert "python -m pip install asset-allocation-contracts==3.14.0" in message
+    assert "asset-allocation-runtime-common==3.5.3 --no-deps" in message
     assert imported_app is False
 
 
@@ -203,8 +203,8 @@ def test_shared_dependency_guard_rejects_missing_package(monkeypatch) -> None:
         export._assert_shared_dependency_versions_current()
 
     message = str(exc_info.value)
-    assert "asset-allocation-contracts: required 3.12.0, installed not installed" in message
-    assert "python -m pip install asset-allocation-contracts==3.12.0" in message
+    assert "asset-allocation-contracts: required 3.14.0, installed not installed" in message
+    assert "python -m pip install asset-allocation-contracts==3.14.0" in message
 
 
 def test_openapi_export_uses_canonical_unprefixed_api_surface(monkeypatch) -> None:
