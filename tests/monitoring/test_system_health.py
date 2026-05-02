@@ -145,6 +145,111 @@ def test_system_health_normalizes_government_signals_storage_paths(
     assert all("/" not in job_name for job_name in job_names)
 
 
+def test_system_health_omits_trigger_metadata_for_missing_arm_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker_time = datetime(2026, 3, 3, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setenv("SYSTEM_HEALTH_RUN_IN_TEST", "true")
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID", "sub")
+    monkeypatch.setenv("SYSTEM_HEALTH_ARM_RESOURCE_GROUP", "rg")
+    monkeypatch.setenv("SYSTEM_HEALTH_MARKERS_CONTAINER", "common")
+    monkeypatch.setenv("AZURE_CONTAINER_BRONZE", "bronze")
+    monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_NAME", "storage")
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_CONTAINERAPPS", raising=False)
+    monkeypatch.delenv("SYSTEM_HEALTH_ARM_JOBS", raising=False)
+
+    class _FakeStore:
+        def get_blob_last_modified(self, *, container: str, blob_name: str) -> datetime:
+            assert container == "common"
+            assert blob_name.startswith("system/health_markers/bronze/")
+            return marker_time
+
+    class _FakeBlobConfig:
+        @classmethod
+        def from_env(cls) -> "_FakeBlobConfig":
+            return cls()
+
+    class _FakeNotFound(Exception):
+        status_code = 404
+
+    class _FakeAzureArmClient:
+        def __init__(self, cfg: Any) -> None:
+            self._cfg = cfg
+
+        def __enter__(self) -> "_FakeAzureArmClient":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+            return None
+
+        def resource_url(self, *, provider: str, resource_type: str, name: str) -> str:
+            return (
+                f"https://management.azure.com/subscriptions/{self._cfg.subscription_id}"
+                f"/resourceGroups/{self._cfg.resource_group}"
+                f"/providers/{provider}/{resource_type}/{name}"
+            )
+
+        def resource_collection_url(self, *, provider: str, resource_type: str) -> str:
+            return (
+                f"https://management.azure.com/subscriptions/{self._cfg.subscription_id}"
+                f"/resourceGroups/{self._cfg.resource_group}"
+                f"/providers/{provider}/{resource_type}"
+            )
+
+        def get_json(self, url: str, *, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+            del params
+            if url.endswith("/jobs/bronze-government-signals-job"):
+                raise _FakeNotFound("Resource not found")
+            if url.endswith("/jobs/bronze-market-job"):
+                return {
+                    "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/jobs/bronze-market-job",
+                    "properties": {
+                        "configuration": {
+                            "triggerType": "Schedule",
+                            "scheduleTriggerConfig": {"cronExpression": "0 22 * * 1-5"},
+                        }
+                    },
+                }
+            raise AssertionError(f"Unexpected ARM URL: {url}")
+
+    spec = system_health.LayerProbeSpec(
+        name="Bronze",
+        description="Raw ingestion",
+        container_env="AZURE_CONTAINER_BRONZE",
+        max_age_seconds=129600,
+        marker_blobs=(
+            system_health.DomainSpec("market-data/whitelist.csv", cron="0 22 * * 1-5"),
+            system_health.DomainSpec("government-signals/runs/", cron="*/15 * * * *"),
+        ),
+    )
+
+    monkeypatch.setattr(system_health, "_default_layer_specs", lambda: [spec])
+    monkeypatch.setattr(system_health, "AzureBlobStoreConfig", _FakeBlobConfig)
+    monkeypatch.setattr(system_health, "AzureBlobStore", lambda _cfg: _FakeStore())
+    monkeypatch.setattr(system_health, "AzureArmClient", _FakeAzureArmClient)
+    monkeypatch.setattr(
+        system_health,
+        "resolve_container_app_job_names",
+        lambda _arm, *, configured_job_names: [],
+    )
+
+    payload = system_health.collect_system_health_snapshot(
+        now=datetime(2026, 3, 3, 12, 30, tzinfo=timezone.utc),
+        include_resource_ids=False,
+    )
+
+    domains = {
+        str(item["name"]): item
+        for item in payload["dataLayers"][0]["domains"]
+    }
+    assert domains["market"]["jobName"] == "bronze-market-job"
+    assert domains["market"]["jobUrl"].endswith("/jobs/bronze-market-job/overview")
+    assert domains["government-signals"]["jobName"] is None
+    assert domains["government-signals"]["jobUrl"] is None
+    assert domains["government-signals"]["cron"] == "*/15 * * * *"
+
+
 @pytest.mark.asyncio
 async def test_system_health_public_when_no_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("API_OIDC_ISSUER", raising=False)

@@ -157,7 +157,8 @@ def collect_system_health_snapshot(
     load_freshness_overrides = _runtime_attr(runtime, "_load_freshness_overrides")
     marker_probe_config = _runtime_attr(runtime, "_marker_probe_config")
     collect_job_names_for_layers = _runtime_attr(runtime, "_collect_job_names_for_layers")
-    load_job_schedule_metadata = _runtime_attr(runtime, "_load_job_schedule_metadata")
+    load_job_schedule_probe = _runtime_attr(runtime, "_load_job_schedule_probe")
+    job_exists_in_schedule_probe = _runtime_attr(runtime, "_job_exists_in_schedule_probe")
     domain_name_from_marker_path = _runtime_attr(runtime, "_domain_name_from_marker_path")
     domain_name_from_delta_path = _runtime_attr(runtime, "_domain_name_from_delta_path")
     resolve_domain_schedule = _runtime_attr(runtime, "_resolve_domain_schedule")
@@ -196,11 +197,12 @@ def collect_system_health_snapshot(
     freshness_overrides = load_freshness_overrides()
     marker_cfg = marker_probe_config()
     layer_job_names = collect_job_names_for_layers(layer_specs)
-    job_schedule_metadata = load_job_schedule_metadata(
+    job_schedule_probe = load_job_schedule_probe(
         subscription_id=sub_id,
         resource_group=rg,
         job_names=layer_job_names,
     )
+    job_schedule_metadata = getattr(job_schedule_probe, "metadata", {}) or {}
 
     for spec in layer_specs:
         layer_last_updated: Optional[datetime] = None
@@ -218,7 +220,10 @@ def collect_system_health_snapshot(
             domain_path = os.path.dirname(blob_name) or blob_name
             name_clean = domain_name_from_marker_path(blob_name)
             job_name = _derive_job_name(spec.name, name_clean)
-            job_url = _make_job_portal_url(sub_id, rg, job_name)
+            runnable_job_name = (
+                job_name if job_exists_in_schedule_probe(job_schedule_probe, job_name) else None
+            )
+            job_url = _make_job_portal_url(sub_id, rg, runnable_job_name or "")
             folder_url = _make_folder_portal_url(sub_id, rg, storage_account, container, domain_path)
             domain_cron, domain_frequency = resolve_domain_schedule(
                 job_name=job_name,
@@ -254,7 +259,7 @@ def collect_system_health_snapshot(
                         "status": "error",
                         "portalUrl": folder_url,
                         "jobUrl": job_url,
-                        "jobName": job_name,
+                        "jobName": runnable_job_name,
                         "freshnessSource": probe_resolution.source,
                         "freshnessPolicySource": policy.source,
                         "warnings": probe_resolution.warnings,
@@ -284,7 +289,7 @@ def collect_system_health_snapshot(
                     "status": status,
                     "portalUrl": folder_url,
                     "jobUrl": job_url,
-                    "jobName": job_name,
+                    "jobName": runnable_job_name,
                     "freshnessSource": probe_resolution.source,
                     "freshnessPolicySource": policy.source,
                     "warnings": probe_resolution.warnings,
@@ -295,7 +300,10 @@ def collect_system_health_snapshot(
             table_path = domain_spec.path
             name_clean = domain_name_from_delta_path(table_path)
             job_name = _derive_job_name(spec.name, name_clean)
-            job_url = _make_job_portal_url(sub_id, rg, job_name)
+            runnable_job_name = (
+                job_name if job_exists_in_schedule_probe(job_schedule_probe, job_name) else None
+            )
+            job_url = _make_job_portal_url(sub_id, rg, runnable_job_name or "")
             folder_url = _make_folder_portal_url(sub_id, rg, storage_account, container, table_path)
             domain_cron, domain_frequency = resolve_domain_schedule(
                 job_name=job_name,
@@ -348,7 +356,7 @@ def collect_system_health_snapshot(
                         "version": None,
                         "portalUrl": folder_url,
                         "jobUrl": job_url,
-                        "jobName": job_name,
+                        "jobName": runnable_job_name,
                         "freshnessSource": probe_resolution.source,
                         "freshnessPolicySource": policy.source,
                         "warnings": probe_resolution.warnings,
@@ -376,7 +384,7 @@ def collect_system_health_snapshot(
                     "version": delta_version if delta_version is not None else None,
                     "portalUrl": folder_url,
                     "jobUrl": job_url,
-                    "jobName": job_name,
+                    "jobName": runnable_job_name,
                     "freshnessSource": probe_resolution.source,
                     "freshnessPolicySource": policy.source,
                     "warnings": probe_resolution.warnings,

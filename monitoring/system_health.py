@@ -59,6 +59,7 @@ from monitoring.system_health_modules.env_config import (
 )
 from monitoring.system_health_modules.freshness import (
     DomainSpec,
+    JobScheduleProbeResult,
     DomainTimestampResolution,
     LayerProbeSpec,
     _collect_job_names_for_layers,
@@ -67,6 +68,8 @@ from monitoring.system_health_modules.freshness import (
     _domain_name_from_delta_path,
     _domain_name_from_marker_path,
     _load_freshness_overrides,
+    _job_exists_in_schedule_probe,
+    _load_job_schedule_probe,
     _load_job_schedule_metadata,
     _marker_blob_name,
     _marker_probe_config,
@@ -178,6 +181,7 @@ _LEGACY_EXPORTS = (
     _require_int,
     _split_csv,
     DomainSpec,
+    JobScheduleProbeResult,
     DomainTimestampResolution,
     LayerProbeSpec,
     _collect_job_names_for_layers,
@@ -186,6 +190,8 @@ _LEGACY_EXPORTS = (
     _domain_name_from_delta_path,
     _domain_name_from_marker_path,
     _load_freshness_overrides,
+    _job_exists_in_schedule_probe,
+    _load_job_schedule_probe,
     _load_job_schedule_metadata,
     _marker_blob_name,
     _marker_probe_config,

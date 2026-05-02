@@ -253,6 +253,13 @@ class DomainTimestampResolution:
     error: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class JobScheduleProbeResult:
+    metadata: Dict[str, JobScheduleMetadata]
+    existing_job_names: frozenset[str]
+    authoritative: bool
+
+
 def _resolve_last_updated_with_marker_probes(
     *,
     layer_name: str,
@@ -358,14 +365,51 @@ def _collect_job_names_for_layers(specs: Sequence["LayerProbeSpec"]) -> List[str
     return names
 
 
-def _load_job_schedule_metadata(
+def _is_arm_not_found_error(exc: Exception) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int) and status_code == 404:
+        return True
+
+    response = getattr(exc, "response", None)
+    if response is not None:
+        response_status = getattr(response, "status_code", None)
+        if response_status is None:
+            response_status = getattr(response, "status", None)
+        if isinstance(response_status, int) and response_status == 404:
+            return True
+
+    error_code = str(getattr(exc, "error_code", "") or "").strip().lower()
+    if error_code in {"resourcenotfound", "notfound"}:
+        return True
+
+    class_name = exc.__class__.__name__.lower()
+    if "notfound" in class_name:
+        return True
+
+    message = str(exc).lower()
+    return any(
+        token in message
+        for token in (
+            "resource not found",
+            "status code: 404",
+            "http status code 404",
+            "404 client error",
+        )
+    )
+
+
+def _load_job_schedule_probe(
     *,
     subscription_id: str,
     resource_group: str,
     job_names: Sequence[str],
-) -> Dict[str, JobScheduleMetadata]:
+) -> JobScheduleProbeResult:
     if not subscription_id or not resource_group or not job_names:
-        return {}
+        return JobScheduleProbeResult(
+            metadata={},
+            existing_job_names=frozenset(),
+            authoritative=False,
+        )
 
     arm_config_cls = _runtime_attr("ArmConfig")
     azure_arm_client = _runtime_attr("AzureArmClient")
@@ -392,6 +436,8 @@ def _load_job_schedule_metadata(
     )
 
     metadata: Dict[str, JobScheduleMetadata] = {}
+    existing_job_names: set[str] = set()
+    authoritative = True
     try:
         with azure_arm_client(arm_cfg) as arm:
             for name in job_names:
@@ -407,6 +453,7 @@ def _load_job_schedule_metadata(
                             name=job_name,
                         )
                     )
+                    existing_job_names.add(job_key)
                     props = payload.get("properties") if isinstance(payload, dict) else {}
                     cfg = props.get("configuration") if isinstance(props, dict) else {}
                     trigger_type = str(cfg.get("triggerType") or "").strip().lower() if isinstance(cfg, dict) else ""
@@ -423,11 +470,52 @@ def _load_job_schedule_metadata(
                         cron_expression=cron_expression,
                     )
                 except Exception as exc:
+                    if _is_arm_not_found_error(exc):
+                        logger.info("Container App Job not found while resolving metadata: job=%s", job_name)
+                        continue
+                    authoritative = False
                     logger.info("Unable to resolve job trigger metadata for job=%s: %s", job_name, exc)
     except Exception as exc:
         logger.info("Skipping job schedule metadata probe (ARM unavailable): %s", exc)
+        return JobScheduleProbeResult(
+            metadata={},
+            existing_job_names=frozenset(),
+            authoritative=False,
+        )
 
-    return metadata
+    return JobScheduleProbeResult(
+        metadata=metadata,
+        existing_job_names=frozenset(existing_job_names),
+        authoritative=authoritative,
+    )
+
+
+def _load_job_schedule_metadata(
+    *,
+    subscription_id: str,
+    resource_group: str,
+    job_names: Sequence[str],
+) -> Dict[str, JobScheduleMetadata]:
+    return _load_job_schedule_probe(
+        subscription_id=subscription_id,
+        resource_group=resource_group,
+        job_names=job_names,
+    ).metadata
+
+
+def _job_exists_in_schedule_probe(probe: Any, job_name: str) -> bool:
+    job_key = str(job_name or "").strip().lower()
+    if not job_key:
+        return False
+
+    if not bool(getattr(probe, "authoritative", False)):
+        return True
+
+    existing_job_names = getattr(probe, "existing_job_names", frozenset())
+    try:
+        return job_key in existing_job_names
+    except TypeError:
+        return False
 
 
 def _resolve_domain_schedule(
