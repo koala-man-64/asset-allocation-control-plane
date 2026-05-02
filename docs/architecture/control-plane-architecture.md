@@ -76,7 +76,7 @@ Evidence:
 ## System overview
 
 - Confirmed: `api/service/app.py` is the application composition root. It constructs the FastAPI app, owns lifespan startup and shutdown, wires auth and provider gateways, initializes realtime/log streaming support, and registers the route surfaces.
-- Confirmed: the API surface includes system, data, Postgres, universes, strategies, rankings, regimes, backtests, internal, realtime, and provider routes.
+- Confirmed: the API surface includes system, data, Postgres, universes, strategy configuration libraries, strategies, rankings, regimes, backtests, internal, realtime, and provider routes.
 - Confirmed: the repo also owns monitoring and control-plane inspection logic used to build richer system-health views than the simple liveness and readiness endpoints.
 - Confirmed: the repo publishes runtime contract artifacts for downstream consumers.
 - Inference: this control plane exists to centralize operator-visible runtime state, monitoring, and command surfaces so the UI and jobs runtimes can consume a stable control boundary instead of sharing source code.
@@ -123,6 +123,8 @@ Evidence:
 - Confirmed: `/api/system/*` owns system health, runtime config, debug symbols, purge operations, container app control, and job control surfaces.
 - Confirmed: `/api/data/*` owns raw and derived data access surfaces.
 - Confirmed: `/api/backtests/*` owns backtest submission, status, summaries, metrics, and artifact retrieval.
+- Confirmed: `/api/regime-policies`, `/api/risk-policies`, and `/api/exit-rule-sets` own database-backed reusable strategy configuration libraries with revision history and archive semantics.
+- Confirmed: `POST /api/strategies` validates pinned configuration references, resolves exact revision payloads, and persists immutable strategy revision snapshots. Runtime consumers must execute the resolved snapshot fields instead of resolving latest library revisions.
 - Confirmed: `/api/providers/alpha-vantage/*` and `/api/providers/massive/*` own API-side provider gateway surfaces.
 - Confirmed: `/api/internal/*` owns trusted internal control-plane reads and backtest worker coordination, including a readiness endpoint for auth and Postgres probing.
 - Confirmed: `/api/ws/updates` and realtime ticket issuance support browser realtime updates.
