@@ -1,10 +1,28 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _provisioner_text() -> str:
+    return (
+        _repo_root()
+        / "scripts"
+        / "ops"
+        / "provision"
+        / "provision_entra_oidc.ps1"
+    ).read_text(encoding="utf-8")
+
+
+def _role_definition_line(text: str, role_value: str) -> str:
+    pattern = rf'^\s*\[pscustomobject\]@\{{[^\n]*Value = "{re.escape(role_value)}"[^\n]*$'
+    match = re.search(pattern, text, flags=re.MULTILINE)
+    assert match is not None, f"missing app role definition for {role_value}"
+    return match.group(0)
 
 
 def test_control_plane_keeps_repo_local_env_bootstrap_scripts() -> None:
@@ -140,6 +158,49 @@ def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_upd
     )
     assert "/auth/logout-complete" in text, (
         "Entra provisioner must derive the logout-complete landing path from the UI redirect origin"
+    )
+
+
+def test_entra_oidc_provisioner_defines_safe_trade_desk_and_account_policy_roles() -> None:
+    text = _provisioner_text()
+    expected_operator_assignment = {
+        "AssetAllocation.TradeDesk.Read": True,
+        "AssetAllocation.TradeDesk.Preview": False,
+        "AssetAllocation.TradeDesk.Place": False,
+        "AssetAllocation.TradeDesk.Cancel": False,
+        "AssetAllocation.TradeDesk.Live": False,
+        "AssetAllocation.AccountPolicy.Read": True,
+        "AssetAllocation.AccountPolicy.Write": False,
+        "AssetAllocation.TradeConfirmation.Release": False,
+    }
+
+    access_line = _role_definition_line(text, "AssetAllocation.Access")
+    assert 'AllowedMemberTypes = @("User", "Application")' in access_line, (
+        "Access must remain assignable to deploy/runtime service principals"
+    )
+
+    for role_value, should_assign_to_operator in expected_operator_assignment.items():
+        line = _role_definition_line(text, role_value)
+        expected_assignment = "$true" if should_assign_to_operator else "$false"
+        assert f"AssignToOperator = {expected_assignment}" in line, (
+            f"{role_value} has the wrong default operator assignment policy"
+        )
+        assert 'AllowedMemberTypes = @("User")' in line, (
+            f"{role_value} should be assignable only to users/groups by default"
+        )
+
+
+def test_entra_oidc_provisioner_pages_app_role_assignment_lookup() -> None:
+    text = _provisioner_text()
+
+    assert 'PSObject.Properties["@odata.nextLink"]' in text, (
+        "app-role assignment lookup must follow Microsoft Graph pagination"
+    )
+    assert 'while (-not [string]::IsNullOrWhiteSpace($url))' in text, (
+        "app-role assignment lookup must keep reading Graph pages until no nextLink remains"
+    )
+    assert "Invoke-GraphJson -Method GET -Url $url" in text, (
+        "pagination must request the current page URL rather than a fixed first page"
     )
 
 

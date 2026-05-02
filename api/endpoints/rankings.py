@@ -145,6 +145,16 @@ async def get_ranking_schema_detail(name: str, request: Request) -> RankingSchem
     return _build_detail_response(schema)
 
 
+@router.get("/{name}/revisions/{version}", response_model=RankingSchemaDetailResponse)
+async def get_ranking_schema_revision(name: str, version: int, request: Request) -> RankingSchemaDetailResponse:
+    validate_auth(request)
+    repo = RankingRepository(_require_postgres_dsn(request))
+    schema = repo.get_ranking_schema_revision(name, version=version)
+    if not schema:
+        raise HTTPException(status_code=404, detail=f"Ranking schema '{name}' version {version} not found")
+    return _build_detail_response(schema)
+
+
 @router.post("/")
 async def save_ranking_schema(payload: RankingSchemaUpsertRequest, request: Request) -> dict[str, Any]:
     validate_auth(request)
