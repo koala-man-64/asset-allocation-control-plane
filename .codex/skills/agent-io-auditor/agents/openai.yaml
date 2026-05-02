@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent I/O Auditor"
+  short_description: "Append-only agent I/O audit events"
+  default_prompt: "Use $agent-io-auditor to record append-only audit events for a multi-agent task, including starts, inputs, outputs, failures, retries, blocks, handoffs, and completion."
