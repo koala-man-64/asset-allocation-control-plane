@@ -21,6 +21,7 @@ from api.endpoints import (
     alpha_vantage,
     backtests,
     broker_accounts,
+    config_libraries,
     data,
     etrade,
     government_signals,
@@ -571,6 +572,21 @@ def create_app() -> FastAPI:
         app.include_router(postgres.router, prefix=f"{api_prefix}/system/postgres", tags=["Postgres"])
         app.include_router(universes.router, prefix=f"{api_prefix}/universes", tags=["Universes"])
         app.include_router(strategies.router, prefix=f"{api_prefix}/strategies", tags=["Strategies"])
+        app.include_router(
+            config_libraries.regime_policy_router,
+            prefix=f"{api_prefix}/regime-policies",
+            tags=["Regime Policies"],
+        )
+        app.include_router(
+            config_libraries.risk_policy_router,
+            prefix=f"{api_prefix}/risk-policies",
+            tags=["Risk Policies"],
+        )
+        app.include_router(
+            config_libraries.exit_rule_set_router,
+            prefix=f"{api_prefix}/exit-rule-sets",
+            tags=["Exit Rule Sets"],
+        )
         app.include_router(portfolios.router, prefix=api_prefix, tags=["Portfolios"])
         app.include_router(trade_desk.router, prefix=api_prefix, tags=["Trade Desk"])
         app.include_router(notifications.router, prefix=api_prefix, tags=["Notifications"])

@@ -135,6 +135,16 @@ async def get_universe_config_detail(name: str, request: Request) -> UniverseCon
     return _build_detail_response(universe)
 
 
+@router.get("/{name}/revisions/{version}", response_model=UniverseConfigDetailResponse)
+async def get_universe_config_revision(name: str, version: int, request: Request) -> UniverseConfigDetailResponse:
+    validate_auth(request)
+    repo = UniverseRepository(_require_postgres_dsn(request))
+    universe = repo.get_universe_config_revision(name, version=version)
+    if not universe:
+        raise HTTPException(status_code=404, detail=f"Universe config '{name}' version {version} not found")
+    return _build_detail_response(universe)
+
+
 @router.post("/")
 async def save_universe_config(payload: UniverseConfigUpsertRequest, request: Request) -> dict[str, Any]:
     validate_auth(request)
