@@ -606,13 +606,11 @@ def _default_layer_specs() -> List[LayerProbeSpec]:
         "SYSTEM_HEALTH_MAX_AGE_SECONDS",
         _runtime_attr("DEFAULT_SYSTEM_HEALTH_MAX_AGE_SECONDS"),
     )
-    government_signals_slug = _government_signals_slug()
 
     cron_bronze_market = "0 22 * * 1-5"
     cron_bronze_price_target = "0 4 * * 1-5"
     cron_bronze_earnings = "0 10 * * 1-5"
     cron_bronze_finance = "0 16 * * 1-5"
-    cron_bronze_government_signals = "*/15 * * * *"
     cron_platinum = "0 0 * * *"
 
     return [
@@ -626,7 +624,6 @@ def _default_layer_specs() -> List[LayerProbeSpec]:
                 DomainSpec("finance-data/whitelist.csv", cron=cron_bronze_finance, trigger_type="schedule"),
                 DomainSpec("earnings-data/whitelist.csv", cron=cron_bronze_earnings, trigger_type="schedule"),
                 DomainSpec("price-target-data/whitelist.csv", cron=cron_bronze_price_target, trigger_type="schedule"),
-                DomainSpec(f"{government_signals_slug}/runs/", cron=cron_bronze_government_signals, trigger_type="schedule"),
             ),
         ),
         LayerProbeSpec(
@@ -639,7 +636,6 @@ def _default_layer_specs() -> List[LayerProbeSpec]:
                 DomainSpec("finance-data/", trigger_type="manual"),
                 DomainSpec("earnings-data/", trigger_type="manual"),
                 DomainSpec("price-target-data/", trigger_type="manual"),
-                DomainSpec(f"{government_signals_slug}/", trigger_type="manual"),
             ),
         ),
         LayerProbeSpec(
@@ -652,7 +648,6 @@ def _default_layer_specs() -> List[LayerProbeSpec]:
                 DomainSpec("finance/", trigger_type="manual"),
                 DomainSpec("earnings/", trigger_type="manual"),
                 DomainSpec("targets/", trigger_type="manual"),
-                DomainSpec(f"{government_signals_slug}/", trigger_type="manual"),
                 DomainSpec("regime/", trigger_type="manual"),
             ),
         ),

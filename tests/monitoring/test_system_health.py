@@ -129,7 +129,7 @@ def test_make_job_portal_url_uses_resource_anchor() -> None:
     )
 
 
-def test_system_health_normalizes_government_signals_storage_paths(
+def test_system_health_normalizes_government_signals_storage_paths_without_coverage_jobs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("AZURE_FOLDER_GOVERNMENT_SIGNALS", "gov-signals")
@@ -138,10 +138,16 @@ def test_system_health_normalizes_government_signals_storage_paths(
     assert system_health._domain_name_from_marker_path("gov-signals/") == "government-signals"
     assert system_health._domain_name_from_delta_path("gov-signals/") == "government-signals"
 
+    default_domain_names = {
+        system_health._domain_name_from_marker_path(domain_spec.path)
+        for layer_spec in system_health._default_layer_specs()
+        for domain_spec in layer_spec.marker_blobs
+    }
     job_names = system_health._collect_job_names_for_layers(system_health._default_layer_specs())
-    assert "bronze-government-signals-job" in job_names
-    assert "silver-government-signals-job" in job_names
-    assert "gold-government-signals-job" in job_names
+    assert "government-signals" not in default_domain_names
+    assert "bronze-government-signals-job" not in job_names
+    assert "silver-government-signals-job" not in job_names
+    assert "gold-government-signals-job" not in job_names
     assert all("/" not in job_name for job_name in job_names)
 
 
