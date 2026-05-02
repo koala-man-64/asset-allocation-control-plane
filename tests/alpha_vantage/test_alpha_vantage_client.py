@@ -5,6 +5,12 @@ from alpha_vantage import AlphaVantageClient, AlphaVantageConfig
 from alpha_vantage.errors import AlphaVantageThrottleError
 
 
+_DAILY_QUOTA_NOTE = (
+    "We have detected your API key as TEST and our standard API rate limit is 25 requests per day. "
+    "Please subscribe to any of the premium plans for higher daily rate limits."
+)
+
+
 def test_fetch_many_accepts_generators():
     def handler(request: httpx.Request) -> httpx.Response:
         params = dict(request.url.params)
@@ -53,6 +59,66 @@ def test_fetch_csv_retries_on_throttle_note(monkeypatch):
     csv_text = av.fetch_csv("TIME_SERIES_DAILY", "AAPL")
     assert "timestamp,open" in csv_text
     assert calls["count"] == 2
+
+
+def test_fetch_fails_fast_on_standard_daily_limit_payload(monkeypatch):
+    calls = {"count": 0}
+    sleeps: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(200, json={"Note": _DAILY_QUOTA_NOTE})
+
+    monkeypatch.setattr("time.sleep", lambda seconds: sleeps.append(float(seconds)))
+
+    transport = httpx.MockTransport(handler)
+    http_client = httpx.Client(transport=transport)
+
+    cfg = AlphaVantageConfig(
+        api_key="test",
+        rate_limit_per_min=10_000,
+        max_workers=1,
+        max_retries=3,
+        backoff_base_seconds=0.0,
+        throttle_cooldown_seconds=60.0,
+    )
+    av = AlphaVantageClient(cfg, http_client=http_client)
+
+    with pytest.raises(AlphaVantageThrottleError):
+        av.fetch("EARNINGS", "AAPL")
+
+    assert calls["count"] == 1
+    assert sleeps == []
+
+
+def test_fetch_csv_fails_fast_on_standard_daily_limit_payload(monkeypatch):
+    calls = {"count": 0}
+    sleeps: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(200, json={"Information": _DAILY_QUOTA_NOTE})
+
+    monkeypatch.setattr("time.sleep", lambda seconds: sleeps.append(float(seconds)))
+
+    transport = httpx.MockTransport(handler)
+    http_client = httpx.Client(transport=transport)
+
+    cfg = AlphaVantageConfig(
+        api_key="test",
+        rate_limit_per_min=10_000,
+        max_workers=1,
+        max_retries=3,
+        backoff_base_seconds=0.0,
+        throttle_cooldown_seconds=60.0,
+    )
+    av = AlphaVantageClient(cfg, http_client=http_client)
+
+    with pytest.raises(AlphaVantageThrottleError):
+        av.fetch_csv("LISTING_STATUS")
+
+    assert calls["count"] == 1
+    assert sleeps == []
 
 
 def test_fetch_raises_on_throttle_when_retries_exhausted(monkeypatch):
