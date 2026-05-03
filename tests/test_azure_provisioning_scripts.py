@@ -303,6 +303,28 @@ def test_permission_validator_supports_release_scenario() -> None:
     )
 
 
+def test_permission_validator_checks_api_log_analytics_reader_access() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "ops" / "validate" / "validate_azure_permissions.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert '[string]$LogAnalyticsWorkspaceName = ""' in text, (
+        "Azure permission validation must accept the Log Analytics workspace name"
+    )
+    assert '"LOG_ANALYTICS_WORKSPACE_NAME"' in text, (
+        "Azure permission validation must resolve the workspace name from env config"
+    )
+    assert "az monitor log-analytics workspace show" in text, (
+        "Azure permission validation must resolve the workspace resource id"
+    )
+    assert 'Add-Result -Name "API runtime identity has Log Analytics Reader"' in text, (
+        "Azure permission validation must fail when API runtime log-read access is missing"
+    )
+    assert '"Log Analytics Reader", "Log Analytics Contributor", "Contributor", "Owner"' in text, (
+        "Azure permission validation must recognize built-in log-reader access and stronger explicit roles"
+    )
+
+
 def test_shared_provisioner_uses_workspace_safe_log_analytics_retention() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure.ps1"
@@ -396,6 +418,18 @@ def test_shared_provisioner_supports_parallel_private_runtime_and_network_smoke(
     assert "Asset Allocation ACA Operator" in text, (
         "Shared Azure provisioning must replace RG Contributor job-start behavior with a narrow custom role"
     )
+    assert '"Microsoft.OperationalInsights/workspaces/query/read"' not in text, (
+        "ACA operator role must not rely on misleading generic Log Analytics query permissions"
+    )
+    assert '--query "{customerId:customerId,id:id}"' in text, (
+        "Shared Azure provisioning must resolve the Log Analytics workspace resource id"
+    )
+    assert '-RoleName "Log Analytics Reader"' in text, (
+        "API runtime identity must receive built-in Log Analytics Reader for console log queries"
+    )
+    assert "-Scope $lawWorkspaceResourceId" in text, (
+        "Log Analytics Reader must be scoped to the workspace, not only the resource group"
+    )
     assert "Storage Blob Data Contributor granted to $AcrPullIdentityName" not in text, (
         "ACR pull identity must not receive storage data-plane permissions"
     )
@@ -465,6 +499,12 @@ def test_infra_shared_workflow_passes_parallel_private_runtime_inputs() -> None:
     )
     assert "ApiRuntimeIdentityName =" in text, (
         "Shared infra workflow must pass the API runtime identity name to the provisioner"
+    )
+    assert "Reapply Container Apps/job operator RBAC and API Log Analytics read access" in text, (
+        "Shared infra workflow must describe the RBAC reconcile input as covering log-read access"
+    )
+    assert "Job operation and log-read RBAC reconciled" in text, (
+        "Shared infra workflow summary must report the combined job/log RBAC reconcile state"
     )
     assert "$provisionArgs.EnableAcrPrivateLink = $true" in text, (
         "Shared infra workflow must pass the ACR private link input to the provisioner"

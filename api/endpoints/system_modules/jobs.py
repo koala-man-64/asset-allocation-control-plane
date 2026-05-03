@@ -35,6 +35,11 @@ def _compat_export(name: str, target: Any) -> Any:
 _ACTIVE_JOB_EXECUTION_STATUS_TOKENS = frozenset(
     {"running", "processing", "inprogress", "starting", "queued", "waiting", "scheduling"}
 )
+_JOB_LOG_INGESTION_GRACE_MINUTES = 10
+_JOB_LOG_EMPTY_ROWS_ERROR = (
+    "No Log Analytics console rows were returned for this execution. Verify API runtime "
+    "identity Log Analytics Reader access and Container Apps log ingestion."
+)
 
 
 def _configured_job_allowlist(os_module: Any) -> List[str]:
@@ -60,6 +65,20 @@ def _is_active_job_execution(execution: Dict[str, Any]) -> bool:
     return _is_active_job_execution_status(execution.get("status")) and not str(
         execution.get("endTime") or ""
     ).strip()
+
+
+def _should_flag_empty_job_log_rows(
+    run: Dict[str, Any],
+    *,
+    now: Any,
+    start_dt: Any,
+    end_dt: Any,
+    timedelta_cls: Any,
+) -> bool:
+    grace = timedelta_cls(minutes=_JOB_LOG_INGESTION_GRACE_MINUTES)
+    if str(run.get("endTime") or "").strip():
+        return now >= end_dt + grace
+    return now >= start_dt + grace
 
 
 def _select_anchored_job_executions(
@@ -518,10 +537,21 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
                     lines = [
                         str(item.get("message") or "") for item in console_logs if item.get("message")
                     ]
-                    err = None
+                    err = (
+                        _JOB_LOG_EMPTY_ROWS_ERROR
+                        if row_count == 0
+                        and _should_flag_empty_job_log_rows(
+                            run,
+                            now=now,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            timedelta_cls=timedelta_cls,
+                        )
+                        else None
+                    )
                     logger.info(
                         "Job log query completed: job=%s execution=%s status=%s workspace=%s "
-                        "timespan=%s raw_rows=%d console_logs=%d tail_lines=%d",
+                        "timespan=%s raw_rows=%d console_logs=%d tail_lines=%d error=%s",
                         resolved,
                         exec_name or "-",
                         run.get("status") or "-",
@@ -530,6 +560,7 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
                         row_count,
                         len(console_logs),
                         len(lines),
+                        err or "-",
                     )
                 except Exception as exc:
                     logger.warning(
