@@ -413,6 +413,27 @@ class SymbolEnrichmentSettings:
 
 
 @dataclass(frozen=True)
+class ResultsReconcileSettings:
+    allowed_jobs: list[str] = field(default_factory=lambda: ["results-reconcile-job"])
+    required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.ResultsReconcile.Run"])
+    publication_signal_required_roles: list[str] = field(
+        default_factory=lambda: ["AssetAllocation.StrategyPublication.Signal"]
+    )
+
+    @staticmethod
+    def from_env() -> "ResultsReconcileSettings":
+        return ResultsReconcileSettings(
+            allowed_jobs=_split_csv(_get_optional_str("RESULTS_RECONCILE_ALLOWED_JOBS")) or ["results-reconcile-job"],
+            required_roles=_split_csv(_get_optional_str("RESULTS_RECONCILE_REQUIRED_ROLES"))
+            or ["AssetAllocation.ResultsReconcile.Run"],
+            publication_signal_required_roles=_split_csv(
+                _get_optional_str("STRATEGY_PUBLICATION_SIGNAL_REQUIRED_ROLES")
+            )
+            or ["AssetAllocation.StrategyPublication.Signal"],
+        )
+
+
+@dataclass(frozen=True)
 class ETradeSettings:
     enabled: bool = False
     trading_enabled: bool = False
@@ -1044,6 +1065,7 @@ class ServiceSettings:
     schwab: SchwabSettings = field(default_factory=SchwabSettings)
     schwab_callback_url: Optional[str] = None
     symbol_enrichment: SymbolEnrichmentSettings = field(default_factory=SymbolEnrichmentSettings)
+    results_reconcile: ResultsReconcileSettings = field(default_factory=ResultsReconcileSettings)
     intraday_monitor: IntradayMonitorSettings = field(default_factory=IntradayMonitorSettings)
     data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
     system_access: SystemAccessSettings = field(default_factory=SystemAccessSettings)
@@ -1198,6 +1220,7 @@ class ServiceSettings:
             api_public_base_url=api_public_base_url,
         )
         symbol_enrichment = SymbolEnrichmentSettings.from_env()
+        results_reconcile = ResultsReconcileSettings.from_env()
         intraday_monitor = IntradayMonitorSettings.from_env()
         data_discovery = DataDiscoverySettings.from_env()
         system_access = SystemAccessSettings.from_env()
@@ -1248,6 +1271,7 @@ class ServiceSettings:
             schwab=schwab,
             schwab_callback_url=schwab.callback_url,
             symbol_enrichment=symbol_enrichment,
+            results_reconcile=results_reconcile,
             intraday_monitor=intraday_monitor,
             data_discovery=data_discovery,
             system_access=system_access,

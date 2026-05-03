@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from asset_allocation_contracts.strategy_publication import (
+    StrategyPublicationReconcileSignalRequest,
+    StrategyPublicationReconcileSignalResponse,
+)
 from asset_allocation_runtime_common.market_data import domain_artifacts
 from core.backtest_repository import BacktestRepository
 from core.backtest_runtime import _required_columns, resolve_backtest_definition, validate_backtest_submission
@@ -30,6 +34,10 @@ _TABLE_TO_DOMAIN: dict[str, str] = {
 _TRACKED_GOLD_DOMAINS: tuple[str, ...] = ("market", "finance", "earnings", "price-target", "regime")
 _CLAIM_TTL = timedelta(minutes=30)
 _JSON_SEPARATORS = (",", ":")
+_PUBLICATION_SIGNAL_BATCH_SIZE = 100
+_PUBLICATION_SIGNAL_MAX_ATTEMPTS = 5
+_RESULTS_RECONCILE_LOCK_NAMESPACE = "asset-allocation"
+_RESULTS_RECONCILE_LOCK_NAME = "results-reconcile"
 
 
 @dataclass(frozen=True)
@@ -85,6 +93,14 @@ def _normalize_date(value: Any) -> date | None:
 
 def _iso_date(value: date | None) -> str | None:
     return value.isoformat() if isinstance(value, date) else None
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _json_hash(payload: Any) -> str:
@@ -339,6 +355,309 @@ def _list_canonical_targets(dsn: str) -> list[dict[str, Any]]:
             return [_canonical_target_from_db(row) for row in cur.fetchall()]
 
 
+def _try_acquire_results_reconcile_lock(conn: Any) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT pg_try_advisory_lock(hashtext(%s), hashtext(%s))",
+            (_RESULTS_RECONCILE_LOCK_NAMESPACE, _RESULTS_RECONCILE_LOCK_NAME),
+        )
+        row = cur.fetchone()
+    return bool(row and row[0])
+
+
+def _release_results_reconcile_lock(conn: Any) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT pg_advisory_unlock(hashtext(%s), hashtext(%s))",
+            (_RESULTS_RECONCILE_LOCK_NAMESPACE, _RESULTS_RECONCILE_LOCK_NAME),
+        )
+
+
+def _publication_signal_from_db(row: tuple[Any, ...]) -> dict[str, Any]:
+    columns = [
+        "job_key",
+        "source_fingerprint",
+        "status",
+        "metadata",
+        "published_at",
+        "processed_at",
+        "error",
+        "claim_token",
+        "attempt_count",
+        "created_at",
+        "updated_at",
+    ]
+    payload = dict(zip(columns, row))
+    if not isinstance(payload.get("metadata"), dict):
+        payload["metadata"] = {}
+    return payload
+
+
+def _response_from_publication_signal(row: dict[str, Any], *, created: bool) -> StrategyPublicationReconcileSignalResponse:
+    return StrategyPublicationReconcileSignalResponse(
+        jobKey=str(row["job_key"]),
+        sourceFingerprint=str(row["source_fingerprint"]),
+        status=str(row["status"]),
+        created=created,
+        createdAt=_as_utc(row.get("created_at")) or _utc_now(),
+        updatedAt=_as_utc(row.get("updated_at")) or _utc_now(),
+        processedAt=_as_utc(row.get("processed_at")),
+        error=_normalize_text(row.get("error")),
+    )
+
+
+def record_strategy_publication_reconcile_signal(
+    dsn: str,
+    request: StrategyPublicationReconcileSignalRequest,
+) -> StrategyPublicationReconcileSignalResponse:
+    published_at = request.publishedAt or _utc_now()
+    metadata = request.metadata.model_dump(mode="json", by_alias=True)
+    with connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO core.strategy_publication_reconcile_signals (
+                    job_key,
+                    source_fingerprint,
+                    status,
+                    metadata,
+                    published_at,
+                    error,
+                    claim_token,
+                    claimed_by,
+                    claimed_at,
+                    claim_expires_at,
+                    next_attempt_at,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, 'pending', %s, %s, NULL, NULL, NULL, NULL, NULL, NOW(), NOW(), NOW())
+                ON CONFLICT (job_key, source_fingerprint)
+                DO UPDATE SET
+                    metadata = EXCLUDED.metadata,
+                    published_at = COALESCE(EXCLUDED.published_at, core.strategy_publication_reconcile_signals.published_at),
+                    status = CASE
+                        WHEN core.strategy_publication_reconcile_signals.status = 'processed' THEN 'processed'
+                        ELSE 'pending'
+                    END,
+                    error = CASE
+                        WHEN core.strategy_publication_reconcile_signals.status = 'processed' THEN core.strategy_publication_reconcile_signals.error
+                        ELSE NULL
+                    END,
+                    claim_token = NULL,
+                    claimed_by = NULL,
+                    claimed_at = NULL,
+                    claim_expires_at = NULL,
+                    next_attempt_at = CASE
+                        WHEN core.strategy_publication_reconcile_signals.status = 'processed'
+                            THEN core.strategy_publication_reconcile_signals.next_attempt_at
+                        ELSE NOW()
+                    END,
+                    updated_at = NOW()
+                RETURNING
+                    job_key,
+                    source_fingerprint,
+                    status,
+                    metadata,
+                    published_at,
+                    processed_at,
+                    error,
+                    claim_token,
+                    attempt_count,
+                    created_at,
+                    updated_at,
+                    (xmax = 0) AS created
+                """,
+                (
+                    request.jobKey,
+                    request.sourceFingerprint,
+                    json.dumps(metadata, sort_keys=True),
+                    published_at,
+                ),
+            )
+            row = cur.fetchone()
+    if not row:
+        raise RuntimeError("Failed to record strategy publication reconcile signal.")
+    payload = _publication_signal_from_db(row[:-1])
+    return _response_from_publication_signal(payload, created=bool(row[-1]))
+
+
+def _list_due_publication_reconcile_signals(dsn: str, *, limit: int = _PUBLICATION_SIGNAL_BATCH_SIZE) -> list[dict[str, Any]]:
+    with connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    job_key,
+                    source_fingerprint,
+                    status,
+                    metadata,
+                    published_at,
+                    processed_at,
+                    error,
+                    claim_token,
+                    attempt_count,
+                    created_at,
+                    updated_at
+                FROM core.strategy_publication_reconcile_signals
+                WHERE status = 'pending'
+                  AND next_attempt_at <= NOW()
+                  AND (claim_token IS NULL OR claim_expires_at IS NULL OR claim_expires_at <= NOW())
+                ORDER BY next_attempt_at ASC, updated_at ASC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [_publication_signal_from_db(row) for row in cur.fetchall()]
+
+
+def _claim_publication_reconcile_signals(
+    dsn: str,
+    *,
+    execution_name: str | None,
+    limit: int = _PUBLICATION_SIGNAL_BATCH_SIZE,
+) -> list[dict[str, Any]]:
+    claim_token = uuid.uuid4().hex
+    claimed_at = _utc_now()
+    claim_expires_at = claimed_at + _CLAIM_TTL
+    with connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH candidates AS (
+                    SELECT job_key, source_fingerprint
+                    FROM core.strategy_publication_reconcile_signals
+                    WHERE status = 'pending'
+                      AND next_attempt_at <= NOW()
+                      AND (claim_token IS NULL OR claim_expires_at IS NULL OR claim_expires_at <= NOW())
+                    ORDER BY next_attempt_at ASC, updated_at ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT %s
+                )
+                UPDATE core.strategy_publication_reconcile_signals AS signal
+                SET
+                    claim_token = %s,
+                    claimed_by = %s,
+                    claimed_at = %s,
+                    claim_expires_at = %s,
+                    last_attempt_at = %s,
+                    updated_at = NOW()
+                FROM candidates
+                WHERE signal.job_key = candidates.job_key
+                  AND signal.source_fingerprint = candidates.source_fingerprint
+                RETURNING
+                    signal.job_key,
+                    signal.source_fingerprint,
+                    signal.status,
+                    signal.metadata,
+                    signal.published_at,
+                    signal.processed_at,
+                    signal.error,
+                    signal.claim_token,
+                    signal.attempt_count,
+                    signal.created_at,
+                    signal.updated_at
+                """,
+                (
+                    limit,
+                    claim_token,
+                    _normalize_text(execution_name),
+                    claimed_at,
+                    claim_expires_at,
+                    claimed_at,
+                ),
+            )
+            return [_publication_signal_from_db(row) for row in cur.fetchall()]
+
+
+def _complete_publication_reconcile_signals(dsn: str, signals: list[dict[str, Any]]) -> None:
+    if not signals:
+        return
+    keys = [(signal["job_key"], signal["source_fingerprint"], signal["claim_token"]) for signal in signals]
+    with connect(dsn) as conn:
+        with conn.cursor() as cur:
+            for job_key, source_fingerprint, claim_token in keys:
+                cur.execute(
+                    """
+                    UPDATE core.strategy_publication_reconcile_signals
+                    SET
+                        status = 'processed',
+                        processed_at = NOW(),
+                        error = NULL,
+                        claim_token = NULL,
+                        claimed_by = NULL,
+                        claimed_at = NULL,
+                        claim_expires_at = NULL,
+                        updated_at = NOW()
+                    WHERE job_key = %s
+                      AND source_fingerprint = %s
+                      AND claim_token = %s
+                    """,
+                    (job_key, source_fingerprint, claim_token),
+                )
+                if int(cur.rowcount or 0) != 1:
+                    raise RuntimeError(
+                        "Publication reconcile signal completion lost its claim: "
+                        f"jobKey={job_key} sourceFingerprint={source_fingerprint}"
+                    )
+
+
+def _fail_publication_reconcile_signals(dsn: str, signals: list[dict[str, Any]], *, error: str) -> None:
+    if not signals:
+        return
+    bounded_error = str(error or "Results reconcile failed.")[:4000]
+    params: list[tuple[Any, ...]] = []
+    for signal in signals:
+        next_attempt = int(signal.get("attempt_count") or 0) + 1
+        retry_delay_minutes = min(60, 2 ** max(next_attempt - 1, 0))
+        params.append(
+            (
+                _PUBLICATION_SIGNAL_MAX_ATTEMPTS,
+                bounded_error,
+                _PUBLICATION_SIGNAL_MAX_ATTEMPTS,
+                retry_delay_minutes,
+                signal["job_key"],
+                signal["source_fingerprint"],
+                signal["claim_token"],
+            )
+        )
+    with connect(dsn) as conn:
+        with conn.cursor() as cur:
+            for param_set in params:
+                cur.execute(
+                    """
+                    UPDATE core.strategy_publication_reconcile_signals
+                    SET
+                        attempt_count = attempt_count + 1,
+                        status = CASE
+                            WHEN attempt_count + 1 >= %s THEN 'error'
+                            ELSE 'pending'
+                        END,
+                        error = %s,
+                        claim_token = NULL,
+                        claimed_by = NULL,
+                        claimed_at = NULL,
+                        claim_expires_at = NULL,
+                        next_attempt_at = CASE
+                            WHEN attempt_count + 1 >= %s THEN next_attempt_at
+                            ELSE NOW() + (%s::double precision * INTERVAL '1 minute')
+                        END,
+                        updated_at = NOW()
+                    WHERE job_key = %s
+                      AND source_fingerprint = %s
+                      AND claim_token = %s
+                    """,
+                    param_set,
+                )
+                if int(cur.rowcount or 0) != 1:
+                    job_key = param_set[4]
+                    source_fingerprint = param_set[5]
+                    raise RuntimeError(
+                        "Publication reconcile signal retry marking lost its claim: "
+                        f"jobKey={job_key} sourceFingerprint={source_fingerprint}"
+                    )
+
+
 def _update_canonical_target_state(
     dsn: str,
     *,
@@ -587,7 +906,41 @@ def _build_canonical_target_state(
     return state, effective_config
 
 
-def reconcile_results_freshness(dsn: str, *, dry_run: bool = False) -> dict[str, Any]:
+def reconcile_results_freshness(
+    dsn: str,
+    *,
+    dry_run: bool = False,
+    execution_name: str | None = None,
+) -> dict[str, Any]:
+    with connect(dsn) as lock_conn:
+        if not _try_acquire_results_reconcile_lock(lock_conn):
+            return {
+                "dryRun": dry_run,
+                "rankingDirtyCount": 0,
+                "rankingNoopCount": 0,
+                "canonicalEnqueuedCount": 0,
+                "canonicalUpToDateCount": 0,
+                "canonicalSkippedCount": 0,
+                "publicationSignalsProcessedCount": 0,
+                "publicationSignalsErrorCount": 0,
+                "errorCount": 1,
+                "errors": ["results-reconcile:another reconcile is already running"],
+            }
+        try:
+            return _reconcile_results_freshness_locked(dsn, dry_run=dry_run, execution_name=execution_name)
+        finally:
+            try:
+                _release_results_reconcile_lock(lock_conn)
+            except Exception:
+                logger.warning("Failed to release results reconcile advisory lock.", exc_info=True)
+
+
+def _reconcile_results_freshness_locked(
+    dsn: str,
+    *,
+    dry_run: bool = False,
+    execution_name: str | None = None,
+) -> dict[str, Any]:
     domain_inputs = _load_domain_inputs()
     strategy_repo = StrategyRepository(dsn)
     backtest_repo = BacktestRepository(dsn)
@@ -596,9 +949,28 @@ def reconcile_results_freshness(dsn: str, *, dry_run: bool = False) -> dict[str,
     canonical_enqueued_count = 0
     canonical_up_to_date_count = 0
     canonical_skipped_count = 0
+    publication_signals_processed_count = 0
+    publication_signals_error_count = 0
     errors: list[str] = []
+    publication_signals: list[dict[str, Any]] = []
 
-    for strategy in strategy_repo.list_strategies():
+    try:
+        if dry_run:
+            publication_signals = _list_due_publication_reconcile_signals(dsn)
+        else:
+            publication_signals = _claim_publication_reconcile_signals(dsn, execution_name=execution_name)
+    except Exception as exc:
+        logger.exception("Publication signal claim failed during results reconcile.")
+        errors.append(f"publication-signals:claim:{exc}")
+
+    try:
+        strategies = strategy_repo.list_strategies()
+    except Exception as exc:
+        logger.exception("Ranking freshness reconcile failed while listing strategies.")
+        strategies = []
+        errors.append(f"ranking:list_strategies:{exc}")
+
+    for strategy in strategies:
         strategy_name = _normalize_text(strategy.get("name"))
         if not strategy_name:
             continue
@@ -645,7 +1017,14 @@ def reconcile_results_freshness(dsn: str, *, dry_run: bool = False) -> dict[str,
             logger.exception("Ranking freshness reconcile failed for strategy '%s'.", strategy_name)
             errors.append(f"ranking:{strategy_name}:{exc}")
 
-    for target in _list_canonical_targets(dsn):
+    try:
+        canonical_targets = _list_canonical_targets(dsn)
+    except Exception as exc:
+        logger.exception("Canonical backtest freshness reconcile failed while listing targets.")
+        canonical_targets = []
+        errors.append(f"canonical:list_targets:{exc}")
+
+    for target in canonical_targets:
         if not bool(target.get("enabled")):
             continue
         try:
@@ -721,6 +1100,28 @@ def reconcile_results_freshness(dsn: str, *, dry_run: bool = False) -> dict[str,
             logger.exception("Canonical backtest freshness reconcile failed for target '%s'.", target.get("target_id"))
             errors.append(f"canonical:{target.get('target_id')}:{exc}")
 
+    if dry_run:
+        publication_signals_processed_count = len(publication_signals)
+    elif publication_signals and errors:
+        publication_signals_error_count = len(publication_signals)
+        try:
+            _fail_publication_reconcile_signals(
+                dsn,
+                publication_signals,
+                error="; ".join(errors[:5]),
+            )
+        except Exception as exc:
+            logger.exception("Publication signal retry marking failed during results reconcile.")
+            errors.append(f"publication-signals:retry-mark:{exc}")
+    elif publication_signals:
+        try:
+            _complete_publication_reconcile_signals(dsn, publication_signals)
+            publication_signals_processed_count = len(publication_signals)
+        except Exception as exc:
+            publication_signals_error_count = len(publication_signals)
+            logger.exception("Publication signal completion failed during results reconcile.")
+            errors.append(f"publication-signals:complete:{exc}")
+
     return {
         "dryRun": dry_run,
         "rankingDirtyCount": ranking_dirty_count,
@@ -728,7 +1129,9 @@ def reconcile_results_freshness(dsn: str, *, dry_run: bool = False) -> dict[str,
         "canonicalEnqueuedCount": canonical_enqueued_count,
         "canonicalUpToDateCount": canonical_up_to_date_count,
         "canonicalSkippedCount": canonical_skipped_count,
-        "errorCount": len(errors),
+        "publicationSignalsProcessedCount": publication_signals_processed_count,
+        "publicationSignalsErrorCount": publication_signals_error_count,
+        "errorCount": len(errors) + publication_signals_error_count,
         "errors": errors,
     }
 

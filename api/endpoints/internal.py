@@ -8,6 +8,11 @@ from anyio import from_thread
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from psycopg import Error as PsycopgError
+from asset_allocation_contracts.results import ResultsReconcileRequest, ResultsReconcileResponse
+from asset_allocation_contracts.strategy_publication import (
+    StrategyPublicationReconcileSignalRequest,
+    StrategyPublicationReconcileSignalResponse,
+)
 from asset_allocation_contracts.symbol_enrichment import (
     SymbolCleanupRunSummary,
     SymbolCleanupWorkItem,
@@ -38,6 +43,8 @@ from api.service.dependencies import (
     get_ai_relay_gateway,
     get_settings,
     require_intraday_monitor_job_access,
+    require_results_reconcile_job_access,
+    require_strategy_publication_signal_access,
     require_symbol_enrichment_job_access,
     validate_auth,
 )
@@ -58,6 +65,7 @@ from core.results_freshness import (
     claim_next_ranking_refresh,
     complete_ranking_refresh,
     fail_ranking_refresh,
+    record_strategy_publication_reconcile_signal,
     reconcile_results_freshness,
 )
 from core.intraday_monitor_repository import (
@@ -76,10 +84,6 @@ from .intraday import REALTIME_TOPIC_INTRADAY_MONITOR, REALTIME_TOPIC_INTRADAY_R
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class ResultsReconcileRequest(BaseModel):
-    dryRun: bool = False
 
 
 class RankingRefreshClaimRequest(BaseModel):
@@ -194,11 +198,31 @@ async def get_ranking_schema_revision(
     return revision
 
 
-@router.post("/results/reconcile")
-async def reconcile_results(request: Request, payload: ResultsReconcileRequest | None = None) -> dict[str, Any]:
-    validate_auth(request)
-    body = payload or ResultsReconcileRequest()
-    return reconcile_results_freshness(_require_postgres_dsn(request), dry_run=body.dryRun)
+@router.post("/results/reconcile", response_model=ResultsReconcileResponse)
+async def reconcile_results(request: Request, payload: ResultsReconcileRequest) -> ResultsReconcileResponse:
+    require_results_reconcile_job_access(request)
+    return ResultsReconcileResponse.model_validate(
+        reconcile_results_freshness(
+            _require_postgres_dsn(request),
+            dry_run=payload.dryRun,
+            execution_name=str(request.headers.get("X-Caller-Execution") or "").strip() or None,
+        )
+    )
+
+
+@router.post(
+    "/strategy-publications/reconcile-signal",
+    response_model=StrategyPublicationReconcileSignalResponse,
+)
+async def record_strategy_publication_reconcile_signal_route(
+    payload: StrategyPublicationReconcileSignalRequest,
+    request: Request,
+) -> StrategyPublicationReconcileSignalResponse:
+    require_strategy_publication_signal_access(
+        request,
+        producer_job_name=payload.metadata.producerJobName,
+    )
+    return record_strategy_publication_reconcile_signal(_require_postgres_dsn(request), payload)
 
 
 @router.post("/rankings/refresh/claim")
