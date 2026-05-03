@@ -14,6 +14,7 @@ try:  # pragma: no cover - exercised once the published shared package includes 
         BacktestExecutionAssumptions,
         BacktestPolicyEventListResponse,
         BacktestResultLinks,
+        BacktestPolicyEventListResponse,
         BacktestReplayTimelineResponse,
         BacktestRunComparisonRequest,
         BacktestRunComparisonResponse,
@@ -74,6 +75,9 @@ except Exception:  # pragma: no cover - default path while control-plane depends
         "outlier",
     ]
     BacktestComparisonAlignment = Literal["aligned", "caveated", "blocked"]
+    BacktestPolicyEventScope = Literal["strategy", "sleeve", "position", "symbol", "portfolio"]
+    BacktestPolicyEventType = Literal["rebalance", "strategy_risk", "position_exit", "reentry"]
+    BacktestPolicyDecision = Literal["applied", "skipped", "blocked"]
 
     class StrategyReferenceInput(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -90,6 +94,34 @@ except Exception:  # pragma: no cover - default path while control-plane depends
         metricsRollingUrl: str = Field(..., min_length=1)
         tradesUrl: str = Field(..., min_length=1)
         closedPositionsUrl: str = Field(..., min_length=1)
+
+
+    class BacktestPolicyEvent(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        run_id: str
+        event_seq: int = Field(..., ge=0)
+        bar_ts: datetime
+        scope: BacktestPolicyEventScope
+        policy_type: BacktestPolicyEventType
+        decision: BacktestPolicyDecision
+        reason_code: str = Field(..., min_length=1, max_length=128)
+        symbol: str | None = Field(default=None, min_length=1, max_length=32)
+        position_id: str | None = Field(default=None, min_length=1, max_length=128)
+        policy_id: str | None = Field(default=None, min_length=1, max_length=128)
+        observed_value: float | None = None
+        threshold_value: float | None = None
+        action: str | None = Field(default=None, min_length=1, max_length=128)
+        details: dict[str, Any] = Field(default_factory=dict)
+
+
+    class BacktestPolicyEventListResponse(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        events: list[BacktestPolicyEvent]
+        total: int
+        limit: int
+        offset: int
 
 
     class BacktestExecutionAssumptions(BaseModel):

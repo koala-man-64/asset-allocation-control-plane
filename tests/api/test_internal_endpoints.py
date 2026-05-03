@@ -178,19 +178,141 @@ async def test_internal_results_reconcile_forwards_dry_run(monkeypatch: pytest.M
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     calls: list[tuple[str, bool]] = []
 
-    def _reconcile(dsn: str, *, dry_run: bool = False) -> dict[str, object]:
+    def _reconcile(dsn: str, *, dry_run: bool = False, execution_name: str | None = None) -> dict[str, object]:
+        assert execution_name == "exec-1"
         calls.append((dsn, dry_run))
-        return {"dryRun": dry_run, "rankingDirtyCount": 1, "errorCount": 0}
+        return {
+            "dryRun": dry_run,
+            "rankingDirtyCount": 1,
+            "rankingNoopCount": 2,
+            "canonicalEnqueuedCount": 3,
+            "canonicalUpToDateCount": 4,
+            "canonicalSkippedCount": 5,
+            "publicationSignalsProcessedCount": 6,
+            "publicationSignalsErrorCount": 0,
+            "errorCount": 0,
+            "errors": [],
+        }
 
     monkeypatch.setattr(internal_routes, "reconcile_results_freshness", _reconcile)
 
     app = create_app()
     async with get_test_client(app) as client:
-        response = await client.post("/api/internal/results/reconcile", json={"dryRun": True})
+        response = await client.post(
+            "/api/internal/results/reconcile",
+            json={"dryRun": True},
+            headers={"X-Caller-Job": "results-reconcile-job", "X-Caller-Execution": "exec-1"},
+        )
 
     assert response.status_code == 200
     assert response.json()["dryRun"] is True
+    assert response.json()["publicationSignalsProcessedCount"] == 6
     assert calls == [("postgresql://test:test@localhost:5432/asset_allocation", True)]
+
+
+async def test_internal_results_reconcile_requires_owner_job_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        internal_routes,
+        "reconcile_results_freshness",
+        lambda *_args, **_kwargs: pytest.fail("unauthorized caller must not reconcile"),
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        missing_header = await client.post("/api/internal/results/reconcile", json={"dryRun": True})
+        wrong_job = await client.post(
+            "/api/internal/results/reconcile",
+            json={"dryRun": True},
+            headers={"X-Caller-Job": "gold-regime-job"},
+        )
+        missing_body = await client.post(
+            "/api/internal/results/reconcile",
+            headers={"X-Caller-Job": "results-reconcile-job"},
+        )
+
+    assert missing_header.status_code == 400
+    assert wrong_job.status_code == 403
+    assert missing_body.status_code == 422
+
+
+async def test_internal_strategy_publication_reconcile_signal_records_durable_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    calls: list[dict[str, object]] = []
+
+    def _record(dsn: str, payload):
+        calls.append({"dsn": dsn, "jobKey": payload.jobKey, "fingerprint": payload.sourceFingerprint})
+        return {
+            "jobKey": payload.jobKey,
+            "sourceFingerprint": payload.sourceFingerprint,
+            "status": "pending",
+            "created": True,
+            "createdAt": "2026-04-23T21:00:00Z",
+            "updatedAt": "2026-04-23T21:00:00Z",
+            "processedAt": None,
+            "error": None,
+        }
+
+    monkeypatch.setattr(internal_routes, "record_strategy_publication_reconcile_signal", _record)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.post(
+            "/api/internal/strategy-publications/reconcile-signal",
+            headers={"X-Caller-Job": "gold-regime-job"},
+            json={
+                "jobKey": "regime",
+                "sourceFingerprint": "abc123",
+                "metadata": {
+                    "publishedAsOfDate": "2026-04-23",
+                    "historyRows": 10,
+                    "latestRows": 1,
+                    "transitionRows": 0,
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+    assert calls == [
+        {
+            "dsn": "postgresql://test:test@localhost:5432/asset_allocation",
+            "jobKey": "regime",
+            "fingerprint": "abc123",
+        }
+    ]
+
+
+async def test_internal_strategy_publication_reconcile_signal_rejects_wrong_producer_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        internal_routes,
+        "record_strategy_publication_reconcile_signal",
+        lambda *_args, **_kwargs: pytest.fail("unauthorized producer must not record a signal"),
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.post(
+            "/api/internal/strategy-publications/reconcile-signal",
+            headers={"X-Caller-Job": "results-reconcile-job"},
+            json={
+                "jobKey": "regime",
+                "sourceFingerprint": "abc123",
+                "metadata": {
+                    "publishedAsOfDate": "2026-04-23",
+                    "historyRows": 10,
+                    "latestRows": 1,
+                    "transitionRows": 0,
+                },
+            },
+        )
+
+    assert response.status_code == 403
 
 
 async def test_internal_ranking_refresh_routes_delegate_to_freshness_service(

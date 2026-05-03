@@ -538,6 +538,59 @@ def require_symbol_enrichment_job_access(request: Request, *, require_enabled: b
     return auth_context
 
 
+def require_results_reconcile_job_access(request: Request) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).results_reconcile
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.required_roles,
+        log_prefix="Results reconcile job",
+    )
+
+    caller_job = str(request.headers.get("X-Caller-Job") or "").strip()
+    if not caller_job:
+        raise HTTPException(status_code=400, detail="X-Caller-Job header is required.")
+
+    allowed_jobs = {job.strip() for job in settings.allowed_jobs if job.strip()}
+    if caller_job not in allowed_jobs:
+        logger.warning(
+            "Results reconcile job authz failed: request_id=%s subject=%s caller_job=%s path=%s",
+            _request_id(request),
+            auth_context.subject or "-",
+            caller_job,
+            request.url.path,
+        )
+        raise HTTPException(status_code=403, detail="Caller job is not allowed to run results reconcile.")
+    return auth_context
+
+
+def require_strategy_publication_signal_access(request: Request, *, producer_job_name: str) -> AuthContext:
+    auth_context = validate_auth(request)
+    settings = get_settings(request).results_reconcile
+    _require_configured_roles(
+        request=request,
+        auth_context=auth_context,
+        required_roles=settings.publication_signal_required_roles,
+        log_prefix="Strategy publication signal",
+    )
+
+    caller_job = str(request.headers.get("X-Caller-Job") or "").strip()
+    if not caller_job:
+        raise HTTPException(status_code=400, detail="X-Caller-Job header is required.")
+    if caller_job != producer_job_name:
+        logger.warning(
+            "Strategy publication signal authz failed: request_id=%s subject=%s caller_job=%s producer_job=%s path=%s",
+            _request_id(request),
+            auth_context.subject or "-",
+            caller_job,
+            producer_job_name,
+            request.url.path,
+        )
+        raise HTTPException(status_code=403, detail="Caller job is not allowed to publish this reconcile signal.")
+    return auth_context
+
+
 def require_intraday_operator_access(request: Request, *, require_enabled: bool = True) -> AuthContext:
     auth_context = validate_auth(request)
     settings = get_settings(request).intraday_monitor

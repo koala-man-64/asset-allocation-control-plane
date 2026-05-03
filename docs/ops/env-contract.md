@@ -22,6 +22,7 @@ Rules:
 - `API_RUNTIME_IDENTITY_NAME` is the managed identity rendered into runtime `AZURE_CLIENT_ID`; `ACR_PULL_IDENTITY_NAME` must remain limited to image pull, and infra reconcile grants the deploy principal Managed Identity Operator on both identities.
 - `ENABLE_ACR_PRIVATE_LINK=true` reconciles ACR Premium private endpoint support through `privatelink.azurecr.io`. Keep ACR public access enabled until the in-environment image-pull smoke has passed.
 - `SYSTEM_*_REQUIRED_ROLES`, `RUNTIME_CONFIG_WRITE_REQUIRED_ROLES`, `JOB_OPERATE_REQUIRED_ROLES`, and `PURGE_WRITE_REQUIRED_ROLES` gate operator-only control-plane routes beyond baseline API auth. Job run triggers require baseline API auth only; `JOB_OPERATE_REQUIRED_ROLES` gates suspend, stop, and resume controls.
+- `RESULTS_RECONCILE_REQUIRED_ROLES` and `STRATEGY_PUBLICATION_SIGNAL_REQUIRED_ROLES` bind results reconciliation and durable publication-signal ingestion to dedicated job app roles in addition to the `X-Caller-Job` ownership header.
 - `RUN_LIVE_MASSIVE_TESTS` is an optional local opt-in flag in the managed env surface. Leave it `false` unless you intentionally want live Massive integration tests to run.
 - `AI_RELAY_API_KEY` is always manual input. The setup script never discovers or backfills it automatically.
 - E*TRADE broker credentials, Schwab OAuth client credentials, and Kalshi API key material are operator-provided GitHub secrets. The setup script never discovers or backfills broker API keys, RSA signing keys, or OAuth client secrets.
