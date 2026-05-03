@@ -313,8 +313,16 @@ def _resolve_strategy_universe(
 ) -> UniverseDefinition:
     if strategy_config.universe is not None:
         return strategy_config.universe
+    universe_ref = strategy_config.componentRefs.universe if strategy_config.componentRefs else None
+    if universe_ref is not None:
+        record = UniverseRepository(dsn).get_universe_config_revision(universe_ref.name, universe_ref.version)
+        if record:
+            return UniverseDefinition.model_validate(record.get("config") or {})
     if strategy_config.universeConfigName:
-        record = UniverseRepository(dsn).get_universe_config(strategy_config.universeConfigName)
+        record = UniverseRepository(dsn).get_universe_config_revision(
+            strategy_config.universeConfigName,
+            strategy_config.universeConfigVersion,
+        )
         if record:
             return UniverseDefinition.model_validate(record.get("config") or {})
     return fallback_universe
@@ -379,26 +387,44 @@ def resolve_backtest_definition_from_config(
 
     normalized_strategy_config = normalize_strategy_config_document(strategy_config_raw)
     strategy_config = StrategyConfig.model_validate(normalized_strategy_config)
-    resolved_ranking_schema_name = str(ranking_schema_name or strategy_config.rankingSchemaName or "").strip()
+    component_refs = strategy_config.componentRefs
+    ranking_ref = component_refs.ranking if component_refs else None
+    universe_ref = component_refs.universe if component_refs else None
+    resolved_ranking_schema_name = str(
+        ranking_schema_name
+        or (ranking_ref.name if ranking_ref else None)
+        or strategy_config.rankingSchemaName
+        or ""
+    ).strip()
+    resolved_ranking_schema_version = (
+        ranking_schema_version
+        or (ranking_ref.version if ranking_ref else None)
+        or strategy_config.rankingSchemaVersion
+    )
     strategy_subject = f"Strategy '{strategy_name}'" if strategy_name else "Strategy config"
     if not resolved_ranking_schema_name:
         raise ValueError(f"{strategy_subject} does not reference a ranking schema.")
 
-    ranking_record = ranking_repo.get_ranking_schema_revision(resolved_ranking_schema_name, ranking_schema_version)
+    ranking_record = ranking_repo.get_ranking_schema_revision(
+        resolved_ranking_schema_name,
+        resolved_ranking_schema_version,
+    )
     if not ranking_record:
         raise ValueError(f"Ranking schema '{resolved_ranking_schema_name}' not found.")
     ranking_schema = RankingSchemaConfig.model_validate(ranking_record.get("config") or {})
 
     resolved_universe_name = str(
         universe_name
+        or (universe_ref.name if universe_ref else None)
         or ranking_record.get("config", {}).get("universeConfigName")
         or ranking_schema.universeConfigName
         or ""
     ).strip() or None
+    resolved_universe_version = universe_version or (universe_ref.version if universe_ref else None)
     if not resolved_universe_name:
         raise ValueError(f"Ranking schema '{resolved_ranking_schema_name}' does not reference a universe config.")
 
-    universe_record = universe_repo.get_universe_config_revision(resolved_universe_name, universe_version)
+    universe_record = universe_repo.get_universe_config_revision(resolved_universe_name, resolved_universe_version)
     if not universe_record:
         raise ValueError(f"Universe config '{resolved_universe_name}' not found.")
 

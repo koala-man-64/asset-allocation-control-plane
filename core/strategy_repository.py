@@ -58,6 +58,47 @@ def _optional_int(value: Any) -> int | None:
     return int(value)
 
 
+_COMPONENT_REF_KEYS = {
+    "universe": ("universeConfigName", "universeConfigVersion"),
+    "ranking": ("rankingSchemaName", "rankingSchemaVersion"),
+    "regimePolicy": ("regimePolicyConfigName", "regimePolicyConfigVersion"),
+    "riskPolicy": ("riskPolicyName", "riskPolicyVersion"),
+    "exitPolicy": ("exitRuleSetName", "exitRuleSetVersion"),
+    "rebalance": (None, None),
+}
+
+
+def _component_ref(config: dict[str, Any], key: str) -> tuple[str | None, int | None]:
+    refs = _as_mapping(config.get("componentRefs"))
+    ref = _as_mapping(refs.get(key))
+    name = str(ref.get("name") or "").strip() or None
+    version = _optional_int(ref.get("version"))
+    return name, version
+
+
+def _set_component_ref(config: dict[str, Any], key: str, name: str | None, version: int | None) -> None:
+    if not name:
+        return
+    refs = _as_mapping(config.get("componentRefs"))
+    refs[key] = {"name": name, "version": int(version or 1)}
+    config["componentRefs"] = refs
+
+
+def _dual_write_component_ref(
+    config: dict[str, Any],
+    key: str,
+    *,
+    name: str | None,
+    version: int | None,
+) -> None:
+    _set_component_ref(config, key, name, version)
+    name_field, version_field = _COMPONENT_REF_KEYS[key]
+    if name and name_field:
+        config[name_field] = name
+    if version is not None and version_field:
+        config[version_field] = int(version)
+
+
 def _resolve_revision(
     cur,
     *,
@@ -164,10 +205,23 @@ class StrategyRepository:
             with connect(self.dsn) as conn:
                 with conn.cursor() as cur:
                     output_table_name = slugify_strategy_output_table(name)
-                    ranking_schema_name = str(normalized_config.get("rankingSchemaName") or "").strip() or None
-                    universe_name = str(normalized_config.get("universeConfigName") or "").strip() or None
-                    ranking_schema_version = _optional_int(normalized_config.get("rankingSchemaVersion"))
-                    universe_version = _optional_int(normalized_config.get("universeConfigVersion"))
+                    ranking_ref_name, ranking_ref_version = _component_ref(normalized_config, "ranking")
+                    universe_ref_name, universe_ref_version = _component_ref(normalized_config, "universe")
+                    regime_ref_name, regime_ref_version = _component_ref(normalized_config, "regimePolicy")
+                    risk_ref_name, risk_ref_version = _component_ref(normalized_config, "riskPolicy")
+                    exit_ref_name, exit_ref_version = _component_ref(normalized_config, "exitPolicy")
+                    rebalance_ref_name, rebalance_ref_version = _component_ref(normalized_config, "rebalance")
+
+                    ranking_schema_name = (
+                        ranking_ref_name or str(normalized_config.get("rankingSchemaName") or "").strip() or None
+                    )
+                    universe_name = (
+                        universe_ref_name or str(normalized_config.get("universeConfigName") or "").strip() or None
+                    )
+                    ranking_schema_version = ranking_ref_version or _optional_int(
+                        normalized_config.get("rankingSchemaVersion")
+                    )
+                    universe_version = universe_ref_version or _optional_int(normalized_config.get("universeConfigVersion"))
 
                     if ranking_schema_name:
                         ranking_revision = _resolve_revision(
@@ -179,12 +233,15 @@ class StrategyRepository:
                             version=ranking_schema_version,
                         )
                         ranking_schema_version = int(ranking_revision["version"])
-                        normalized_config["rankingSchemaVersion"] = ranking_schema_version
+                        _dual_write_component_ref(
+                            normalized_config,
+                            "ranking",
+                            name=ranking_schema_name,
+                            version=ranking_schema_version,
+                        )
                         ranking_config = _as_mapping(ranking_revision.get("config"))
                         if universe_name is None:
                             universe_name = str(ranking_config.get("universeConfigName") or "").strip() or None
-                            if universe_name:
-                                normalized_config["universeConfigName"] = universe_name
 
                     if universe_name:
                         universe_revision = _resolve_revision(
@@ -196,10 +253,19 @@ class StrategyRepository:
                             version=universe_version,
                         )
                         universe_version = int(universe_revision["version"])
-                        normalized_config["universeConfigVersion"] = universe_version
+                        _dual_write_component_ref(
+                            normalized_config,
+                            "universe",
+                            name=universe_name,
+                            version=universe_version,
+                        )
 
-                    regime_policy_name = str(normalized_config.get("regimePolicyConfigName") or "").strip() or None
-                    regime_policy_version = _optional_int(normalized_config.get("regimePolicyConfigVersion"))
+                    regime_policy_name = (
+                        regime_ref_name or str(normalized_config.get("regimePolicyConfigName") or "").strip() or None
+                    )
+                    regime_policy_version = regime_ref_version or _optional_int(
+                        normalized_config.get("regimePolicyConfigVersion")
+                    )
                     if regime_policy_name:
                         regime_policy_revision = _resolve_revision(
                             cur,
@@ -210,11 +276,40 @@ class StrategyRepository:
                             version=regime_policy_version,
                         )
                         regime_policy_version = int(regime_policy_revision["version"])
-                        normalized_config["regimePolicyConfigVersion"] = regime_policy_version
+                        _dual_write_component_ref(
+                            normalized_config,
+                            "regimePolicy",
+                            name=regime_policy_name,
+                            version=regime_policy_version,
+                        )
                         normalized_config["regimePolicy"] = _as_mapping(regime_policy_revision.get("config"))
 
-                    risk_policy_name = str(normalized_config.get("riskPolicyName") or "").strip() or None
-                    risk_policy_version = _optional_int(normalized_config.get("riskPolicyVersion"))
+                    rebalance_policy_name = rebalance_ref_name
+                    rebalance_policy_version = rebalance_ref_version
+                    if rebalance_policy_name:
+                        rebalance_policy_revision = _resolve_revision(
+                            cur,
+                            table="core.rebalance_policy_config_revisions",
+                            name_column="policy_name",
+                            label="Rebalance policy config",
+                            name=rebalance_policy_name,
+                            version=rebalance_policy_version,
+                        )
+                        rebalance_policy_version = int(rebalance_policy_revision["version"])
+                        _dual_write_component_ref(
+                            normalized_config,
+                            "rebalance",
+                            name=rebalance_policy_name,
+                            version=rebalance_policy_version,
+                        )
+                        rebalance_policy_config = _as_mapping(rebalance_policy_revision.get("config"))
+                        normalized_config["rebalancePolicy"] = rebalance_policy_config.get(
+                            "policy",
+                            rebalance_policy_config,
+                        )
+
+                    risk_policy_name = risk_ref_name or str(normalized_config.get("riskPolicyName") or "").strip() or None
+                    risk_policy_version = risk_ref_version or _optional_int(normalized_config.get("riskPolicyVersion"))
                     if risk_policy_name:
                         risk_policy_revision = _resolve_revision(
                             cur,
@@ -225,13 +320,20 @@ class StrategyRepository:
                             version=risk_policy_version,
                         )
                         risk_policy_version = int(risk_policy_revision["version"])
-                        normalized_config["riskPolicyVersion"] = risk_policy_version
+                        _dual_write_component_ref(
+                            normalized_config,
+                            "riskPolicy",
+                            name=risk_policy_name,
+                            version=risk_policy_version,
+                        )
                         risk_policy_config = _as_mapping(risk_policy_revision.get("config"))
                         resolved_policy = risk_policy_config.get("policy", risk_policy_config)
                         normalized_config["strategyRiskPolicy"] = resolved_policy
 
-                    exit_rule_set_name = str(normalized_config.get("exitRuleSetName") or "").strip() or None
-                    exit_rule_set_version = _optional_int(normalized_config.get("exitRuleSetVersion"))
+                    exit_rule_set_name = (
+                        exit_ref_name or str(normalized_config.get("exitRuleSetName") or "").strip() or None
+                    )
+                    exit_rule_set_version = exit_ref_version or _optional_int(normalized_config.get("exitRuleSetVersion"))
                     if exit_rule_set_name:
                         exit_rule_set_revision = _resolve_revision(
                             cur,
@@ -242,7 +344,12 @@ class StrategyRepository:
                             version=exit_rule_set_version,
                         )
                         exit_rule_set_version = int(exit_rule_set_revision["version"])
-                        normalized_config["exitRuleSetVersion"] = exit_rule_set_version
+                        _dual_write_component_ref(
+                            normalized_config,
+                            "exitPolicy",
+                            name=exit_rule_set_name,
+                            version=exit_rule_set_version,
+                        )
                         exit_rule_set_config = _as_mapping(exit_rule_set_revision.get("config"))
                         normalized_config["intrabarConflictPolicy"] = (
                             str(exit_rule_set_config.get("intrabarConflictPolicy") or "").strip() or "stop_first"
@@ -294,6 +401,8 @@ class StrategyRepository:
                             regime_policy_version,
                             risk_policy_name,
                             risk_policy_version,
+                            rebalance_policy_name,
+                            rebalance_policy_version,
                             exit_rule_set_name,
                             exit_rule_set_version,
                             status,
@@ -303,7 +412,7 @@ class StrategyRepository:
                         )
                         VALUES (
                             %s, %s, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s,
                             'published', %s, NOW(), NOW()
                         )
                         """,
@@ -320,6 +429,8 @@ class StrategyRepository:
                             regime_policy_version,
                             risk_policy_name,
                             risk_policy_version,
+                            rebalance_policy_name,
+                            rebalance_policy_version,
                             exit_rule_set_name,
                             exit_rule_set_version,
                             config_hash,
@@ -394,6 +505,8 @@ class StrategyRepository:
                                 regime_policy_version,
                                 risk_policy_name,
                                 risk_policy_version,
+                                rebalance_policy_name,
+                                rebalance_policy_version,
                                 exit_rule_set_name,
                                 exit_rule_set_version,
                                 status,
@@ -423,6 +536,8 @@ class StrategyRepository:
                                 regime_policy_version,
                                 risk_policy_name,
                                 risk_policy_version,
+                                rebalance_policy_name,
+                                rebalance_policy_version,
                                 exit_rule_set_name,
                                 exit_rule_set_version,
                                 status,
@@ -450,6 +565,8 @@ class StrategyRepository:
                         "regime_policy_version",
                         "risk_policy_name",
                         "risk_policy_version",
+                        "rebalance_policy_name",
+                        "rebalance_policy_version",
                         "exit_rule_set_name",
                         "exit_rule_set_version",
                         "status",

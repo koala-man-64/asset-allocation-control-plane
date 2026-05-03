@@ -19,8 +19,10 @@ async def test_save_regime_policy_validates_model_revision_and_persists(monkeypa
         lambda self, name, version=None: {"name": name, "version": version},
     )
 
-    def fake_save(self, family_key, *, name, config, description=""):  # type: ignore[no-untyped-def]
-        captured.update({"family": family_key, "name": name, "config": config, "description": description})
+    def fake_save(self, family_key, *, name, config, description="", **metadata):  # type: ignore[no-untyped-def]
+        captured.update(
+            {"family": family_key, "name": name, "config": config, "description": description, "metadata": metadata}
+        )
         return {"name": name, "version": 2, "description": description, "config": config}
 
     monkeypatch.setattr(ConfigLibraryRepository, "save_config", fake_save)
@@ -40,6 +42,8 @@ async def test_save_regime_policy_validates_model_revision_and_persists(monkeypa
     assert response.json()["version"] == 2
     assert captured["family"] == "regimePolicy"
     assert captured["config"] == {"modelName": "default-regime", "modelVersion": 3, "mode": "observe_only"}
+    assert captured["metadata"]["status"] == "active"
+    assert captured["metadata"]["intended_use"] == "research"
 
 
 @pytest.mark.asyncio
@@ -47,7 +51,7 @@ async def test_save_risk_policy_persists_strategy_risk_policy_wrapper(monkeypatc
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     captured: dict[str, object] = {}
 
-    def fake_save(self, family_key, *, name, config, description=""):  # type: ignore[no-untyped-def]
+    def fake_save(self, family_key, *, name, config, description="", **metadata):  # type: ignore[no-untyped-def]
         captured.update({"family": family_key, "name": name, "config": config, "description": description})
         return {"name": name, "version": 1, "description": description, "config": config}
 
@@ -71,6 +75,60 @@ async def test_save_risk_policy_persists_strategy_risk_policy_wrapper(monkeypatc
     assert response.status_code == 200
     assert captured["family"] == "riskPolicy"
     assert captured["config"]["policy"]["stopLoss"]["thresholdPct"] == 8
+
+
+@pytest.mark.asyncio
+async def test_save_rebalance_policy_persists_reusable_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    captured: dict[str, object] = {}
+
+    def fake_save(self, family_key, *, name, config, description="", **metadata):  # type: ignore[no-untyped-def]
+        captured.update({"family": family_key, "name": name, "config": config, "metadata": metadata})
+        return {"name": name, "version": 1, "description": description, "config": config}
+
+    monkeypatch.setattr(ConfigLibraryRepository, "save_config", fake_save)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.post(
+            "/api/rebalance-policies/",
+            json={
+                "name": "monthly_last_trading_day",
+                "status": "active",
+                "intendedUse": "validation",
+                "config": {
+                    "cadence": "monthly",
+                    "dayRule": "last_trading_day",
+                    "anchor": "close",
+                    "tradeDelayBars": 1,
+                    "driftThresholdBps": 100,
+                    "maxTurnoverPerRebalance": 0.25,
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured["family"] == "rebalancePolicy"
+    assert captured["config"]["cadence"] == "monthly"
+    assert captured["metadata"]["intended_use"] == "validation"
+
+
+@pytest.mark.asyncio
+async def test_save_rebalance_policy_requires_reusable_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.post(
+            "/api/rebalance-policies/",
+            json={
+                "name": "bad-rebalance",
+                "config": {"frequency": "every_bar"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "cadence, dayRule, and anchor" in response.text
 
 
 @pytest.mark.asyncio

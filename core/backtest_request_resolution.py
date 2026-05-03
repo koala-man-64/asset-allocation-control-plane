@@ -61,27 +61,38 @@ def _as_request_dict(value: BaseModel | dict[str, Any] | None) -> dict[str, Any]
 
 
 def _frozen_pins(definition: ResolvedBacktestDefinition) -> dict[str, Any]:
+    component_refs = definition.strategy_config.componentRefs
+    universe_ref = component_refs.universe if component_refs else None
+    ranking_ref = component_refs.ranking if component_refs else None
+    rebalance_ref = component_refs.rebalance if component_refs else None
+    regime_ref = component_refs.regimePolicy if component_refs else None
+    risk_ref = component_refs.riskPolicy if component_refs else None
+    exit_ref = component_refs.exitPolicy if component_refs else None
     return {
         "strategyName": definition.strategy_name,
         "strategyVersion": definition.strategy_version,
-        "rankingSchemaName": definition.ranking_schema_name,
-        "rankingSchemaVersion": definition.ranking_schema_version,
-        "universeName": definition.ranking_universe_name,
-        "universeVersion": definition.ranking_universe_version,
+        "universeName": universe_ref.name if universe_ref else definition.ranking_universe_name,
+        "universeVersion": universe_ref.version if universe_ref else definition.ranking_universe_version,
+        "rankingSchemaName": ranking_ref.name if ranking_ref else definition.ranking_schema_name,
+        "rankingSchemaVersion": ranking_ref.version if ranking_ref else definition.ranking_schema_version,
+        "rebalancePolicyName": rebalance_ref.name if rebalance_ref else None,
+        "rebalancePolicyVersion": rebalance_ref.version if rebalance_ref else None,
+        "regimePolicyName": regime_ref.name if regime_ref else definition.strategy_config.regimePolicyConfigName,
+        "regimePolicyVersion": regime_ref.version if regime_ref else definition.strategy_config.regimePolicyConfigVersion,
+        "riskPolicyName": risk_ref.name if risk_ref else definition.strategy_config.riskPolicyName,
+        "riskPolicyVersion": risk_ref.version if risk_ref else definition.strategy_config.riskPolicyVersion,
+        "exitPolicyName": exit_ref.name if exit_ref else definition.strategy_config.exitRuleSetName,
+        "exitPolicyVersion": exit_ref.version if exit_ref else definition.strategy_config.exitRuleSetVersion,
         "regimeModelName": definition.regime_model_name,
         "regimeModelVersion": definition.regime_model_version,
     }
 
 
 def _fingerprint_pins(definition: ResolvedBacktestDefinition) -> dict[str, Any]:
-    return {
-        "rankingSchemaName": definition.ranking_schema_name,
-        "rankingSchemaVersion": definition.ranking_schema_version,
-        "universeName": definition.ranking_universe_name,
-        "universeVersion": definition.ranking_universe_version,
-        "regimeModelName": definition.regime_model_name,
-        "regimeModelVersion": definition.regime_model_version,
-    }
+    pins = dict(_frozen_pins(definition))
+    pins.pop("strategyName", None)
+    pins.pop("strategyVersion", None)
+    return pins
 
 
 def resolve_backtest_request(

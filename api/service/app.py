@@ -583,6 +583,11 @@ def create_app() -> FastAPI:
             tags=["Risk Policies"],
         )
         app.include_router(
+            config_libraries.rebalance_policy_router,
+            prefix=f"{api_prefix}/rebalance-policies",
+            tags=["Rebalance Policies"],
+        )
+        app.include_router(
             config_libraries.exit_rule_set_router,
             prefix=f"{api_prefix}/exit-rule-sets",
             tags=["Exit Rule Sets"],

@@ -354,3 +354,76 @@ def test_save_strategy_resolves_pinned_configuration_libraries(monkeypatch) -> N
     assert persisted["exitRuleSetVersion"] == 6
     assert persisted["intrabarConflictPolicy"] == "priority_order"
     assert persisted["exits"][0]["id"] == "stop-8"
+
+
+def test_save_strategy_resolves_component_refs_and_dual_writes_legacy_fields(monkeypatch) -> None:
+    cursor = _FakeCursor(
+        fetchone_results=[
+            ("quality-ranking", 7, "Ranking", {"universeConfigName": "large-cap-quality"}),
+            ("large-cap-quality", 5, "Universe", {"source": "postgres_gold"}),
+            ("observe-default", 2, "Regime policy", {"modelName": "default-regime", "modelVersion": 3, "mode": "observe_only"}),
+            (
+                "monthly-last",
+                1,
+                "Rebalance",
+                {"cadence": "monthly", "dayRule": "last_trading_day", "anchor": "close", "tradeDelayBars": 1},
+            ),
+            (
+                "balanced-risk",
+                4,
+                "Risk policy",
+                {
+                    "policy": {
+                        "scope": "strategy",
+                        "stopLoss": {"thresholdPct": 8, "action": "reduce_exposure", "reductionPct": 50},
+                    }
+                },
+            ),
+            (
+                "rank-decay",
+                6,
+                "Exit rules",
+                {
+                    "intrabarConflictPolicy": "priority_order",
+                    "exits": [{"id": "rank-decay", "type": "rank_decay", "rankThreshold": 30}],
+                },
+            ),
+            (2,),
+        ]
+    )
+
+    monkeypatch.setattr(
+        "core.strategy_repository.connect",
+        lambda _dsn: _FakeConnection(cursor),
+    )
+
+    repo = StrategyRepository("postgresql://user:pass@localhost/db")
+    repo.save_strategy(
+        name="momentum",
+        config={
+            "componentRefs": {
+                "universe": {"name": "large-cap-quality", "version": 5},
+                "ranking": {"name": "quality-ranking", "version": 7},
+                "regimePolicy": {"name": "observe-default", "version": 2},
+                "rebalance": {"name": "monthly-last", "version": 1},
+                "riskPolicy": {"name": "balanced-risk", "version": 4},
+                "exitPolicy": {"name": "rank-decay", "version": 6},
+            },
+            "rebalance": "monthly",
+        },
+        strategy_type="configured",
+        description="Pinned momentum",
+    )
+
+    insert_sql, insert_params = cursor.execute_calls[6]
+    assert "INSERT INTO core.strategies" in insert_sql
+    assert insert_params is not None
+    persisted = json.loads(insert_params[1])
+    assert persisted["componentRefs"]["rebalance"] == {"name": "monthly-last", "version": 1}
+    assert persisted["universeConfigName"] == "large-cap-quality"
+    assert persisted["rankingSchemaName"] == "quality-ranking"
+    assert persisted["regimePolicyConfigName"] == "observe-default"
+    assert persisted["riskPolicyName"] == "balanced-risk"
+    assert persisted["exitRuleSetName"] == "rank-decay"
+    assert persisted["rebalancePolicy"]["cadence"] == "monthly"
+    assert persisted["exits"][0]["type"] == "rank_decay"

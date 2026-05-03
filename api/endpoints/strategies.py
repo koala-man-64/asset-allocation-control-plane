@@ -66,11 +66,12 @@ def _normalize_strategy_config(dsn: str, config: Any) -> dict[str, Any]:
         normalized_universe = _normalize_universe_definition(universe_payload)
         payload["universe"] = normalized_universe.model_dump(exclude_none=True)
     normalized = StrategyConfig.model_validate(payload)
-    if not normalized.universeConfigName:
-        raise ValueError("Strategy config must reference universeConfigName.")
-    universe_repo = UniverseRepository(dsn)
-    if not universe_repo.get_universe_config(normalized.universeConfigName):
-        raise ValueError(f"Universe config '{normalized.universeConfigName}' not found.")
+    universe_ref = normalized.componentRefs.universe if normalized.componentRefs else None
+    universe_name = normalized.universeConfigName or (universe_ref.name if universe_ref else None)
+    if not universe_name and normalized.universe is None:
+        raise ValueError("Strategy config must reference componentRefs.universe, universeConfigName, or inline universe.")
+    if universe_name and not UniverseRepository(dsn).get_universe_config(universe_name):
+        raise ValueError(f"Universe config '{universe_name}' not found.")
     return normalized.model_dump(exclude_none=True)
 
 

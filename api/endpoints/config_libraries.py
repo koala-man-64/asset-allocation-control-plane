@@ -9,18 +9,23 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from api.service.dependencies import validate_auth
 from core.config_library_repository import ConfigLibraryRepository
 from core.regime_repository import RegimeRepository
-from core.strategy_engine.contracts import ExitRule, IntrabarConflictPolicy, StrategyRiskPolicy
+from core.strategy_engine.contracts import ExitRule, IntrabarConflictPolicy, RebalancePolicy, StrategyRiskPolicy
 
 logger = logging.getLogger(__name__)
 
 regime_policy_router = APIRouter()
 risk_policy_router = APIRouter()
 exit_rule_set_router = APIRouter()
+rebalance_policy_router = APIRouter()
 
 
 class ConfigUpsertRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str = Field(default="", max_length=2048)
+    status: Literal["draft", "active", "deprecated"] = "active"
+    intendedUse: Literal["research", "validation", "production_candidate"] = "research"
+    thesis: str = Field(default="", max_length=4096)
+    whatToMonitor: list[str] = Field(default_factory=list)
     config: dict[str, Any]
 
 
@@ -37,6 +42,14 @@ class RegimePolicyConfigModel(BaseModel):
 
 class RiskPolicyConfigModel(BaseModel):
     policy: StrategyRiskPolicy
+
+
+class RebalancePolicyConfigModel(RebalancePolicy):
+    @model_validator(mode="after")
+    def validate_reusable_policy(self) -> "RebalancePolicyConfigModel":
+        if self.cadence is None or self.dayRule is None or self.anchor is None:
+            raise ValueError("Reusable rebalance policies require cadence, dayRule, and anchor.")
+        return self
 
 
 class ExitRuleSetConfigModel(BaseModel):
@@ -84,6 +97,10 @@ def _save_config(
         name=payload.name.strip(),
         description=payload.description.strip(),
         config=config,
+        status=payload.status,
+        intended_use=payload.intendedUse,
+        thesis=payload.thesis.strip(),
+        what_to_monitor=[str(item).strip() for item in payload.whatToMonitor if str(item).strip()],
     )
     return {
         "status": "success",
@@ -184,6 +201,51 @@ async def archive_risk_policy(name: str, request: Request) -> dict[str, str]:
     if not archived:
         raise HTTPException(status_code=404, detail=f"Risk policy '{name}' not found.")
     return {"status": "success", "message": f"Risk policy '{name}' archived successfully"}
+
+
+@rebalance_policy_router.get("/")
+async def list_rebalance_policies(request: Request) -> dict[str, Any]:
+    validate_auth(request)
+    repo = ConfigLibraryRepository(_require_postgres_dsn(request))
+    return {"policies": repo.list_configs("rebalancePolicy")}
+
+
+@rebalance_policy_router.get("/{name}/detail")
+async def get_rebalance_policy_detail(name: str, request: Request) -> dict[str, Any]:
+    validate_auth(request)
+    repo = ConfigLibraryRepository(_require_postgres_dsn(request))
+    return _shape_detail(repo, "rebalancePolicy", name, "policy")
+
+
+@rebalance_policy_router.get("/{name}/revisions/{version}")
+async def get_rebalance_policy_revision(name: str, version: int, request: Request) -> dict[str, Any]:
+    validate_auth(request)
+    repo = ConfigLibraryRepository(_require_postgres_dsn(request))
+    revision = repo.get_revision("rebalancePolicy", name, version=version)
+    if not revision:
+        raise HTTPException(status_code=404, detail=f"Rebalance policy '{name}' version {version} not found.")
+    return revision
+
+
+@rebalance_policy_router.post("/")
+async def save_rebalance_policy(payload: ConfigUpsertRequest, request: Request) -> dict[str, Any]:
+    validate_auth(request)
+    raw_config = payload.config.get("policy") if isinstance(payload.config.get("policy"), dict) else payload.config
+    try:
+        config = RebalancePolicyConfigModel.model_validate(raw_config).model_dump(mode="json")
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    repo = ConfigLibraryRepository(_require_postgres_dsn(request))
+    return _save_config(repo, "rebalancePolicy", payload, config)
+
+
+@rebalance_policy_router.delete("/{name}")
+async def archive_rebalance_policy(name: str, request: Request) -> dict[str, str]:
+    validate_auth(request)
+    archived = ConfigLibraryRepository(_require_postgres_dsn(request)).archive_config("rebalancePolicy", name)
+    if not archived:
+        raise HTTPException(status_code=404, detail=f"Rebalance policy '{name}' not found.")
+    return {"status": "success", "message": f"Rebalance policy '{name}' archived successfully"}
 
 
 @exit_rule_set_router.get("/")

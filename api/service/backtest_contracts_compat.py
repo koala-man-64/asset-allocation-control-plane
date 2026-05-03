@@ -12,6 +12,7 @@ try:  # pragma: no cover - exercised once the published shared package includes 
         BacktestAttributionExposureResponse,
         BacktestDataProvenance,
         BacktestExecutionAssumptions,
+        BacktestPolicyEventListResponse,
         BacktestResultLinks,
         BacktestReplayTimelineResponse,
         BacktestRunComparisonRequest,
@@ -34,6 +35,7 @@ except Exception:  # pragma: no cover - default path while control-plane depends
     from asset_allocation_contracts.backtest import (
         BacktestResultMetadata,
         BacktestSummary,
+        BacktestPolicyEventListResponse,
         ClosedPositionListResponse,
         RunListResponse,
         RunPinsResponse,

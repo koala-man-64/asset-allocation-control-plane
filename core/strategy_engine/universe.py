@@ -176,6 +176,52 @@ UNIVERSE_FIELD_MAP: dict[str, UniverseFieldSpec] = {
         table="earnings_data",
         column="surprise_pct",
     ),
+    "security.market_cap": UniverseFieldSpec(
+        field_id="security.market_cap",
+        schema="core",
+        table="symbols",
+        column="market_cap",
+    ),
+    "market.dollar_volume_20d": UniverseFieldSpec(
+        field_id="market.dollar_volume_20d",
+        schema="gold",
+        table="market_data",
+        column="dollar_volume_20d",
+    ),
+    "security.primary_listing": UniverseFieldSpec(
+        field_id="security.primary_listing",
+        schema="core",
+        table="symbols",
+        column="primary_listing",
+        candidate_sql=(
+            "CASE "
+            "WHEN {column} IS NULL THEN NULL "
+            "WHEN lower(btrim(({column})::text)) IN ('true', 't', '1', 'yes', 'y', 'primary') THEN TRUE "
+            "WHEN lower(btrim(({column})::text)) IN ('false', 'f', '0', 'no', 'n') THEN FALSE "
+            "ELSE NULL "
+            "END"
+        ),
+    ),
+    "security.country": UniverseFieldSpec(
+        field_id="security.country",
+        schema="core",
+        table="symbols",
+        column="country",
+    ),
+    "security.is_price_liquidity_eligible": UniverseFieldSpec(
+        field_id="security.is_price_liquidity_eligible",
+        schema="gold",
+        table="market_data",
+        column="price_liquidity_eligible",
+        candidate_sql=(
+            "CASE "
+            "WHEN {column} IS NULL THEN NULL "
+            "WHEN lower(btrim(({column})::text)) IN ('true', 't', '1', 'yes', 'y') THEN TRUE "
+            "WHEN lower(btrim(({column})::text)) IN ('false', 'f', '0', 'no', 'n') THEN FALSE "
+            "ELSE NULL "
+            "END"
+        ),
+    ),
 }
 
 _UNIVERSE_TABLE_COLUMN_TO_FIELD: dict[tuple[str, str], str] = {

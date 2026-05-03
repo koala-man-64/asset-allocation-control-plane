@@ -2521,18 +2521,6 @@
             ],
             "title": "Approval Readiness"
           },
-          "approval_readiness": {
-            "anyOf": [
-              {
-                "const": "research_only",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approval Readiness"
-          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -2644,18 +2632,6 @@
             ],
             "title": "Data Quality Event Count"
           },
-          "data_quality_event_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Quality Event Count"
-          },
           "end_date": {
             "anyOf": [
               {
@@ -2666,30 +2642,6 @@
               }
             ],
             "title": "End Date"
-          },
-          "execution_model": {
-            "anyOf": [
-              {
-                "const": "simple_bps",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Execution Model"
-          },
-          "execution_model_quality": {
-            "anyOf": [
-              {
-                "const": "not_tca_grade",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Execution Model Quality"
           },
           "execution_model": {
             "anyOf": [
@@ -2837,18 +2789,6 @@
             ],
             "title": "Policy Event Count"
           },
-          "policy_event_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy Event Count"
-          },
           "profit_factor": {
             "anyOf": [
               {
@@ -2859,22 +2799,6 @@
               }
             ],
             "title": "Profit Factor"
-          },
-          "research_integrity_status": {
-            "anyOf": [
-              {
-                "enum": [
-                  "strict_passed",
-                  "strict_failed",
-                  "legacy_uncontrolled"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Research Integrity Status"
           },
           "research_integrity_status": {
             "anyOf": [
@@ -4923,11 +4847,44 @@
             "title": "Description",
             "type": "string"
           },
+          "intendedUse": {
+            "default": "research",
+            "enum": [
+              "research",
+              "validation",
+              "production_candidate"
+            ],
+            "title": "Intendeduse",
+            "type": "string"
+          },
           "name": {
             "maxLength": 128,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "status": {
+            "default": "active",
+            "enum": [
+              "draft",
+              "active",
+              "deprecated"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "thesis": {
+            "default": "",
+            "maxLength": 4096,
+            "title": "Thesis",
+            "type": "string"
+          },
+          "whatToMonitor": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Whattomonitor",
+            "type": "array"
           }
         },
         "required": [
@@ -14427,94 +14384,6 @@
         "title": "RebalancePolicy",
         "type": "object"
       },
-      "RebalancePolicy": {
-        "additionalProperties": false,
-        "properties": {
-          "allowPartialRebalance": {
-            "default": true,
-            "title": "Allowpartialrebalance",
-            "type": "boolean"
-          },
-          "cashBufferPct": {
-            "default": 0.0,
-            "exclusiveMaximum": 100.0,
-            "minimum": 0.0,
-            "title": "Cashbufferpct",
-            "type": "number"
-          },
-          "closeRemovedPositions": {
-            "default": true,
-            "title": "Closeremovedpositions",
-            "type": "boolean"
-          },
-          "driftThresholdPct": {
-            "anyOf": [
-              {
-                "maximum": 100.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Driftthresholdpct"
-          },
-          "executionTiming": {
-            "const": "next_bar_open",
-            "default": "next_bar_open",
-            "title": "Executiontiming",
-            "type": "string"
-          },
-          "frequency": {
-            "default": "every_bar",
-            "enum": [
-              "every_bar",
-              "daily",
-              "weekly",
-              "monthly",
-              "quarterly",
-              "every_n_bars",
-              "manual"
-            ],
-            "title": "Frequency",
-            "type": "string"
-          },
-          "intervalBars": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Intervalbars"
-          },
-          "maxTurnoverPct": {
-            "anyOf": [
-              {
-                "maximum": 100.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Maxturnoverpct"
-          },
-          "minTradeNotional": {
-            "default": 0.0,
-            "minimum": 0.0,
-            "title": "Mintradenotional",
-            "type": "number"
-          }
-        },
-        "title": "RebalancePolicy",
-        "type": "object"
-      },
       "RebalanceProposal": {
         "additionalProperties": false,
         "properties": {
@@ -14710,18 +14579,6 @@
             "minLength": 1,
             "title": "Modelname",
             "type": "string"
-          },
-          "modelVersion": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Modelversion"
           },
           "modelVersion": {
             "anyOf": [
@@ -15839,31 +15696,6 @@
             ],
             "title": "Exitrulesetversion"
           },
-          "exitRuleSetName": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exitrulesetname"
-          },
-          "exitRuleSetVersion": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exitrulesetversion"
-          },
           "exits": {
             "items": {
               "$ref": "#/components/schemas/ExitRule"
@@ -15933,34 +15765,12 @@
             ],
             "title": "Rankingschemaversion"
           },
-          "rankingSchemaVersion": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rankingschemaversion"
-          },
           "rebalance": {
             "default": "monthly",
             "maxLength": 64,
             "minLength": 1,
             "title": "Rebalance",
             "type": "string"
-          },
-          "rebalancePolicy": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RebalancePolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "rebalancePolicy": {
             "anyOf": [
@@ -15981,56 +15791,6 @@
                 "type": "null"
               }
             ]
-          },
-          "regimePolicyConfigName": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Regimepolicyconfigname"
-          },
-          "regimePolicyConfigVersion": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Regimepolicyconfigversion"
-          },
-          "riskPolicyName": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Riskpolicyname"
-          },
-          "riskPolicyVersion": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Riskpolicyversion"
           },
           "regimePolicyConfigName": {
             "anyOf": [
@@ -16105,16 +15865,6 @@
               }
             ]
           },
-          "strategyRiskPolicy": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StrategyRiskPolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "topN": {
             "default": 20,
             "minimum": 1.0,
@@ -16143,18 +15893,6 @@
               }
             ],
             "title": "Universeconfigname"
-          },
-          "universeConfigVersion": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Universeconfigversion"
           },
           "universeConfigVersion": {
             "anyOf": [
@@ -16327,187 +16065,6 @@
           "strategyName"
         ],
         "title": "StrategyReferenceInput",
-        "type": "object"
-      },
-      "StrategyRiskPolicy": {
-        "additionalProperties": false,
-        "properties": {
-          "enabled": {
-            "default": true,
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "reentry": {
-            "$ref": "#/components/schemas/StrategyRiskReentryPolicy"
-          },
-          "scope": {
-            "default": "strategy",
-            "enum": [
-              "strategy",
-              "sleeve"
-            ],
-            "title": "Scope",
-            "type": "string"
-          },
-          "stopLoss": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StrategyRiskStopLossPolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "takeProfit": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StrategyRiskTakeProfitPolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "title": "StrategyRiskPolicy",
-        "type": "object"
-      },
-      "StrategyRiskReentryPolicy": {
-        "additionalProperties": false,
-        "properties": {
-          "cooldownBars": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Cooldownbars",
-            "type": "integer"
-          },
-          "requireApproval": {
-            "default": false,
-            "title": "Requireapproval",
-            "type": "boolean"
-          }
-        },
-        "title": "StrategyRiskReentryPolicy",
-        "type": "object"
-      },
-      "StrategyRiskStopLossPolicy": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "default": "reduce_exposure",
-            "enum": [
-              "reduce_exposure",
-              "liquidate",
-              "freeze_buys"
-            ],
-            "title": "Action",
-            "type": "string"
-          },
-          "basis": {
-            "default": "strategy_nav_drawdown",
-            "enum": [
-              "strategy_nav_drawdown",
-              "sleeve_nav_drawdown"
-            ],
-            "title": "Basis",
-            "type": "string"
-          },
-          "enabled": {
-            "default": true,
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "id": {
-            "default": "strategy-stop-loss",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Id",
-            "type": "string"
-          },
-          "reductionPct": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 100.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reductionpct"
-          },
-          "thresholdPct": {
-            "exclusiveMinimum": 0.0,
-            "maximum": 100.0,
-            "title": "Thresholdpct",
-            "type": "number"
-          }
-        },
-        "required": [
-          "thresholdPct"
-        ],
-        "title": "StrategyRiskStopLossPolicy",
-        "type": "object"
-      },
-      "StrategyRiskTakeProfitPolicy": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "default": "rebalance_to_target",
-            "enum": [
-              "reduce_exposure",
-              "rebalance_to_target"
-            ],
-            "title": "Action",
-            "type": "string"
-          },
-          "basis": {
-            "default": "strategy_nav_gain",
-            "enum": [
-              "strategy_nav_gain",
-              "sleeve_nav_gain"
-            ],
-            "title": "Basis",
-            "type": "string"
-          },
-          "enabled": {
-            "default": true,
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "id": {
-            "default": "strategy-take-profit",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Id",
-            "type": "string"
-          },
-          "reductionPct": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 100.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reductionpct"
-          },
-          "thresholdPct": {
-            "exclusiveMinimum": 0.0,
-            "maximum": 100.0,
-            "title": "Thresholdpct",
-            "type": "number"
-          }
-        },
-        "required": [
-          "thresholdPct"
-        ],
-        "title": "StrategyRiskTakeProfitPolicy",
         "type": "object"
       },
       "StrategyRiskPolicy": {
@@ -16987,18 +16544,6 @@
             ],
             "title": "Approval Readiness"
           },
-          "approval_readiness": {
-            "anyOf": [
-              {
-                "const": "research_only",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approval Readiness"
-          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -17110,18 +16655,6 @@
             ],
             "title": "Data Quality Event Count"
           },
-          "data_quality_event_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Quality Event Count"
-          },
           "end_date": {
             "anyOf": [
               {
@@ -17132,30 +16665,6 @@
               }
             ],
             "title": "End Date"
-          },
-          "execution_model": {
-            "anyOf": [
-              {
-                "const": "simple_bps",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Execution Model"
-          },
-          "execution_model_quality": {
-            "anyOf": [
-              {
-                "const": "not_tca_grade",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Execution Model Quality"
           },
           "execution_model": {
             "anyOf": [
@@ -17313,18 +16822,6 @@
             ],
             "title": "Policy Event Count"
           },
-          "policy_event_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy Event Count"
-          },
           "profit_factor": {
             "anyOf": [
               {
@@ -17335,22 +16832,6 @@
               }
             ],
             "title": "Profit Factor"
-          },
-          "research_integrity_status": {
-            "anyOf": [
-              {
-                "enum": [
-                  "strict_passed",
-                  "strict_failed",
-                  "legacy_uncontrolled"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Research Integrity Status"
           },
           "research_integrity_status": {
             "anyOf": [
@@ -37704,6 +37185,213 @@
         "summary": "Issue Realtime Ticket",
         "tags": [
           "Realtime"
+        ]
+      }
+    },
+    "/api/rebalance-policies/": {
+      "get": {
+        "operationId": "list_rebalance_policies_api_rebalance_policies__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Rebalance Policies Api Rebalance Policies  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Rebalance Policies",
+        "tags": [
+          "Rebalance Policies"
+        ]
+      },
+      "post": {
+        "operationId": "save_rebalance_policy_api_rebalance_policies__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Rebalance Policy Api Rebalance Policies  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Rebalance Policy",
+        "tags": [
+          "Rebalance Policies"
+        ]
+      }
+    },
+    "/api/rebalance-policies/{name}": {
+      "delete": {
+        "operationId": "archive_rebalance_policy_api_rebalance_policies__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Rebalance Policy Api Rebalance Policies  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Rebalance Policy",
+        "tags": [
+          "Rebalance Policies"
+        ]
+      }
+    },
+    "/api/rebalance-policies/{name}/detail": {
+      "get": {
+        "operationId": "get_rebalance_policy_detail_api_rebalance_policies__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Rebalance Policy Detail Api Rebalance Policies  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rebalance Policy Detail",
+        "tags": [
+          "Rebalance Policies"
+        ]
+      }
+    },
+    "/api/rebalance-policies/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_rebalance_policy_revision_api_rebalance_policies__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Rebalance Policy Revision Api Rebalance Policies  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rebalance Policy Revision",
+        "tags": [
+          "Rebalance Policies"
         ]
       }
     },
