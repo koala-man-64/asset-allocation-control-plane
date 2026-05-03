@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from asset_allocation_contracts.broker_accounts import (
     AcknowledgeBrokerAlertRequest,
@@ -9,6 +9,9 @@ from asset_allocation_contracts.broker_accounts import (
     BrokerAccountConfiguration,
     BrokerAccountDetail,
     BrokerAccountListResponse,
+    BrokerAccountOnboardingCandidateListResponse,
+    BrokerAccountOnboardingRequest,
+    BrokerAccountOnboardingResponse,
     BrokerTradingPolicyUpdateRequest,
     PauseBrokerSyncRequest,
     ReconnectBrokerAccountRequest,
@@ -23,6 +26,10 @@ from api.service.broker_account_configuration_service import (
 from api.service.broker_account_operations_service import (
     BrokerAccountOperationsError,
     BrokerAccountOperationsService,
+)
+from api.service.broker_account_onboarding_service import (
+    BrokerAccountOnboardingError,
+    BrokerAccountOnboardingService,
 )
 from api.service.broker_account_status_refresh_service import BrokerAccountStatusRefreshService
 from api.service.dependencies import (
@@ -84,6 +91,47 @@ def _operations_service(request: Request) -> BrokerAccountOperationsService:
     )
 
 
+def _onboarding_service(request: Request) -> BrokerAccountOnboardingService:
+    dsn = str(request.app.state.settings.postgres_dsn or "").strip()
+    if not dsn:
+        raise HTTPException(
+            status_code=503,
+            detail="Postgres is required for broker account onboarding endpoints.",
+            headers={"Cache-Control": "no-store"},
+        )
+    trade_repo = TradeDeskRepository(dsn)
+    configuration_repo = BrokerAccountConfigurationRepository(dsn)
+    configuration_service = BrokerAccountConfigurationService(
+        configuration_repo,
+        trade_repo,
+        PortfolioRepository(dsn),
+    )
+    refresh_service = BrokerAccountStatusRefreshService(
+        trade_repo,
+        request.app.state.settings.broker_account_status_refresh,
+        alpaca_gateway=getattr(request.app.state, "alpaca_gateway", None),
+        etrade_gateway=getattr(request.app.state, "etrade_gateway", None),
+        schwab_gateway=getattr(request.app.state, "schwab_gateway", None),
+    )
+    operations_service = BrokerAccountOperationsService(
+        trade_repo,
+        request.app.state.settings.trade_desk,
+        configuration_service,
+        refresh_service,
+    )
+    return BrokerAccountOnboardingService(
+        trade_repo,
+        configuration_repo,
+        configuration_service,
+        operations_service,
+        request.app.state.settings.trade_desk,
+        refresh_service=refresh_service,
+        alpaca_gateway=getattr(request.app.state, "alpaca_gateway", None),
+        etrade_gateway=getattr(request.app.state, "etrade_gateway", None),
+        schwab_gateway=getattr(request.app.state, "schwab_gateway", None),
+    )
+
+
 def _actor(auth_context: AuthContext) -> str | None:
     return str(auth_context.subject or "").strip() or None
 
@@ -119,6 +167,14 @@ def _handle_operations_error(exc: BrokerAccountOperationsError) -> None:
     ) from exc
 
 
+def _handle_onboarding_error(exc: BrokerAccountOnboardingError) -> None:
+    raise HTTPException(
+        status_code=exc.status_code,
+        detail=exc.detail,
+        headers={"Cache-Control": "no-store"},
+    ) from exc
+
+
 @router.get("/broker-accounts", response_model=BrokerAccountListResponse)
 async def list_broker_accounts(
     request: Request,
@@ -130,6 +186,50 @@ async def list_broker_accounts(
         return _operations_service(request).list_accounts()
     except BrokerAccountOperationsError as exc:
         _handle_operations_error(exc)
+        raise
+
+
+@router.get(
+    "/broker-accounts/onboarding/candidates",
+    response_model=BrokerAccountOnboardingCandidateListResponse,
+)
+async def list_broker_account_onboarding_candidates(
+    request: Request,
+    response: Response,
+    provider: str = Query(..., pattern="^(alpaca|etrade|schwab)$"),
+    environment: str = Query(..., pattern="^(paper|sandbox|live)$"),
+    auth_context: AuthContext = Depends(require_account_policy_write_access),
+) -> BrokerAccountOnboardingCandidateListResponse:
+    _set_no_store(response)
+    try:
+        return _onboarding_service(request).list_candidates(
+            provider=provider,
+            environment=environment,
+            actor=_actor(auth_context),
+            granted_roles=_granted_roles(auth_context),
+        )
+    except BrokerAccountOnboardingError as exc:
+        _handle_onboarding_error(exc)
+        raise
+
+
+@router.post("/broker-accounts/onboarding", response_model=BrokerAccountOnboardingResponse)
+async def onboard_broker_account(
+    payload: BrokerAccountOnboardingRequest,
+    request: Request,
+    response: Response,
+    auth_context: AuthContext = Depends(require_account_policy_write_access),
+) -> BrokerAccountOnboardingResponse:
+    _set_no_store(response)
+    try:
+        return _onboarding_service(request).onboard_account(
+            payload,
+            actor=_actor(auth_context),
+            request_id=_request_id(request),
+            granted_roles=_granted_roles(auth_context),
+        )
+    except BrokerAccountOnboardingError as exc:
+        _handle_onboarding_error(exc)
         raise
 
 

@@ -52,6 +52,15 @@ class TradeAccountRecord:
 
 
 @dataclass(frozen=True)
+class TradeAccountSeedState:
+    accountId: str
+    enabled: bool
+    provider: str
+    environment: str
+    providerAccountKey: str | None
+
+
+@dataclass(frozen=True)
 class IdempotencyRecord:
     requestHash: str
     responsePayload: dict[str, Any]
@@ -101,6 +110,29 @@ class TradeDeskRepository:
         provider_account_key = str(row[2]).strip() if row[2] else None
         return TradeAccountRecord(account=account, detail=detail, providerAccountKey=provider_account_key or None)
 
+    def get_account_seed_state(self, account_id: str) -> TradeAccountSeedState | None:
+        with connect(self._dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT account_id, enabled, provider, environment, provider_account_key
+                    FROM core.trade_accounts
+                    WHERE account_id = %s
+                    """,
+                    (account_id,),
+                )
+                row = cur.fetchone()
+        if not row:
+            return None
+        provider_account_key = str(row[4]).strip() if row[4] else None
+        return TradeAccountSeedState(
+            accountId=str(row[0]),
+            enabled=bool(row[1]),
+            provider=str(row[2]),
+            environment=str(row[3]),
+            providerAccountKey=provider_account_key or None,
+        )
+
     def list_account_records(self, *, limit: int | None = None) -> list[TradeAccountRecord]:
         query = """
             SELECT account_payload, detail_payload, provider_account_key
@@ -136,6 +168,76 @@ class TradeDeskRepository:
                 )
             )
         return records
+
+    def upsert_account_seed(
+        self,
+        *,
+        account: TradeAccountSummary,
+        detail: TradeAccountDetail | None = None,
+        provider_account_key: str | None,
+        live_trading_allowed: bool = False,
+        kill_switch_active: bool = False,
+    ) -> tuple[bool, bool]:
+        current = self.get_account_seed_state(account.accountId)
+        created = current is None
+        reenabled = current is not None and not current.enabled
+        now = utc_now()
+        account_payload = account.model_dump(mode="json")
+        detail_payload = (detail or TradeAccountDetail(account=account)).model_dump(mode="json")
+
+        with connect(self._dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO core.trade_accounts (
+                        account_id,
+                        name,
+                        provider,
+                        environment,
+                        provider_account_key,
+                        account_number_masked,
+                        base_currency,
+                        enabled,
+                        live_trading_allowed,
+                        kill_switch_active,
+                        account_payload,
+                        detail_payload,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s::jsonb, %s::jsonb, %s, %s)
+                    ON CONFLICT (account_id) DO UPDATE
+                    SET
+                        name = EXCLUDED.name,
+                        provider = EXCLUDED.provider,
+                        environment = EXCLUDED.environment,
+                        provider_account_key = EXCLUDED.provider_account_key,
+                        account_number_masked = EXCLUDED.account_number_masked,
+                        base_currency = EXCLUDED.base_currency,
+                        enabled = true,
+                        live_trading_allowed = EXCLUDED.live_trading_allowed,
+                        kill_switch_active = EXCLUDED.kill_switch_active,
+                        account_payload = EXCLUDED.account_payload,
+                        detail_payload = EXCLUDED.detail_payload,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    (
+                        account.accountId,
+                        account.name,
+                        account.provider,
+                        account.environment,
+                        provider_account_key,
+                        account.accountNumberMasked,
+                        account.baseCurrency,
+                        bool(live_trading_allowed),
+                        bool(kill_switch_active),
+                        _json_dumps(account_payload),
+                        _json_dumps(detail_payload),
+                        now,
+                        now,
+                    ),
+                )
+        return created, reenabled
 
     @contextmanager
     def account_refresh_lock(self, account_id: str) -> Iterator[bool]:
