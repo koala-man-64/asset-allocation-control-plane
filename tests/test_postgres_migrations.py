@@ -552,3 +552,27 @@ def test_notifications_migration_creates_request_delivery_token_and_audit_tables
     assert "raw_token" not in text.lower()
     assert "WHERE status = 'pending'" in text
     assert "decision_status IN ('not_required', 'pending', 'approved', 'denied', 'expired')" in text
+
+
+def test_backtest_policy_events_migration_creates_diagnostics_table_without_jsonb_indexes() -> None:
+    repo_root = _repo_root()
+    migration = (
+        repo_root
+        / "deploy"
+        / "sql"
+        / "postgres"
+        / "migrations"
+        / "0045_backtest_policy_events.sql"
+    )
+    text = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS core.backtest_policy_events" in text
+    assert "PRIMARY KEY (run_id, event_seq)" in text
+    assert "bar_ts TIMESTAMPTZ NOT NULL" in text
+    assert "scope TEXT NOT NULL" in text
+    assert "policy_type TEXT NOT NULL" in text
+    assert "decision TEXT NOT NULL" in text
+    assert "reason_code TEXT NOT NULL" in text
+    assert "details JSONB NOT NULL DEFAULT '{}'::jsonb" in text
+    assert "idx_backtest_policy_events_run_bar_seq" in text
+    assert "USING GIN" not in text

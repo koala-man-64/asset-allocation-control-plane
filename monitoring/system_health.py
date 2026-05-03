@@ -14,7 +14,12 @@ from monitoring.backtest_health import (
     build_backtest_operational_alerts,
     collect_backtest_operational_summary,
 )
-from monitoring.control_plane import ResourceHealthItem, collect_container_apps, collect_jobs_and_executions
+from monitoring.control_plane import (
+    ResourceHealthItem,
+    collect_container_apps,
+    collect_jobs_and_executions,
+    resolve_container_app_job_names,
+)
 from monitoring.log_analytics import (
     AzureLogAnalyticsClient,
     collect_log_analytics_signals,
@@ -54,6 +59,7 @@ from monitoring.system_health_modules.env_config import (
 )
 from monitoring.system_health_modules.freshness import (
     DomainSpec,
+    JobScheduleProbeResult,
     DomainTimestampResolution,
     LayerProbeSpec,
     _collect_job_names_for_layers,
@@ -62,6 +68,8 @@ from monitoring.system_health_modules.freshness import (
     _domain_name_from_delta_path,
     _domain_name_from_marker_path,
     _load_freshness_overrides,
+    _job_exists_in_schedule_probe,
+    _load_job_schedule_probe,
     _load_job_schedule_metadata,
     _marker_blob_name,
     _marker_probe_config,
@@ -136,6 +144,7 @@ _LEGACY_EXPORTS = (
     ResourceHealthItem,
     collect_container_apps,
     collect_jobs_and_executions,
+    resolve_container_app_job_names,
     AzureLogAnalyticsClient,
     collect_log_analytics_signals,
     parse_log_analytics_queries_json,
@@ -172,6 +181,7 @@ _LEGACY_EXPORTS = (
     _require_int,
     _split_csv,
     DomainSpec,
+    JobScheduleProbeResult,
     DomainTimestampResolution,
     LayerProbeSpec,
     _collect_job_names_for_layers,
@@ -180,6 +190,8 @@ _LEGACY_EXPORTS = (
     _domain_name_from_delta_path,
     _domain_name_from_marker_path,
     _load_freshness_overrides,
+    _job_exists_in_schedule_probe,
+    _load_job_schedule_probe,
     _load_job_schedule_metadata,
     _marker_blob_name,
     _marker_probe_config,

@@ -1222,10 +1222,7 @@ async def test_get_run_detail_returns_config_validation_and_provenance(
     assert body["links"]["summaryUrl"] == "/api/backtests/run-detail-1/summary"
 
 
-@pytest.mark.asyncio
-async def test_get_replay_timeline_uses_simulated_trade_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_get_policy_events_returns_paginated_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
     monkeypatch.setattr(
         BacktestRepository,
@@ -1236,22 +1233,26 @@ async def test_get_replay_timeline_uses_simulated_trade_evidence(
             "results_ready_at": "2026-03-08T12:00:00+00:00",
         },
     )
-    monkeypatch.setattr(BacktestRepository, "count_trades", lambda self, run_id: 1)
+    monkeypatch.setattr(BacktestRepository, "count_policy_events", lambda self, run_id: 1)
     monkeypatch.setattr(
         BacktestRepository,
-        "list_trades",
+        "list_policy_events",
         lambda self, run_id, **kwargs: [
             {
-                "execution_date": "2026-03-08T10:00:00Z",
-                "symbol": "MSFT",
-                "quantity": 10.0,
-                "price": 100.0,
-                "notional": 1000.0,
-                "commission": 1.0,
-                "slippage_cost": 0.5,
-                "cash_after": 98998.5,
-                "position_id": "pos-1",
-                "trade_role": "entry",
+                "run_id": run_id,
+                "event_seq": 1,
+                "bar_ts": "2026-03-08T10:00:00Z",
+                "scope": "strategy",
+                "policy_type": "rebalance",
+                "decision": "applied",
+                "reason_code": "scheduled",
+                "symbol": None,
+                "position_id": None,
+                "policy_id": None,
+                "observed_value": 12.5,
+                "threshold_value": None,
+                "action": "rebalance",
+                "details": {"frequency": "every_bar"},
             }
         ],
     )

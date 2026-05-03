@@ -40,7 +40,7 @@ from api.service.dependencies import (
 )
 from api.service.realtime import manager as realtime_manager
 from monitoring.arm_client import ArmConfig, AzureArmClient
-from monitoring.control_plane import collect_jobs_and_executions
+from monitoring.control_plane import collect_jobs_and_executions, resolve_container_app_job_names
 from monitoring.domain_metadata import collect_domain_metadata
 from monitoring.log_analytics import AzureLogAnalyticsClient, extract_first_table_rows
 from monitoring.system_health import collect_system_health_snapshot
@@ -93,6 +93,7 @@ _LEGACY_EXPORTS = (
     ArmConfig,
     AzureArmClient,
     collect_jobs_and_executions,
+    resolve_container_app_job_names,
     collect_domain_metadata,
     AzureLogAnalyticsClient,
     extract_first_table_rows,
@@ -250,7 +251,11 @@ def _get_actor(request: Request) -> Optional[str]:
     if settings.anonymous_local_auth_enabled:
         return None
     auth = get_auth_manager(request)
-    ctx = auth.authenticate_headers(dict(request.headers))
+    authenticate = getattr(auth, "authenticate_request", None)
+    if callable(authenticate):
+        ctx = authenticate(dict(request.headers), dict(request.cookies))
+    else:
+        ctx = auth.authenticate_headers(dict(request.headers))
     if ctx.subject:
         return ctx.subject
     for key in ("preferred_username", "email", "upn"):
@@ -684,7 +689,10 @@ RUNTIME_CONFIG_CATALOG: Dict[str, Dict[str, str]] = {
         "example": "asset-allocation-api,asset-allocation-ui",
     },
     "SYSTEM_HEALTH_ARM_JOBS": {
-        "description": "Comma-separated list of Container App Job names to probe via ARM.",
+        "description": (
+            "Optional comma-separated Container App Job allowlist. "
+            "When unset, the API discovers all Container App Jobs in the configured resource group."
+        ),
         "example": "silver-market-job,gold-finance-job",
     },
     "SYSTEM_HEALTH_JOB_EXECUTIONS_PER_JOB": {

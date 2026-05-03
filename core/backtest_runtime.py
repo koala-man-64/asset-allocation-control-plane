@@ -4,7 +4,7 @@ import json
 import logging
 import math
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timezone
 from typing import Any, Iterable
 
@@ -48,6 +48,23 @@ class ResolvedBacktestDefinition:
     regime_model_name: str | None = None
     regime_model_version: int | None = None
     regime_model_config: dict[str, Any] | None = None
+
+
+@dataclass
+class PolicyRuntimeState:
+    last_rebalance_signal_index: int | None = None
+    last_rebalance_signal_ts: datetime | None = None
+    manual_rebalance_skip_emitted: bool = False
+    position_cooldown_until: dict[str, int] = field(default_factory=dict)
+    position_approval_required: set[str] = field(default_factory=set)
+    position_approval_emitted: set[str] = field(default_factory=set)
+    strategy_nav_baseline: float | None = None
+    strategy_nav_peak: float | None = None
+    strategy_cooldown_until_index: int | None = None
+    strategy_approval_required: bool = False
+    strategy_approval_emitted: bool = False
+    strategy_exposure_multiplier: float = 1.0
+    strategy_freeze_buys: bool = False
 
 
 def _ensure_utc(value: datetime) -> datetime:
@@ -578,6 +595,427 @@ def _maybe_float(value: Any) -> float | None:
         return None
 
 
+def _record_policy_event(
+    policy_event_rows: list[dict[str, Any]],
+    *,
+    ts: datetime,
+    scope: str,
+    policy_type: str,
+    decision: str,
+    reason_code: str,
+    symbol: str | None = None,
+    position_id: str | None = None,
+    policy_id: str | None = None,
+    observed_value: float | None = None,
+    threshold_value: float | None = None,
+    action: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
+    policy_event_rows.append(
+        {
+            "event_seq": len(policy_event_rows) + 1,
+            "bar_ts": ts.isoformat(),
+            "scope": scope,
+            "policy_type": policy_type,
+            "decision": decision,
+            "reason_code": reason_code,
+            "symbol": symbol,
+            "position_id": position_id,
+            "policy_id": policy_id,
+            "observed_value": observed_value,
+            "threshold_value": threshold_value,
+            "action": action,
+            "details": details or {},
+        }
+    )
+
+
+def _rebalance_policy_allows_signal(
+    policy: Any,
+    *,
+    current_ts: datetime,
+    bar_index: int,
+    state: PolicyRuntimeState,
+    policy_event_rows: list[dict[str, Any]],
+) -> bool:
+    if policy is None:
+        return True
+
+    frequency = str(policy.frequency)
+    if frequency == "manual":
+        if not state.manual_rebalance_skip_emitted:
+            _record_policy_event(
+                policy_event_rows,
+                ts=current_ts,
+                scope="strategy",
+                policy_type="rebalance",
+                decision="skipped",
+                reason_code="manual_mode",
+                action="none",
+            )
+            state.manual_rebalance_skip_emitted = True
+        return False
+
+    last_index = state.last_rebalance_signal_index
+    last_ts = state.last_rebalance_signal_ts
+    if last_index is None or last_ts is None:
+        return True
+    if frequency == "every_bar":
+        return True
+    if frequency == "daily":
+        return current_ts.date() != last_ts.date()
+    if frequency == "weekly":
+        return current_ts.isocalendar()[:2] != last_ts.isocalendar()[:2]
+    if frequency == "monthly":
+        return (current_ts.year, current_ts.month) != (last_ts.year, last_ts.month)
+    if frequency == "quarterly":
+        current_quarter = (current_ts.month - 1) // 3
+        last_quarter = (last_ts.month - 1) // 3
+        return (current_ts.year, current_quarter) != (last_ts.year, last_quarter)
+    if frequency == "every_n_bars":
+        return bar_index - last_index >= int(policy.intervalBars or 1)
+    return False
+
+
+def _position_price(
+    snapshot: pd.DataFrame,
+    symbol: str,
+    position: PositionState,
+    previous_close_by_symbol: dict[str, float],
+    *,
+    prefer_open: bool = False,
+) -> float:
+    row = _market_row(snapshot, symbol)
+    if row is None:
+        return float(previous_close_by_symbol.get(symbol, position.entry_price))
+    primary_column = "open" if prefer_open else "close"
+    fallback_column = "close" if prefer_open else "open"
+    price = _maybe_float(row.get(f"{_PRICE_TABLE}__{primary_column}")) or _maybe_float(
+        row.get(f"{_PRICE_TABLE}__{fallback_column}")
+    )
+    if price is None or price <= 0:
+        price = previous_close_by_symbol.get(symbol, position.entry_price)
+    return float(price)
+
+
+def _current_position_weights(
+    positions: dict[str, PositionState],
+    *,
+    snapshot: pd.DataFrame,
+    previous_close_by_symbol: dict[str, float],
+    equity: float,
+) -> dict[str, float]:
+    if equity <= 0:
+        return {}
+    return {
+        symbol: float(position.quantity * _position_price(snapshot, symbol, position, previous_close_by_symbol) / equity)
+        for symbol, position in positions.items()
+    }
+
+
+def _strategy_risk_active(state: PolicyRuntimeState, *, bar_index: int) -> bool:
+    if state.strategy_approval_required:
+        return True
+    return state.strategy_cooldown_until_index is not None and bar_index <= state.strategy_cooldown_until_index
+
+
+def _active_strategy_exposure_multiplier(
+    state: PolicyRuntimeState,
+    *,
+    policy: Any,
+    bar_index: int,
+    current_ts: datetime,
+    policy_event_rows: list[dict[str, Any]],
+) -> float:
+    if policy is None or not bool(policy.enabled):
+        return 1.0
+    if state.strategy_approval_required:
+        if (
+            state.strategy_cooldown_until_index is not None
+            and bar_index > state.strategy_cooldown_until_index
+            and not state.strategy_approval_emitted
+        ):
+            _record_policy_event(
+                policy_event_rows,
+                ts=current_ts,
+                scope="strategy",
+                policy_type="reentry",
+                decision="blocked",
+                reason_code="approval_required",
+                action="hold_reduced_exposure",
+            )
+            state.strategy_approval_emitted = True
+        return float(state.strategy_exposure_multiplier)
+    if state.strategy_cooldown_until_index is not None and bar_index > state.strategy_cooldown_until_index:
+        state.strategy_cooldown_until_index = None
+        state.strategy_exposure_multiplier = 1.0
+        state.strategy_freeze_buys = False
+    return float(state.strategy_exposure_multiplier)
+
+
+def _filter_targets_for_position_reentry(
+    target_weights: dict[str, float],
+    *,
+    state: PolicyRuntimeState,
+    policy: Any,
+    current_ts: datetime,
+    bar_index: int,
+    policy_event_rows: list[dict[str, Any]],
+) -> dict[str, float]:
+    if policy is None or not bool(policy.enabled):
+        return target_weights
+
+    filtered: dict[str, float] = {}
+    for symbol, target_weight in target_weights.items():
+        approval_required = symbol in state.position_approval_required
+        cooldown_until = state.position_cooldown_until.get(symbol)
+        cooldown_active = cooldown_until is not None and bar_index <= cooldown_until
+        if approval_required and not cooldown_active:
+            if symbol not in state.position_approval_emitted:
+                _record_policy_event(
+                    policy_event_rows,
+                    ts=current_ts,
+                    scope="position",
+                    policy_type="reentry",
+                    decision="blocked",
+                    reason_code="approval_required",
+                    symbol=symbol,
+                    action="block_reentry",
+                )
+                state.position_approval_emitted.add(symbol)
+            continue
+        if cooldown_active:
+            _record_policy_event(
+                policy_event_rows,
+                ts=current_ts,
+                scope="position",
+                policy_type="reentry",
+                decision="blocked",
+                reason_code="cooldown",
+                symbol=symbol,
+                observed_value=float(max(0, int(cooldown_until) - bar_index)),
+                action="block_reentry",
+            )
+            continue
+        if cooldown_until is not None and bar_index > cooldown_until:
+            state.position_cooldown_until.pop(symbol, None)
+            state.position_approval_emitted.discard(symbol)
+        filtered[symbol] = target_weight
+    return filtered
+
+
+def _schedule_rebalance_targets(
+    ranking_records: list[dict[str, Any]],
+    *,
+    policy: Any,
+    risk_policy: Any,
+    state: PolicyRuntimeState,
+    positions: dict[str, PositionState],
+    snapshot: pd.DataFrame,
+    previous_close_by_symbol: dict[str, float],
+    close_equity: float,
+    current_ts: datetime,
+    bar_index: int,
+    policy_event_rows: list[dict[str, Any]],
+) -> dict[str, float] | None:
+    if not _rebalance_policy_allows_signal(
+        policy,
+        current_ts=current_ts,
+        bar_index=bar_index,
+        state=state,
+        policy_event_rows=policy_event_rows,
+    ):
+        return None
+
+    state.last_rebalance_signal_index = bar_index
+    state.last_rebalance_signal_ts = current_ts
+
+    target_weights = {
+        str(row["symbol"]): float(row["target_weight"])
+        for row in ranking_records
+        if bool(row.get("selected"))
+    }
+    current_weights = _current_position_weights(
+        positions,
+        snapshot=snapshot,
+        previous_close_by_symbol=previous_close_by_symbol,
+        equity=close_equity,
+    )
+
+    if policy is not None:
+        cash_buffer_multiplier = max(0.0, 1.0 - float(policy.cashBufferPct or 0.0) / 100.0)
+        target_weights = {symbol: weight * cash_buffer_multiplier for symbol, weight in target_weights.items()}
+
+    target_weights = _filter_targets_for_position_reentry(
+        target_weights,
+        state=state,
+        policy=risk_policy,
+        current_ts=current_ts,
+        bar_index=bar_index,
+        policy_event_rows=policy_event_rows,
+    )
+
+    if risk_policy is not None and bool(risk_policy.enabled) and state.strategy_freeze_buys:
+        target_weights = {
+            symbol: min(weight, current_weights.get(symbol, 0.0))
+            for symbol, weight in target_weights.items()
+            if symbol in current_weights
+        }
+
+    all_weight_symbols = set(current_weights) | set(target_weights)
+    max_drift_pct = max(
+        (abs(target_weights.get(symbol, 0.0) - current_weights.get(symbol, 0.0)) * 100.0 for symbol in all_weight_symbols),
+        default=0.0,
+    )
+    if policy is not None and policy.driftThresholdPct is not None and max_drift_pct < float(policy.driftThresholdPct):
+        _record_policy_event(
+            policy_event_rows,
+            ts=current_ts,
+            scope="strategy",
+            policy_type="rebalance",
+            decision="skipped",
+            reason_code="drift_below_threshold",
+            observed_value=float(max_drift_pct),
+            threshold_value=float(policy.driftThresholdPct),
+            action="none",
+        )
+        return None
+
+    turnover_pct = sum(
+        abs(target_weights.get(symbol, 0.0) - current_weights.get(symbol, 0.0)) for symbol in all_weight_symbols
+    ) * 100.0
+    if policy is not None and policy.maxTurnoverPct is not None and turnover_pct > float(policy.maxTurnoverPct):
+        cap_pct = float(policy.maxTurnoverPct)
+        if not bool(policy.allowPartialRebalance):
+            _record_policy_event(
+                policy_event_rows,
+                ts=current_ts,
+                scope="strategy",
+                policy_type="rebalance",
+                decision="skipped",
+                reason_code="turnover_cap",
+                observed_value=float(turnover_pct),
+                threshold_value=cap_pct,
+                action="none",
+            )
+            return None
+        scale = cap_pct / turnover_pct if turnover_pct > 0 else 1.0
+        target_weights = {
+            symbol: current_weights.get(symbol, 0.0)
+            + (target_weights.get(symbol, 0.0) - current_weights.get(symbol, 0.0)) * scale
+            for symbol in all_weight_symbols
+        }
+        _record_policy_event(
+            policy_event_rows,
+            ts=current_ts,
+            scope="strategy",
+            policy_type="rebalance",
+            decision="applied",
+            reason_code="turnover_cap",
+            observed_value=float(turnover_pct),
+            threshold_value=cap_pct,
+            action="partial_rebalance",
+            details={"scale": float(scale)},
+        )
+    elif policy is not None:
+        _record_policy_event(
+            policy_event_rows,
+            ts=current_ts,
+            scope="strategy",
+            policy_type="rebalance",
+            decision="applied",
+            reason_code="scheduled",
+            observed_value=float(max_drift_pct),
+            action="rebalance",
+            details={"frequency": str(policy.frequency)},
+        )
+
+    return target_weights
+
+
+def _apply_strategy_risk_policy(
+    policy: Any,
+    *,
+    state: PolicyRuntimeState,
+    close_equity: float,
+    current_ts: datetime,
+    bar_index: int,
+    policy_event_rows: list[dict[str, Any]],
+) -> None:
+    if policy is None or not bool(policy.enabled) or close_equity <= 0:
+        return
+    if state.strategy_nav_baseline is None:
+        state.strategy_nav_baseline = close_equity
+    if state.strategy_nav_peak is None:
+        state.strategy_nav_peak = close_equity
+    state.strategy_nav_peak = max(float(state.strategy_nav_peak), close_equity)
+
+    if _strategy_risk_active(state, bar_index=bar_index):
+        return
+
+    stop_loss = policy.stopLoss
+    if stop_loss is not None and bool(stop_loss.enabled) and state.strategy_nav_peak > 0:
+        drawdown_pct = (float(state.strategy_nav_peak) - close_equity) / float(state.strategy_nav_peak) * 100.0
+        if drawdown_pct >= float(stop_loss.thresholdPct):
+            if stop_loss.action == "liquidate":
+                state.strategy_exposure_multiplier = 0.0
+            elif stop_loss.action == "freeze_buys":
+                state.strategy_freeze_buys = True
+            else:
+                reduction = float(stop_loss.reductionPct or 0.0) / 100.0
+                state.strategy_exposure_multiplier = max(0.0, state.strategy_exposure_multiplier * (1.0 - reduction))
+            state.strategy_cooldown_until_index = bar_index + int(policy.reentry.cooldownBars or 0)
+            state.strategy_approval_required = bool(policy.reentry.requireApproval)
+            state.strategy_approval_emitted = False
+            state.strategy_nav_baseline = close_equity
+            state.strategy_nav_peak = close_equity
+            _record_policy_event(
+                policy_event_rows,
+                ts=current_ts,
+                scope=str(policy.scope),
+                policy_type="strategy_risk",
+                decision="applied",
+                reason_code="nav_drawdown_stop_loss",
+                policy_id=str(stop_loss.id),
+                observed_value=float(drawdown_pct),
+                threshold_value=float(stop_loss.thresholdPct),
+                action=str(stop_loss.action),
+                details={"cooldownBars": int(policy.reentry.cooldownBars or 0)},
+            )
+            return
+
+    take_profit = policy.takeProfit
+    if take_profit is not None and bool(take_profit.enabled) and state.strategy_nav_baseline > 0:
+        gain_pct = (close_equity / float(state.strategy_nav_baseline) - 1.0) * 100.0
+        if gain_pct >= float(take_profit.thresholdPct):
+            if take_profit.action == "reduce_exposure":
+                reduction = float(take_profit.reductionPct or 0.0) / 100.0
+                state.strategy_exposure_multiplier = max(0.0, state.strategy_exposure_multiplier * (1.0 - reduction))
+                state.strategy_cooldown_until_index = bar_index + int(policy.reentry.cooldownBars or 0)
+                state.strategy_approval_required = bool(policy.reentry.requireApproval)
+                state.strategy_approval_emitted = False
+            else:
+                state.strategy_exposure_multiplier = 1.0
+                state.strategy_freeze_buys = False
+                state.strategy_cooldown_until_index = None
+                state.strategy_approval_required = False
+            state.strategy_nav_baseline = close_equity
+            state.strategy_nav_peak = close_equity
+            _record_policy_event(
+                policy_event_rows,
+                ts=current_ts,
+                scope=str(policy.scope),
+                policy_type="strategy_risk",
+                decision="applied",
+                reason_code="nav_gain_take_profit",
+                policy_id=str(take_profit.id),
+                observed_value=float(gain_pct),
+                threshold_value=float(take_profit.thresholdPct),
+                action=str(take_profit.action),
+                details={"cooldownBars": int(policy.reentry.cooldownBars or 0)},
+            )
+
+
 def _costs_from_raw_config(raw: dict[str, Any]) -> tuple[float, float]:
     costs = raw.get("costs") if isinstance(raw, dict) else None
     if not isinstance(costs, dict):
@@ -1047,14 +1485,20 @@ def execute_backtest_run(
     commission_bps, slippage_bps = _costs_from_raw_config(definition.strategy_config_raw)
     cash = float(definition.strategy_config_raw.get("initialCash") or 100000.0)
     positions: dict[str, PositionState] = {}
-    pending_target_weights: dict[str, float] = {}
+    rebalance_policy = definition.strategy_config.rebalancePolicy
+    strategy_risk_policy = definition.strategy_config.strategyRiskPolicy
+    structured_policy_enabled = rebalance_policy is not None or strategy_risk_policy is not None
+    policy_state = PolicyRuntimeState()
+    pending_target_weights: dict[str, float] | None = {}
     selection_trace_rows: list[dict[str, Any]] = []
     regime_trace_rows: list[dict[str, Any]] = []
+    policy_event_rows: list[dict[str, Any]] = []
     trade_rows: list[dict[str, Any]] = []
     timeseries_rows: list[dict[str, Any]] = []
     previous_equity = cash
     previous_close_by_symbol: dict[str, float] = {}
     first_signal_computed = False
+    bar_index = -1
 
     for session_date, session_schedule in grouped_schedule.items():
         session_start, session_end = _session_bounds(session_schedule[0])
@@ -1074,6 +1518,7 @@ def execute_backtest_run(
             bar_size=str(run.get("bar_size") or "").strip() or None,
         )
         for index, current_ts in enumerate(session_schedule):
+            bar_index += 1
             snapshot = _snapshot_for_timestamp(current_ts, intraday_frames=intraday_frames, slow_frames=slow_frames)
             repo.update_heartbeat(run_id)
             regime_row = regime_schedule_map.get(session_date)
@@ -1102,19 +1547,41 @@ def execute_backtest_run(
                 }
             )
             if not first_signal_computed:
+                target_multiplier = _active_strategy_exposure_multiplier(
+                    policy_state,
+                    policy=strategy_risk_policy,
+                    bar_index=bar_index,
+                    current_ts=current_ts,
+                    policy_event_rows=policy_event_rows,
+                )
                 initial_ranking = _score_snapshot(
                     snapshot,
                     definition=definition,
                     rebalance_ts=current_ts,
-                    target_weight_multiplier=1.0,
+                    target_weight_multiplier=target_multiplier,
                 )
                 initial_ranking_records = initial_ranking.to_dict("records")
                 selection_trace_rows.extend(initial_ranking_records)
-                pending_target_weights = {
-                    str(row["symbol"]): float(row["target_weight"])
-                    for row in initial_ranking_records
-                    if bool(row["selected"])
-                }
+                if structured_policy_enabled:
+                    pending_target_weights = _schedule_rebalance_targets(
+                        initial_ranking_records,
+                        policy=rebalance_policy,
+                        risk_policy=strategy_risk_policy,
+                        state=policy_state,
+                        positions=positions,
+                        snapshot=snapshot,
+                        previous_close_by_symbol=previous_close_by_symbol,
+                        close_equity=cash,
+                        current_ts=current_ts,
+                        bar_index=bar_index,
+                        policy_event_rows=policy_event_rows,
+                    )
+                else:
+                    pending_target_weights = {
+                        str(row["symbol"]): float(row["target_weight"])
+                        for row in initial_ranking_records
+                        if bool(row["selected"])
+                    }
                 first_signal_computed = True
                 continue
 
@@ -1131,8 +1598,9 @@ def execute_backtest_run(
                 open_price = _maybe_float(row.get(f"{_PRICE_TABLE}__open")) or _maybe_float(row.get(f"{_PRICE_TABLE}__close")) or position.entry_price
                 market_equity_open += position.quantity * open_price
 
+            should_apply_pending_rebalance = pending_target_weights is not None if structured_policy_enabled else True
             target_qty_by_symbol: dict[str, float] = {}
-            if pending_target_weights:
+            if should_apply_pending_rebalance and pending_target_weights:
                 for symbol, target_weight in pending_target_weights.items():
                     row = _market_row(snapshot, symbol)
                     if row is None:
@@ -1144,7 +1612,7 @@ def execute_backtest_run(
                         continue
                     target_qty_by_symbol[symbol] = (market_equity_open * target_weight) / open_price
 
-            all_symbols = sorted(set(positions.keys()) | set(target_qty_by_symbol.keys()))
+            all_symbols = sorted((set(positions.keys()) | set(target_qty_by_symbol.keys())) if should_apply_pending_rebalance else set())
             for symbol in all_symbols:
                 row = _market_row(snapshot, symbol)
                 if row is None:
@@ -1155,9 +1623,36 @@ def execute_backtest_run(
                 if open_price is None or open_price <= 0:
                     continue
                 current_qty = positions[symbol].quantity if symbol in positions else 0.0
-                target_qty = target_qty_by_symbol.get(symbol, 0.0)
+                if (
+                    structured_policy_enabled
+                    and rebalance_policy is not None
+                    and not bool(rebalance_policy.closeRemovedPositions)
+                    and symbol not in target_qty_by_symbol
+                ):
+                    target_qty = current_qty
+                else:
+                    target_qty = target_qty_by_symbol.get(symbol, 0.0)
                 delta_qty = target_qty - current_qty
                 if math.isclose(delta_qty, 0.0, abs_tol=1e-9):
+                    continue
+                trade_notional = abs(delta_qty * open_price)
+                if (
+                    structured_policy_enabled
+                    and rebalance_policy is not None
+                    and trade_notional < float(rebalance_policy.minTradeNotional or 0.0)
+                ):
+                    _record_policy_event(
+                        policy_event_rows,
+                        ts=current_ts,
+                        scope="symbol",
+                        policy_type="rebalance",
+                        decision="skipped",
+                        reason_code="min_notional",
+                        symbol=symbol,
+                        observed_value=float(trade_notional),
+                        threshold_value=float(rebalance_policy.minTradeNotional or 0.0),
+                        action="skip_trade",
+                    )
                     continue
                 cash, commission, slippage = _execute_trade(
                     trades=trade_rows,
@@ -1183,7 +1678,7 @@ def execute_backtest_run(
                         quantity=float(target_qty),
                     )
 
-            pending_target_weights = {}
+            pending_target_weights = None if structured_policy_enabled else {}
 
             for symbol, position in list(positions.items()):
                 row = _market_row(snapshot, symbol)
@@ -1210,6 +1705,23 @@ def execute_backtest_run(
                 trade_count += 1
                 positions.pop(symbol, None)
                 previous_close_by_symbol.pop(symbol, None)
+                if strategy_risk_policy is not None and bool(strategy_risk_policy.enabled):
+                    cooldown_bars = int(strategy_risk_policy.reentry.cooldownBars or 0)
+                    if cooldown_bars > 0:
+                        policy_state.position_cooldown_until[symbol] = bar_index + cooldown_bars
+                    if bool(strategy_risk_policy.reentry.requireApproval):
+                        policy_state.position_approval_required.add(symbol)
+                    _record_policy_event(
+                        policy_event_rows,
+                        ts=current_ts,
+                        scope="position",
+                        policy_type="position_exit",
+                        decision="applied",
+                        reason_code=str(evaluation.decision.exit_reason),
+                        symbol=symbol,
+                        policy_id=str(evaluation.decision.rule_id),
+                        action="exit_position",
+                    )
 
             close_equity = cash
             gross_exposure = 0.0
@@ -1248,20 +1760,51 @@ def execute_backtest_run(
             )
             previous_equity = close_equity
 
+            _apply_strategy_risk_policy(
+                strategy_risk_policy,
+                state=policy_state,
+                close_equity=close_equity,
+                current_ts=current_ts,
+                bar_index=bar_index,
+                policy_event_rows=policy_event_rows,
+            )
+
             if index < len(session_schedule) - 1:
+                target_multiplier = _active_strategy_exposure_multiplier(
+                    policy_state,
+                    policy=strategy_risk_policy,
+                    bar_index=bar_index,
+                    current_ts=current_ts,
+                    policy_event_rows=policy_event_rows,
+                )
                 ranking = _score_snapshot(
                     snapshot,
                     definition=definition,
                     rebalance_ts=current_ts,
-                    target_weight_multiplier=1.0,
+                    target_weight_multiplier=target_multiplier,
                 )
                 ranking_records = ranking.to_dict("records")
                 selection_trace_rows.extend(ranking_records)
-                pending_target_weights = {
-                    str(row["symbol"]): float(row["target_weight"])
-                    for row in ranking_records
-                    if bool(row["selected"])
-                }
+                if structured_policy_enabled:
+                    pending_target_weights = _schedule_rebalance_targets(
+                        ranking_records,
+                        policy=rebalance_policy,
+                        risk_policy=strategy_risk_policy,
+                        state=policy_state,
+                        positions=positions,
+                        snapshot=snapshot,
+                        previous_close_by_symbol=previous_close_by_symbol,
+                        close_equity=close_equity,
+                        current_ts=current_ts,
+                        bar_index=bar_index,
+                        policy_event_rows=policy_event_rows,
+                    )
+                else:
+                    pending_target_weights = {
+                        str(row["symbol"]): float(row["target_weight"])
+                        for row in ranking_records
+                        if bool(row["selected"])
+                    }
 
     timeseries = pd.DataFrame(timeseries_rows)
     trades = pd.DataFrame(trade_rows)
@@ -1277,13 +1820,14 @@ def execute_backtest_run(
 
     persist_backtest_results(
         dsn,
-        run_id,
+        run_id=run_id,
         summary=summary,
         timeseries_rows=timeseries.to_dict("records"),
         rolling_metric_rows=rolling_metrics.to_dict("records"),
         trade_rows=trades.to_dict("records"),
         selection_trace_rows=selection_trace.to_dict("records"),
         regime_trace_rows=regime_trace.to_dict("records"),
+        policy_event_rows=policy_event_rows,
         results_schema_version=BACKTEST_RESULTS_SCHEMA_VERSION,
     )
     repo.complete_run(run_id, summary=summary)

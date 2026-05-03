@@ -364,6 +364,7 @@ __all__ = [
     "BacktestAttributionExposureResponse",
     "BacktestDataProvenance",
     "BacktestExecutionAssumptions",
+    "BacktestPolicyEventListResponse",
     "BacktestResultLinks",
     "BacktestReplayTimelineResponse",
     "BacktestRunComparisonRequest",

@@ -263,6 +263,32 @@ def test_renderer_serializes_env_values_as_yaml_safe_strings(tmp_path: Path) -> 
     assert _manifest_env_value(rendered, "SYSTEM_HEALTH_FRESHNESS_OVERRIDES_JSON") == freshness_json
 
 
+def test_renderer_sets_cookie_mode_bearer_allowlist_from_deploy_env(tmp_path: Path) -> None:
+    for template_name in ("app_api.yaml", "app_api_public.yaml"):
+        template = _repo_root() / "deploy" / template_name
+        output = tmp_path / f"{Path(template_name).stem}.yaml"
+
+        result = _run_renderer(
+            template=template,
+            output=output,
+            extra_env=_template_env(
+                template,
+                overrides={
+                    "API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS": "job-managed-identity-client-id",
+                    "AI_RELAY_ENABLED": "false",
+                    "AI_RELAY_API_KEY": "",
+                },
+            ),
+        )
+
+        assert result.returncode == 0, result.stderr
+        rendered = output.read_text(encoding="utf-8")
+        assert (
+            _manifest_env_value(rendered, "API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS")
+            == "job-managed-identity-client-id"
+        )
+
+
 def test_renderer_treats_optional_self_placeholders_as_blank(tmp_path: Path) -> None:
     template = _repo_root() / "deploy" / "app_api_public.yaml"
     output = tmp_path / "rendered.yaml"

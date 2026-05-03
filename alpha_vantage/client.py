@@ -52,6 +52,11 @@ from .utils import parse_time_series, parse_financial_reports
 logger = logging.getLogger(__name__)
 
 _APIKEY_QUERY_RE = re.compile(r"(apikey=)([^&\s]+)", re.IGNORECASE)
+_HARD_DAILY_QUOTA_PATTERNS = (
+    "standard api rate limit is 25 requests per day",
+    "daily rate limit",
+    "daily rate limits",
+)
 
 
 class AlphaVantageClient:
@@ -170,6 +175,13 @@ class AlphaVantageClient:
         return None
 
     @staticmethod
+    def _is_hard_daily_quota_throttle(exc: AlphaVantageThrottleError) -> bool:
+        message = str(getattr(exc, "message", "") or str(exc) or "").casefold()
+        if "premium plan" in message and any(pattern in message for pattern in _HARD_DAILY_QUOTA_PATTERNS):
+            return True
+        return "standard api rate limit is 25 requests per day" in message
+
+    @staticmethod
     def _try_parse_json(text: str) -> Optional[Dict[str, Any]]:
         raw = (text or "").strip()
         if not raw or not raw.startswith("{"):
@@ -190,7 +202,7 @@ class AlphaVantageClient:
             out = text
             api_key = str(getattr(self.config, "api_key", "") or "")
             if api_key:
-                out = out.replace(api_key, "[REDACTED]")
+                out = re.sub(re.escape(api_key), "[REDACTED]", out, flags=re.IGNORECASE)
             out = _APIKEY_QUERY_RE.sub(r"\1[REDACTED]", out)
             return out
 
@@ -531,6 +543,22 @@ class AlphaVantageClient:
                         if classified is not None:
                             if isinstance(classified, AlphaVantageThrottleError):
                                 self._record_metric("throttle_payloads", 1)
+                                if self._is_hard_daily_quota_throttle(classified):
+                                    note = str(getattr(classified, "message", "") or "")
+                                    if len(note) > 200:
+                                        note = note[:200] + "..."
+                                    self._log(
+                                        logging.WARNING,
+                                        "Alpha Vantage hard daily quota payload detected (CSV)",
+                                        av_event="hard_daily_quota",
+                                        av_request_id=req_id,
+                                        av_function=function,
+                                        av_symbol=str(symbol) if symbol is not None else None,
+                                        av_attempt=attempt,
+                                        av_caller=caller,
+                                        av_note=note,
+                                    )
+                                    raise classified
                                 self._arm_throttle_cooldown(
                                     req_id=req_id,
                                     function=function or None,
@@ -613,6 +641,22 @@ class AlphaVantageClient:
                     if classified is not None:
                         if isinstance(classified, AlphaVantageThrottleError):
                             self._record_metric("throttle_payloads", 1)
+                            if self._is_hard_daily_quota_throttle(classified):
+                                note = str(getattr(classified, "message", "") or "")
+                                if len(note) > 200:
+                                    note = note[:200] + "..."
+                                self._log(
+                                    logging.WARNING,
+                                    "Alpha Vantage hard daily quota payload detected",
+                                    av_event="hard_daily_quota",
+                                    av_request_id=req_id,
+                                    av_function=function,
+                                    av_symbol=str(symbol) if symbol is not None else None,
+                                    av_attempt=attempt,
+                                    av_caller=caller,
+                                    av_note=note,
+                                )
+                                raise classified
                             self._arm_throttle_cooldown(
                                 req_id=req_id,
                                 function=function or None,

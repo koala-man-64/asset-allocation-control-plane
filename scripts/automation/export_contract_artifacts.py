@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import importlib.metadata
 import json
 import os
+import re
 import sys
+import tomllib
 from pathlib import Path
 
-from asset_allocation_contracts.ui_config import UiRuntimeConfig
+from dotenv import dotenv_values
 
 
 def _repo_root() -> Path:
@@ -20,6 +23,7 @@ def _repo_root() -> Path:
 
 ROOT = _repo_root()
 OUTPUT_DIR = ROOT / "api" / "contracts"
+ENV_WEB_PATH = ROOT / ".env.web"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -32,19 +36,92 @@ os.environ.setdefault("AZURE_CONTAINER_COMMON", "local")
 _CANONICAL_API_ROOT_PREFIX = ""
 _DIFF_PREVIEW_LINE_LIMIT = 40
 _ITEM_PREVIEW_LIMIT = 10
+_FIRST_PARTY_SHARED_PREFIX = "asset-allocation-"
+_DEPENDENCY_PIN_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)\s*==\s*([^;\s]+)")
+
+
+def _normalize_distribution_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def _serialize_json(payload: object) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
+def _shared_dependency_pins() -> dict[str, str]:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pins: dict[str, str] = {}
+    for dependency in pyproject["project"]["dependencies"]:
+        match = _DEPENDENCY_PIN_RE.match(str(dependency))
+        if not match:
+            continue
+        name = _normalize_distribution_name(match.group(1))
+        if name.startswith(_FIRST_PARTY_SHARED_PREFIX):
+            pins[name] = match.group(2)
+    return pins
+
+
+def _assert_shared_dependency_versions_current() -> None:
+    pins = _shared_dependency_pins()
+    mismatches: list[str] = []
+    for name, required_version in pins.items():
+        try:
+            installed_version = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            installed_version = "not installed"
+        if installed_version != required_version:
+            mismatches.append(f"- {name}: required {required_version}, installed {installed_version}")
+
+    if not mismatches:
+        return
+
+    install_args = " ".join(f"{name}=={version}" for name, version in sorted(pins.items()))
+    raise SystemExit(
+        "Shared dependency versions do not match pyproject.toml; contract artifacts would be non-deterministic.\n"
+        + "\n".join(mismatches)
+        + "\nRun: python -m pip install "
+        + install_args
+        + " --no-deps"
+    )
+
+
+def _dotenv_loading_disabled() -> bool:
+    value = (os.environ.get("DISABLE_DOTENV") or "").strip().lower()
+    return value in {"1", "true", "t", "yes", "y", "on"}
+
+
+def _load_env_web_overrides() -> dict[str, str | None]:
+    if _dotenv_loading_disabled() or not ENV_WEB_PATH.exists():
+        return {}
+
+    previous_values: dict[str, str | None] = {}
+    for raw_key, raw_value in dotenv_values(ENV_WEB_PATH).items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        previous_values[key] = os.environ.get(key)
+        os.environ[key] = "" if raw_value is None else str(raw_value)
+    return previous_values
+
+
+def _restore_env(previous_values: dict[str, str | None]) -> None:
+    for key, value in previous_values.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
 def _render_artifact_texts() -> dict[Path, str]:
+    _assert_shared_dependency_versions_current()
+    previous_env_values = _load_env_web_overrides()
     previous_api_root_prefix = os.environ.get("API_ROOT_PREFIX")
     os.environ["API_ROOT_PREFIX"] = _CANONICAL_API_ROOT_PREFIX
     try:
         # Contract artifacts are generated from the portable unprefixed API surface.
         # Deployments may add API_ROOT_PREFIX for ingress routing without changing this artifact.
         from api.service.app import create_app
+        from asset_allocation_contracts.ui_config import UiRuntimeConfig
 
         app = create_app()
         openapi_text = _serialize_json(app.openapi())
@@ -53,6 +130,7 @@ def _render_artifact_texts() -> dict[Path, str]:
             os.environ.pop("API_ROOT_PREFIX", None)
         else:
             os.environ["API_ROOT_PREFIX"] = previous_api_root_prefix
+        _restore_env(previous_env_values)
 
     return {
         OUTPUT_DIR / "control-plane.openapi.json": openapi_text,

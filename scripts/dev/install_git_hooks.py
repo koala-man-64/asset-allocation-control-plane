@@ -22,7 +22,7 @@ def main() -> int:
         check=True,
     )
     print(f"Configured git hooks for this clone: core.hooksPath={hooks_path}")
-    print("The pre-commit hook now checks that api/contracts/* is current before commit.")
+    print("The pre-commit hook now checks that api/contracts/* is current before commits to main.")
     return 0
 
 

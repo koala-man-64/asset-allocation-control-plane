@@ -378,8 +378,7 @@ function Ensure-AcaOperatorRoleDefinition {
       "Microsoft.App/jobs/stop/action",
       "Microsoft.App/jobs/suspend/action",
       "Microsoft.App/jobs/resume/action",
-      "Microsoft.App/jobs/executions/read",
-      "Microsoft.OperationalInsights/workspaces/query/read"
+      "Microsoft.App/jobs/executions/read"
     )
     NotActions       = @()
     DataActions      = @()
@@ -1764,11 +1763,15 @@ if ($doLogAnalytics) {
 
 $lawCustomerId = ""
 $lawSharedKey = ""
+$lawWorkspaceResourceId = ""
 if ($doLogAnalytics) {
-  $lawCustomerId = az monitor log-analytics workspace show `
+  $lawWorkspace = az monitor log-analytics workspace show `
     --resource-group $ResourceGroup `
     --workspace-name $LogAnalyticsWorkspaceName `
-    --query customerId -o tsv
+    --query "{customerId:customerId,id:id}" -o json | ConvertFrom-Json
+
+  $lawCustomerId = [string]$lawWorkspace.customerId
+  $lawWorkspaceResourceId = [string]$lawWorkspace.id
 
   $lawSharedKey = az monitor log-analytics workspace get-shared-keys `
     --resource-group $ResourceGroup `
@@ -2096,6 +2099,8 @@ $acrPullAssignmentsCreated = 0
 $acrPullAssignmentsSkipped = 0
 $jobStartAssignmentsCreated = 0
 $jobStartAssignmentsSkipped = 0
+$logReaderAssignmentsCreated = 0
+$logReaderAssignmentsSkipped = 0
 
 if ($GrantAcrPullToAcaResources) {
   if (-not $doAcr -or -not $doManagedIdentity) {
@@ -2182,7 +2187,7 @@ if ($GrantJobStartToAcaResources) {
       -RoleName "Asset Allocation ACA Operator" `
       -Scope $rgScope
 
-    Write-Host "Granting narrow Container Apps/job operator permissions (best-effort)..."
+    Write-Host "Granting narrow Container Apps/job operator and log-read permissions (best-effort)..."
     Write-Host "  Scope: Resource group $ResourceGroup"
     Write-Host "  Role: $acaOperatorRoleName"
 
@@ -2213,13 +2218,40 @@ if ($GrantJobStartToAcaResources) {
       }
     }
 
+    if ([string]::IsNullOrWhiteSpace($lawWorkspaceResourceId)) {
+      Write-Warning "Skipping Log Analytics Reader grant because workspace '$LogAnalyticsWorkspaceName' could not be resolved."
+    }
+    elseif ([string]::IsNullOrWhiteSpace($apiRuntimeIdentityPrincipalId)) {
+      Write-Warning "Skipping Log Analytics Reader grant because API runtime identity principal id is missing."
+    }
+    else {
+      try {
+        $created = Ensure-RoleAssignment `
+          -PrincipalId $apiRuntimeIdentityPrincipalId `
+          -RoleName "Log Analytics Reader" `
+          -Scope $lawWorkspaceResourceId
+        if ($created) {
+          $logReaderAssignmentsCreated += 1
+          Write-Host "  Log Analytics Reader granted to $ApiRuntimeIdentityName on $LogAnalyticsWorkspaceName." -ForegroundColor Cyan
+        }
+        else {
+          $logReaderAssignmentsSkipped += 1
+          Write-Host "  Log Analytics Reader already assigned to $ApiRuntimeIdentityName on $LogAnalyticsWorkspaceName."
+        }
+      }
+      catch {
+        Write-Warning "Failed to grant Log Analytics Reader to ${ApiRuntimeIdentityName}: $($_.Exception.Message)"
+      }
+    }
+
     Write-Host "Job start role assignment summary: created=$jobStartAssignmentsCreated skipped=$jobStartAssignmentsSkipped"
+    Write-Host "Log Analytics Reader assignment summary: created=$logReaderAssignmentsCreated skipped=$logReaderAssignmentsSkipped"
   }
 }
 else {
   Write-Host ""
-  Write-Host "NOTE: Jobs may trigger downstream jobs and wake API container apps via ARM."
-  Write-Host "To grant the required narrow permissions, re-run this script with -GrantJobStartToAcaResources."
+  Write-Host "NOTE: Jobs may trigger downstream jobs, wake API container apps via ARM, and read console logs from Log Analytics."
+  Write-Host "To grant the required narrow permissions and API log-read access, re-run this script with -GrantJobStartToAcaResources."
 }
 
 if ($ConfigureAcrPullIdentityOnAcaResources) {

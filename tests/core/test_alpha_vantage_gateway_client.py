@@ -161,7 +161,8 @@ def test_request_retries_after_504_with_extended_backoff(monkeypatch):
     assert "symbol,name" in csv
     assert counters["warmup"] == 2
     assert counters["data"] == 2
-    assert sleep_calls == [120.0]
+    assert len(sleep_calls) == 1
+    assert 120.0 <= sleep_calls[0] <= 150.0
 
 
 def test_request_raises_after_exhausting_504_retry_budget(monkeypatch):
@@ -214,4 +215,6 @@ def test_request_raises_after_exhausting_504_retry_budget(monkeypatch):
 
     assert counters["warmup"] == 3
     assert counters["data"] == 3
-    assert sleep_calls == [120.0, 240.0]
+    assert len(sleep_calls) == 2
+    assert 120.0 <= sleep_calls[0] <= 150.0
+    assert sleep_calls[1] == 240.0

@@ -212,6 +212,8 @@ properties:
         value: "${API_OIDC_REQUIRED_ROLES}"
       - name: API_AUTH_SESSION_MODE
         value: "${API_AUTH_SESSION_MODE}"
+      - name: API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS
+        value: "${API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS}"
       - name: API_AUTH_SESSION_IDLE_TTL_SECONDS
         value: "${API_AUTH_SESSION_IDLE_TTL_SECONDS}"
       - name: API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS
@@ -312,8 +314,6 @@ properties:
         value: "${SYSTEM_HEALTH_ARM_TIMEOUT_SECONDS}"
       - name: SYSTEM_HEALTH_ARM_CONTAINERAPPS
         value: "asset-allocation-api,asset-allocation-ui"
-      - name: SYSTEM_HEALTH_ARM_JOBS
-        value: "bronze-market-job,bronze-finance-job,bronze-price-target-job,bronze-earnings-job,silver-market-job,silver-finance-job,silver-price-target-job,silver-earnings-job,gold-market-job,gold-finance-job,gold-price-target-job,gold-earnings-job,gold-regime-job,platinum-rankings-job,backtests-job"
       - name: BACKTEST_ACA_JOB_NAME
         value: "backtests-job"
       - name: REGIME_ACA_JOB_NAME

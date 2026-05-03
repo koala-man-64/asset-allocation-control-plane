@@ -17,6 +17,7 @@ from api.service.backtest_contracts_compat import (
     BacktestLookupRequest,
     BacktestLookupResponse,
     BacktestReplayTimelineResponse,
+    BacktestPolicyEventListResponse,
     BacktestResultLinks,
     BacktestRunComparisonRequest,
     BacktestRunComparisonResponse,
@@ -1612,6 +1613,34 @@ async def get_closed_positions(
     return ClosedPositionListResponse.model_validate(
         {
             "positions": positions,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+    )
+
+
+@router.get("/{run_id}/policy-events", response_model=BacktestPolicyEventListResponse)
+async def get_policy_events(
+    run_id: str,
+    request: Request,
+    limit: int = Query(default=2000, ge=1, le=10000),
+    offset: int = Query(default=0, ge=0),
+) -> BacktestPolicyEventListResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    _require_published_run(repo, run_id)
+    total = _postgres_or_503(
+        "Postgres is unavailable for backtest features.",
+        lambda: repo.count_policy_events(run_id),
+    )
+    events = _postgres_or_503(
+        "Postgres is unavailable for backtest features.",
+        lambda: repo.list_policy_events(run_id, limit=limit, offset=offset),
+    )
+    return BacktestPolicyEventListResponse.model_validate(
+        {
+            "events": events,
             "total": total,
             "limit": limit,
             "offset": offset,

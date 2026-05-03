@@ -15,7 +15,7 @@ on:
         default: true
         type: boolean
       grant_job_start_permissions:
-        description: Reapply narrow Container Apps/job operator RBAC for runtime control identities
+        description: Reapply Container Apps/job operator RBAC and API Log Analytics read access
         required: true
         default: false
         type: boolean
@@ -177,7 +177,7 @@ jobs:
           - Private runtime reconciled: `${{ inputs.provision_private_runtime }}`
           - API runtime identity: `${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}`
           - Job-control identity: `${{ vars.JOB_CONTROL_IDENTITY_NAME || 'asset-allocation-job-control-mi' }}`
-          - Narrow ACA operator RBAC reconciled: `${{ inputs.grant_job_start_permissions }}`
+          - Job operation and log-read RBAC reconciled: `${{ inputs.grant_job_start_permissions }}`
           - ACR private link reconciled: `${{ inputs.enable_acr_private_link }}`
           - Public data plane disabled: `${{ inputs.disable_public_data_plane_access }}`
           - Private runtime verified for data-plane cutover: `${{ inputs.private_runtime_verified }}`

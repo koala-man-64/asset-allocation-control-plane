@@ -6,8 +6,11 @@ import pandas as pd
 import pytest
 
 from core.backtest_runtime import (
+    PolicyRuntimeState,
     ResolvedBacktestDefinition,
+    _apply_strategy_risk_policy,
     _regime_context_for_session,
+    _schedule_rebalance_targets,
     _score_snapshot,
     validate_backtest_submission,
 )
@@ -116,6 +119,235 @@ def test_score_snapshot_breaks_ties_by_symbol() -> None:
 
     assert ranked["symbol"].tolist()[:2] == ["AAPL", "MSFT"]
     assert ranked["ordinal"].tolist()[:2] == [1, 2]
+
+
+def _policy_config(**overrides) -> StrategyConfig:
+    payload = {
+        "universeConfigName": "large-cap-quality",
+        "rebalance": "weekly",
+        "longOnly": True,
+        "topN": 2,
+        "lookbackWindow": 20,
+        "holdingPeriod": 5,
+        "costModel": "default",
+        "rankingSchemaName": "quality",
+        "intrabarConflictPolicy": "stop_first",
+        "exits": [],
+    }
+    payload.update(overrides)
+    return StrategyConfig.model_validate(payload)
+
+
+def test_structured_rebalance_policy_honors_every_n_bars_and_manual_skip() -> None:
+    records = [
+        {"symbol": "MSFT", "selected": True, "target_weight": 1.0},
+    ]
+    snapshot = pd.DataFrame(
+        {
+            "date": [pd.Timestamp("2026-03-03T14:30:00Z")],
+            "symbol": ["MSFT"],
+            "market_data__close": [100.0],
+            "market_data__open": [100.0],
+        }
+    )
+    events: list[dict[str, object]] = []
+    state = PolicyRuntimeState()
+    policy = _policy_config(rebalancePolicy={"frequency": "every_n_bars", "intervalBars": 2}).rebalancePolicy
+
+    first_targets = _schedule_rebalance_targets(
+        records,
+        policy=policy,
+        risk_policy=None,
+        state=state,
+        positions={},
+        snapshot=snapshot,
+        previous_close_by_symbol={},
+        close_equity=100000.0,
+        current_ts=datetime(2026, 3, 3, 14, 30, tzinfo=timezone.utc),
+        bar_index=0,
+        policy_event_rows=events,
+    )
+    skipped_targets = _schedule_rebalance_targets(
+        records,
+        policy=policy,
+        risk_policy=None,
+        state=state,
+        positions={},
+        snapshot=snapshot,
+        previous_close_by_symbol={},
+        close_equity=100000.0,
+        current_ts=datetime(2026, 3, 3, 14, 35, tzinfo=timezone.utc),
+        bar_index=1,
+        policy_event_rows=events,
+    )
+    second_targets = _schedule_rebalance_targets(
+        records,
+        policy=policy,
+        risk_policy=None,
+        state=state,
+        positions={},
+        snapshot=snapshot,
+        previous_close_by_symbol={},
+        close_equity=100000.0,
+        current_ts=datetime(2026, 3, 3, 14, 40, tzinfo=timezone.utc),
+        bar_index=2,
+        policy_event_rows=events,
+    )
+
+    assert first_targets == {"MSFT": 1.0}
+    assert skipped_targets is None
+    assert second_targets == {"MSFT": 1.0}
+
+    manual_events: list[dict[str, object]] = []
+    manual_policy = _policy_config(rebalancePolicy={"frequency": "manual"}).rebalancePolicy
+    assert (
+        _schedule_rebalance_targets(
+            records,
+            policy=manual_policy,
+            risk_policy=None,
+            state=PolicyRuntimeState(),
+            positions={},
+            snapshot=snapshot,
+            previous_close_by_symbol={},
+            close_equity=100000.0,
+            current_ts=datetime(2026, 3, 3, 14, 30, tzinfo=timezone.utc),
+            bar_index=0,
+            policy_event_rows=manual_events,
+        )
+        is None
+    )
+    assert manual_events[0]["reason_code"] == "manual_mode"
+
+
+def test_rebalance_policy_applies_drift_turnover_and_reentry_constraints() -> None:
+    policy = _policy_config(
+        rebalancePolicy={
+            "frequency": "every_bar",
+            "maxTurnoverPct": 10.0,
+            "allowPartialRebalance": True,
+        },
+        strategyRiskPolicy={
+            "stopLoss": {"thresholdPct": 8.0, "action": "reduce_exposure", "reductionPct": 50.0},
+            "reentry": {"cooldownBars": 1},
+        },
+    )
+    state = PolicyRuntimeState(position_cooldown_until={"MSFT": 0})
+    events: list[dict[str, object]] = []
+    snapshot = pd.DataFrame(
+        {
+            "date": [pd.Timestamp("2026-03-03T14:30:00Z")],
+            "symbol": ["MSFT"],
+            "market_data__close": [100.0],
+            "market_data__open": [100.0],
+        }
+    )
+
+    targets = _schedule_rebalance_targets(
+        [{"symbol": "MSFT", "selected": True, "target_weight": 1.0}],
+        policy=policy.rebalancePolicy,
+        risk_policy=policy.strategyRiskPolicy,
+        state=state,
+        positions={},
+        snapshot=snapshot,
+        previous_close_by_symbol={},
+        close_equity=100000.0,
+        current_ts=datetime(2026, 3, 3, 14, 30, tzinfo=timezone.utc),
+        bar_index=0,
+        policy_event_rows=events,
+    )
+
+    assert targets == {}
+    assert any(event["reason_code"] == "cooldown" for event in events)
+
+    state = PolicyRuntimeState()
+    events = []
+    targets = _schedule_rebalance_targets(
+        [{"symbol": "MSFT", "selected": True, "target_weight": 1.0}],
+        policy=policy.rebalancePolicy,
+        risk_policy=policy.strategyRiskPolicy,
+        state=state,
+        positions={},
+        snapshot=snapshot,
+        previous_close_by_symbol={},
+        close_equity=100000.0,
+        current_ts=datetime(2026, 3, 3, 14, 35, tzinfo=timezone.utc),
+        bar_index=0,
+        policy_event_rows=events,
+    )
+
+    assert targets == {"MSFT": 0.1}
+    assert any(event["reason_code"] == "turnover_cap" and event["action"] == "partial_rebalance" for event in events)
+
+    drift_policy = _policy_config(
+        rebalancePolicy={
+            "frequency": "every_bar",
+            "driftThresholdPct": 1.0,
+        }
+    ).rebalancePolicy
+    events = []
+    targets = _schedule_rebalance_targets(
+        [{"symbol": "MSFT", "selected": True, "target_weight": 0.005}],
+        policy=drift_policy,
+        risk_policy=None,
+        state=PolicyRuntimeState(),
+        positions={},
+        snapshot=snapshot,
+        previous_close_by_symbol={},
+        close_equity=100000.0,
+        current_ts=datetime(2026, 3, 3, 14, 40, tzinfo=timezone.utc),
+        bar_index=0,
+        policy_event_rows=events,
+    )
+
+    assert targets is None
+    assert events[0]["reason_code"] == "drift_below_threshold"
+
+
+def test_strategy_risk_policy_applies_nav_stop_and_take_profit_baseline_reset() -> None:
+    stop_policy = _policy_config(
+        strategyRiskPolicy={
+            "stopLoss": {"thresholdPct": 5.0, "action": "reduce_exposure", "reductionPct": 50.0},
+            "reentry": {"cooldownBars": 2},
+        }
+    ).strategyRiskPolicy
+    state = PolicyRuntimeState(strategy_nav_baseline=100000.0, strategy_nav_peak=100000.0)
+    events: list[dict[str, object]] = []
+
+    _apply_strategy_risk_policy(
+        stop_policy,
+        state=state,
+        close_equity=94000.0,
+        current_ts=datetime(2026, 3, 3, 15, 0, tzinfo=timezone.utc),
+        bar_index=4,
+        policy_event_rows=events,
+    )
+
+    assert state.strategy_exposure_multiplier == 0.5
+    assert state.strategy_cooldown_until_index == 6
+    assert state.strategy_nav_baseline == 94000.0
+    assert events[0]["reason_code"] == "nav_drawdown_stop_loss"
+
+    take_profit_policy = _policy_config(
+        strategyRiskPolicy={
+            "takeProfit": {"thresholdPct": 10.0, "action": "rebalance_to_target"},
+            "reentry": {"cooldownBars": 0},
+        }
+    ).strategyRiskPolicy
+    state = PolicyRuntimeState(strategy_nav_baseline=100000.0, strategy_nav_peak=100000.0)
+    events = []
+
+    _apply_strategy_risk_policy(
+        take_profit_policy,
+        state=state,
+        close_equity=111000.0,
+        current_ts=datetime(2026, 3, 3, 15, 5, tzinfo=timezone.utc),
+        bar_index=5,
+        policy_event_rows=events,
+    )
+
+    assert state.strategy_nav_baseline == 111000.0
+    assert state.strategy_nav_peak == 111000.0
+    assert events[0]["reason_code"] == "nav_gain_take_profit"
 
 
 def test_validate_backtest_submission_rejects_intraday_coverage_gaps(monkeypatch: pytest.MonkeyPatch) -> None:

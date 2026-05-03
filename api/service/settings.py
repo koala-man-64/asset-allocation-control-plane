@@ -1023,6 +1023,7 @@ class ServiceSettings:
     oidc_required_scopes: List[str]
     oidc_required_roles: List[str]
     postgres_dsn: Optional[str]
+    cookie_auth_bearer_allowed_client_ids: List[str] = field(default_factory=list)
     browser_oidc_enabled: bool = False
     ui_oidc_config: dict[str, Any] = field(default_factory=dict)
     ui_auth_provider: UiAuthProvider = "disabled"
@@ -1092,6 +1093,9 @@ class ServiceSettings:
         oidc_jwks_url = _get_optional_str("API_OIDC_JWKS_URL")
         oidc_required_scopes = _split_csv(_get_optional_str("API_OIDC_REQUIRED_SCOPES"))
         oidc_required_roles = _split_csv(_get_optional_str("API_OIDC_REQUIRED_ROLES"))
+        cookie_auth_bearer_allowed_client_ids = _split_csv(
+            _get_optional_str("API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS")
+        )
         auth_session_mode = _get_auth_session_mode()
         auth_session_idle_ttl_seconds = _get_optional_int(
             "API_AUTH_SESSION_IDLE_TTL_SECONDS",
@@ -1222,6 +1226,7 @@ class ServiceSettings:
             oidc_jwks_url=oidc_jwks_url,
             oidc_required_scopes=oidc_required_scopes,
             oidc_required_roles=oidc_required_roles,
+            cookie_auth_bearer_allowed_client_ids=cookie_auth_bearer_allowed_client_ids,
             postgres_dsn=postgres_dsn,
             ui_auth_provider=ui_auth_provider,
             browser_oidc_enabled=browser_oidc_enabled,

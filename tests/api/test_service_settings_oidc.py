@@ -79,6 +79,14 @@ def test_deployed_runtime_accepts_break_glass_password_auth_configuration(monkey
     assert settings.password_auth.allowed_cidrs == ["127.0.0.1/32"]
 
 
+def test_cookie_auth_bearer_allowed_client_ids_parse_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS", "job-client-one, job-client-two")
+
+    settings = ServiceSettings.from_env()
+
+    assert settings.cookie_auth_bearer_allowed_client_ids == ["job-client-one", "job-client-two"]
+
+
 def test_ui_auth_provider_oidc_requires_cookie_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure_browser_oidc(monkeypatch)
     monkeypatch.setenv("UI_OIDC_REDIRECT_URI", "https://asset-allocation.example.com/auth/callback")

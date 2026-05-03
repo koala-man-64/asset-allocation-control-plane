@@ -59,6 +59,20 @@ async def test_alpha_vantage_daily_time_series_maps_throttle_to_429(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_alpha_vantage_earnings_maps_throttle_to_429(monkeypatch):
+    def fake_earnings(self, *, symbol):
+        raise AlphaVantageThrottleError("daily quota exhausted")
+
+    monkeypatch.setattr(AlphaVantageGateway, "get_earnings", fake_earnings)
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        resp = await client.get("/api/providers/alpha-vantage/earnings?symbol=AAPL")
+
+    assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
 async def test_alpha_vantage_timeout_maps_to_504(monkeypatch):
     def fake_earnings(self, *, symbol):
         raise httpx.TimeoutException("connect timed out apikey=super-secret")

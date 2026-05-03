@@ -35,6 +35,22 @@ def _compat_export(name: str, target: Any) -> Any:
 _ACTIVE_JOB_EXECUTION_STATUS_TOKENS = frozenset(
     {"running", "processing", "inprogress", "starting", "queued", "waiting", "scheduling"}
 )
+_JOB_LOG_INGESTION_GRACE_MINUTES = 10
+_JOB_LOG_EMPTY_ROWS_ERROR = (
+    "No Log Analytics console rows were returned for this execution. Verify API runtime "
+    "identity Log Analytics Reader access and Container Apps log ingestion."
+)
+
+
+def _configured_job_allowlist(os_module: Any) -> List[str]:
+    raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
+    return [item.strip() for item in (raw or "").split(",") if item.strip()]
+
+
+def _job_name_allowed(job_name: str, allowlist: Sequence[str]) -> bool:
+    if not allowlist or "*" in {item.strip() for item in allowlist}:
+        return True
+    return job_name in allowlist
 
 
 def _normalize_job_execution_status_token(value: Optional[str]) -> str:
@@ -49,6 +65,20 @@ def _is_active_job_execution(execution: Dict[str, Any]) -> bool:
     return _is_active_job_execution_status(execution.get("status")) and not str(
         execution.get("endTime") or ""
     ).strip()
+
+
+def _should_flag_empty_job_log_rows(
+    run: Dict[str, Any],
+    *,
+    now: Any,
+    start_dt: Any,
+    end_dt: Any,
+    timedelta_cls: Any,
+) -> bool:
+    grace = timedelta_cls(minutes=_JOB_LOG_INGESTION_GRACE_MINUTES)
+    if str(run.get("endTime") or "").strip():
+        return now >= end_dt + grace
+    return now >= start_dt + grace
 
 
 def _select_anchored_job_executions(
@@ -89,7 +119,17 @@ def _extract_console_log_entries(payload: Dict[str, Any]) -> List[Dict[str, Opti
         if not isinstance(row, dict):
             continue
         message = redact_sensitive_text(
-            _coalesce_log_row_string(row, "msg", "Log_s", "Log", "LogMessage_s", "Message", "message")
+            _coalesce_log_row_string(
+                row,
+                "msg",
+                "Log_s",
+                "Log",
+                "LogMessage_s",
+                "LogMessage",
+                "Message_s",
+                "Message",
+                "message",
+            )
         )
         if not message:
             continue
@@ -105,6 +145,17 @@ def _extract_console_log_entries(payload: Dict[str, Any]) -> List[Dict[str, Opti
                     "Exec",
                     "execution_name",
                     "Execution_Name",
+                    "ContainerGroupName_s",
+                    "ContainerGroupName_g",
+                    "ContainerGroupName",
+                    "ContainerGroupId_s",
+                    "ContainerGroupId_g",
+                    "ContainerGroupId",
+                    "ContainerAppJobExecutionName_s",
+                    "ContainerAppJobExecutionName",
+                    "ContainerAppJobExecutionId_s",
+                    "ContainerAppJobExecutionId_g",
+                    "ContainerAppJobExecutionId",
                 )
                 or None,
                 "message": message,
@@ -115,6 +166,15 @@ def _extract_console_log_entries(payload: Dict[str, Any]) -> List[Dict[str, Opti
 
 def _extract_log_lines(payload: Dict[str, Any]) -> List[str]:
     return [str(item.get("message") or "") for item in _extract_console_log_entries(payload) if item.get("message")]
+
+
+def _redacted_identifier_tail(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "-"
+    if len(text) <= 8:
+        return text
+    return f"...{text[-8:]}"
 
 
 _normalize_job_execution_status_token_impl = _normalize_job_execution_status_token
@@ -150,7 +210,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
 
     @router.post("/jobs/{job_name}/run")
     def trigger_job_run(job_name: str, request: Request) -> JSONResponse:
-        require_job_operate_access = _runtime_attr(runtime, "require_job_operate_access")
+        validate_auth = _runtime_attr(runtime, "validate_auth")
         job_control_context = _runtime_attr(runtime, "_job_control_context")
         logger = _runtime_attr(runtime, "logger")
         os_module = _runtime_attr(runtime, "os")
@@ -163,7 +223,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         jobs_topic = _runtime_attr(runtime, "REALTIME_TOPIC_JOBS")
         system_health_topic = _runtime_attr(runtime, "REALTIME_TOPIC_SYSTEM_HEALTH")
 
-        require_job_operate_access(request)
+        validate_auth(request)
         control_context = job_control_context(request)
         logger.info(
             "Trigger job run requested: job=%s actor=%s requestId=%s",
@@ -176,16 +236,15 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
         resource_group_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_RESOURCE_GROUP")
         resource_group = resource_group_raw.strip() if resource_group_raw else ""
-        job_names_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
-        job_allowlist = [item.strip() for item in (job_names_raw or "").split(",") if item.strip()]
+        job_allowlist = _configured_job_allowlist(os_module)
 
-        if not (subscription_id and resource_group and job_allowlist):
+        if not (subscription_id and resource_group):
             raise HTTPException(status_code=503, detail="Azure job triggering is not configured.")
 
         resolved = (job_name or "").strip()
         if not re_module.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?", resolved or ""):
             raise HTTPException(status_code=400, detail="Invalid job name.")
-        if resolved not in job_allowlist:
+        if not _job_name_allowed(resolved, job_allowlist):
             raise HTTPException(status_code=404, detail="Job not found.")
 
         api_version_env = os_module.environ.get("SYSTEM_HEALTH_ARM_API_VERSION")
@@ -311,22 +370,22 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
         resource_group_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_RESOURCE_GROUP")
         resource_group = resource_group_raw.strip() if resource_group_raw else ""
-        job_names_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
-        job_allowlist = [item.strip() for item in (job_names_raw or "").split(",") if item.strip()]
+        job_allowlist = _configured_job_allowlist(os_module)
 
-        if not (subscription_id and resource_group and job_allowlist):
+        if not (subscription_id and resource_group):
             raise HTTPException(status_code=503, detail="Azure job log retrieval is not configured.")
 
         resolved = (job_name or "").strip()
         if not re_module.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?", resolved or ""):
             raise HTTPException(status_code=400, detail="Invalid job name.")
-        if resolved not in job_allowlist:
+        if not _job_name_allowed(resolved, job_allowlist):
             raise HTTPException(status_code=404, detail="Job not found.")
 
         workspace_id_raw = os_module.environ.get("SYSTEM_HEALTH_LOG_ANALYTICS_WORKSPACE_ID")
         workspace_id = workspace_id_raw.strip() if workspace_id_raw else ""
         if not workspace_id:
             raise HTTPException(status_code=503, detail="Log Analytics is not configured for job log retrieval.")
+        workspace_log_label = _redacted_identifier_tail(workspace_id)
 
         log_timeout_raw = os_module.environ.get("SYSTEM_HEALTH_LOG_ANALYTICS_TIMEOUT_SECONDS")
         try:
@@ -404,61 +463,67 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
                 query = f"""
 let jobName = '{job_kql}';
 let execName = '{exec_kql}';
+let nonempty = (value:dynamic) {{ iff(isnotempty(tostring(value)), tostring(value), dynamic(null)) }};
 union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
-| extend job = tostring(
-    column_ifexists('ContainerJobName_s',
-        column_ifexists('ContainerName_s',
-            column_ifexists('ContainerAppJobName_s',
-                column_ifexists('JobName_s',
-                    column_ifexists('JobName',
-                        column_ifexists('ContainerAppName_s', '')
-                    )
-                )
-            )
-        )
-    )
-)
-| extend exec = tostring(
-    column_ifexists('ContainerGroupName_s',
-        column_ifexists('ContainerGroupName',
-            column_ifexists('ContainerAppJobExecutionName_s',
-                column_ifexists('ExecutionName_s',
-                    column_ifexists('ExecutionName',
-                        column_ifexists('ContainerGroupId_g',
-                            column_ifexists('ContainerAppJobExecutionId_g',
-                                column_ifexists('ContainerAppJobExecutionId_s', '')
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+| extend job = tostring(coalesce(
+    nonempty(column_ifexists('ContainerJobName_s', '')),
+    nonempty(column_ifexists('ContainerJobName', '')),
+    nonempty(column_ifexists('ContainerAppJobName_s', '')),
+    nonempty(column_ifexists('ContainerAppJobName', '')),
+    nonempty(column_ifexists('JobName_s', '')),
+    nonempty(column_ifexists('JobName', '')),
+    nonempty(column_ifexists('ContainerAppName_s', '')),
+    nonempty(column_ifexists('ContainerAppName', '')),
+    nonempty(column_ifexists('ContainerName_s', '')),
+    nonempty(column_ifexists('ContainerName', '')),
+    ''
+))
+| extend exec = tostring(coalesce(
+    nonempty(column_ifexists('ContainerGroupName_s', '')),
+    nonempty(column_ifexists('ContainerGroupName_g', '')),
+    nonempty(column_ifexists('ContainerGroupName', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionName_s', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionName', '')),
+    nonempty(column_ifexists('ExecutionName_s', '')),
+    nonempty(column_ifexists('ExecutionName', '')),
+    nonempty(column_ifexists('ContainerGroupId_s', '')),
+    nonempty(column_ifexists('ContainerGroupId_g', '')),
+    nonempty(column_ifexists('ContainerGroupId', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionId_s', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionId_g', '')),
+    nonempty(column_ifexists('ContainerAppJobExecutionId', '')),
+    ''
+))
 | extend resource = tostring(column_ifexists('_ResourceId', column_ifexists('ResourceId', '')))
-| extend msg = tostring(
-    column_ifexists('Log_s',
-        column_ifexists('Log',
-            column_ifexists('LogMessage_s',
-                column_ifexists('Message',
-                    column_ifexists('message', '')
-                )
-            )
-        )
-    )
+| extend msg = tostring(coalesce(
+    nonempty(column_ifexists('Log_s', '')),
+    nonempty(column_ifexists('Log', '')),
+    nonempty(column_ifexists('LogMessage_s', '')),
+    nonempty(column_ifexists('LogMessage', '')),
+    nonempty(column_ifexists('Message_s', '')),
+    nonempty(column_ifexists('Message', '')),
+    nonempty(column_ifexists('message', '')),
+    ''
+))
+| extend stream_s = tostring(coalesce(
+    nonempty(column_ifexists('Stream_s', '')),
+    nonempty(column_ifexists('stream_s', '')),
+    nonempty(column_ifexists('Stream', '')),
+    nonempty(column_ifexists('stream', '')),
+    ''
+))
+| extend jobMatch = (
+    (job != '' and job contains jobName)
+    or (resource contains strcat('/jobs/', jobName))
+    or (resource contains jobName)
 )
-| extend stream_s = tostring(
-    column_ifexists('Stream_s',
-        column_ifexists('stream_s',
-            column_ifexists('Stream',
-                column_ifexists('stream', '')
-            )
-        )
-    )
+| extend execMatch = execName != '' and (
+    (exec != '' and (exec == execName or exec startswith strcat(execName, '-') or exec contains execName))
+    or (resource contains strcat('/executions/', execName))
+    or (resource contains execName)
 )
-| extend jobMatch = (job != '' and job contains jobName) or (resource contains jobName)
-| extend execMatch = execName != '' and ((exec != '' and exec contains execName) or (resource contains execName))
 | where jobMatch or execMatch
+| where msg != ''
 | order by execMatch desc, jobMatch desc, TimeGenerated desc
 | take {tail_lines}
 | project TimeGenerated, executionName=exec, stream_s, msg
@@ -467,10 +532,47 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
 
                 try:
                     payload = log_client.query(workspace_id=workspace_id, query=query, timespan=timespan)
+                    row_count = len(extract_first_table_rows(payload))
                     console_logs = extract_console_log_entries(payload)
-                    lines = [str(item.get("message") or "") for item in console_logs if item.get("message")]
-                    err = None
+                    lines = [
+                        str(item.get("message") or "") for item in console_logs if item.get("message")
+                    ]
+                    err = (
+                        _JOB_LOG_EMPTY_ROWS_ERROR
+                        if row_count == 0
+                        and _should_flag_empty_job_log_rows(
+                            run,
+                            now=now,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            timedelta_cls=timedelta_cls,
+                        )
+                        else None
+                    )
+                    logger.info(
+                        "Job log query completed: job=%s execution=%s status=%s workspace=%s "
+                        "timespan=%s raw_rows=%d console_logs=%d tail_lines=%d error=%s",
+                        resolved,
+                        exec_name or "-",
+                        run.get("status") or "-",
+                        workspace_log_label,
+                        timespan,
+                        row_count,
+                        len(console_logs),
+                        len(lines),
+                        err or "-",
+                    )
                 except Exception as exc:
+                    logger.warning(
+                        "Job log query failed: job=%s execution=%s status=%s workspace=%s timespan=%s error=%s",
+                        resolved,
+                        exec_name or "-",
+                        run.get("status") or "-",
+                        workspace_log_label,
+                        timespan,
+                        exc,
+                        exc_info=True,
+                    )
                     console_logs = []
                     lines = []
                     err = str(exc)
@@ -543,16 +645,15 @@ def _job_state_command(*, runtime: ModuleType, request: Request, job_name: str, 
     subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
     resource_group_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_RESOURCE_GROUP")
     resource_group = resource_group_raw.strip() if resource_group_raw else ""
-    job_names_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_JOBS")
-    job_allowlist = [item.strip() for item in (job_names_raw or "").split(",") if item.strip()]
+    job_allowlist = _configured_job_allowlist(os_module)
 
-    if not (subscription_id and resource_group and job_allowlist):
+    if not (subscription_id and resource_group):
         raise HTTPException(status_code=503, detail="Azure job control is not configured.")
 
     resolved = (job_name or "").strip()
     if not re_module.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,126}[A-Za-z0-9]?", resolved or ""):
         raise HTTPException(status_code=400, detail="Invalid job name.")
-    if resolved not in job_allowlist:
+    if not _job_name_allowed(resolved, job_allowlist):
         raise HTTPException(status_code=404, detail="Job not found.")
 
     api_version_env = os_module.environ.get("SYSTEM_HEALTH_ARM_API_VERSION")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 from typing import Any, Dict, Optional
 
 import httpx
@@ -57,12 +58,15 @@ class AzureArmClient:
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self._get_bearer()}"}
 
-    def get_json(self, url: str, *, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        query = {"api-version": self._cfg.api_version}
-        if params:
-            query.update({k: str(v) for k, v in params.items() if v is not None})
+    def _query_params(self, url: str, params: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        query = dict(params or {})
+        parsed = urlsplit(url)
+        if "api-version=" not in parsed.query.lower():
+            query.setdefault("api-version", self._cfg.api_version)
+        return {k: str(v) for k, v in query.items() if v is not None}
 
-        resp = self._http.get(url, headers=self._headers(), params=query)
+    def get_json(self, url: str, *, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        resp = self._http.get(url, headers=self._headers(), params=self._query_params(url, params))
         resp.raise_for_status()
         payload = resp.json()
         if not isinstance(payload, dict):
@@ -76,11 +80,7 @@ class AzureArmClient:
         params: Optional[Dict[str, str]] = None,
         json_body: Any = None,
     ) -> Any:
-        query = {"api-version": self._cfg.api_version}
-        if params:
-            query.update({k: str(v) for k, v in params.items() if v is not None})
-
-        resp = self._http.post(url, headers=self._headers(), params=query, json=json_body)
+        resp = self._http.post(url, headers=self._headers(), params=self._query_params(url, params), json=json_body)
         resp.raise_for_status()
         if not resp.content:
             return {}
@@ -96,11 +96,7 @@ class AzureArmClient:
         params: Optional[Dict[str, str]] = None,
         json_body: Any = None,
     ) -> Any:
-        query = {"api-version": self._cfg.api_version}
-        if params:
-            query.update({k: str(v) for k, v in params.items() if v is not None})
-
-        resp = self._http.patch(url, headers=self._headers(), params=query, json=json_body)
+        resp = self._http.patch(url, headers=self._headers(), params=self._query_params(url, params), json=json_body)
         resp.raise_for_status()
         if not resp.content:
             return {}
@@ -119,5 +115,16 @@ class AzureArmClient:
             f"https://management.azure.com/subscriptions/{sub}"
             f"/resourceGroups/{rg}"
             f"/providers/{provider}/{resource_type}/{name}"
+        )
+
+    def resource_collection_url(self, *, provider: str, resource_type: str) -> str:
+        sub = self._cfg.subscription_id
+        rg = self._cfg.resource_group
+        provider = provider.strip().lstrip("/").rstrip("/")
+        resource_type = resource_type.strip().lstrip("/").rstrip("/")
+        return (
+            f"https://management.azure.com/subscriptions/{sub}"
+            f"/resourceGroups/{rg}"
+            f"/providers/{provider}/{resource_type}"
         )
 

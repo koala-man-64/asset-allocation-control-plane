@@ -8,8 +8,8 @@ Runtime-owned control-plane repository for:
 Local development installs versioned shared packages rather than sibling repos:
 
 ```powershell
-python -m pip install asset-allocation-contracts==3.10.1
-python -m pip install asset-allocation-runtime-common==3.4.6 --no-deps
+python -m pip install asset-allocation-contracts==3.15.2
+python -m pip install asset-allocation-runtime-common==3.5.7 --no-deps
 python -m pytest tests/api tests/monitoring -q
 ```
 
@@ -50,7 +50,7 @@ This is a contracts-repo-first change area. The control-plane now exposes `POST 
 - Requests support `application/json` when no files are sent and `multipart/form-data` with a JSON `request` part plus repeated `files` parts when attachments are included.
 - Responses stream typed SSE events: `started`, `status`, `reasoning_summary_delta`, `output_text_delta`, `completed`, and `error`.
 - Runtime configuration is disabled by default. Enable it with `AI_RELAY_ENABLED=true` plus a real `AI_RELAY_API_KEY`.
-- The repo currently ships a compatibility shim for the AI request and stream event models. Publish the shared `asset-allocation-contracts` AI types and then bump the package here to remove the fallback.
+- AI request and stream event models are imported from `asset-allocation-contracts`; regenerate `api/contracts/*` whenever those shared route models change.
 
 ## Operations
 
@@ -73,4 +73,4 @@ Backtest lifecycle state is owned here and the shared payloads live in `asset-al
 - `POST /api/internal/backtests/runs/reconcile` is the internal recovery endpoint used by the jobs repo scheduled reconcile task.
 - Reconcile dispatches old queued runs that never received an execution, re-dispatches queued runs whose recorded ACA execution is missing or terminal, and fails stale running runs when no active execution still exists.
 - Backtest read responses expose additive v4 metadata where needed. Summary payloads include cost-drag, exposure, and closed-position quality metrics; timeseries points expose `period_return`; rolling points expose `window_periods`; trades expose `position_id` and `trade_role`; and `GET /api/backtests/{run_id}/positions/closed` returns the flat-to-flat position lifecycle surface.
-- `monitoring/system_health.py` continues to be the operator surface. Backtest-specific queue depth, oldest queued age, running count, stale heartbeat count, dispatch-failure proxy count, and completion duration signals are attached to the `backtests-job` resource when that job is included in `SYSTEM_HEALTH_ARM_JOBS`.
+- `monitoring/system_health.py` continues to be the operator surface. The API discovers Container App Jobs from the configured resource group by default; `SYSTEM_HEALTH_ARM_JOBS` is only an optional narrowing override. Backtest-specific queue depth, oldest queued age, running count, stale heartbeat count, dispatch-failure proxy count, and completion duration signals are attached to the `backtests-job` resource when that job is discovered or explicitly listed.

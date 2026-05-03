@@ -46,6 +46,7 @@ API_OIDC_JWKS_URL,deploy_var,var,deploy_config,true,Explicit JWKS url when disco
 API_OIDC_REQUIRED_SCOPES,deploy_var,var,deploy_config,true,Optional required scopes for API access.
 API_OIDC_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional required roles for API access.
 API_AUTH_SESSION_MODE,deploy_var,var,deploy_config,true,Auth session transport mode. Standard browser deployments use cookie.
+API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS,deploy_var,var,deploy_config,true,Comma-separated OIDC client ids allowed to use direct bearer auth while API_AUTH_SESSION_MODE=cookie. Prod deploy defaults this to the jobs managed identity client id unless an explicit variable is configured.
 API_AUTH_SESSION_IDLE_TTL_SECONDS,deploy_var,var,deploy_config,true,Sliding idle lifetime in seconds for API auth session cookies. Standard browser default is 1800.
 API_AUTH_SESSION_ABSOLUTE_TTL_SECONDS,deploy_var,var,deploy_config,true,Absolute maximum lifetime in seconds for API auth session cookies. Standard browser default is 28800.
 API_AUTH_SESSION_SECRET_KEYS,secret,secret,secret_store,true,Comma-separated auth session signing/encryption secrets; first key signs new cookies and later keys support rotation.
@@ -63,7 +64,7 @@ SYSTEM_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for 
 SYSTEM_LOGS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for job and Container App log retrieval endpoints.
 SYSTEM_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to start and stop Container Apps.
 RUNTIME_CONFIG_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to modify runtime config and debug-symbol state.
-JOB_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to run suspend stop or resume Container Apps jobs.
+JOB_OPERATE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required to suspend stop or resume Container Apps jobs. Job run triggers require baseline API auth only.
 PURGE_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Roles required for purge rule mutation and purge execution endpoints.
 NOTIFICATIONS_READ_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification read access.
 NOTIFICATIONS_WRITE_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for notification write access.
@@ -218,3 +219,5 @@ POSTGRES_ADMIN_PASSWORD,secret,secret,secret_store,true,Azure Postgres administr
 POSTGRES_DSN,secret,secret,secret_store,true,Control-plane Postgres connection string. Never auto-discovered.
 PYTHON_PACKAGE_INDEX_URL,secret,secret,secret_store,true,Optional primary Python package index used by CI and release workflows when private package publication is enabled.
 PYTHON_PACKAGE_EXTRA_INDEX_URL,secret,secret,secret_store,true,Optional extra Python package index used by CI and release workflows when private package publication is enabled.
+ASSET_ALLOCATION_API_SCOPE,deploy_var,var,deploy_config,true,OAuth scope used by gateway clients when authenticating to the Asset Allocation API via managed identity. Provisioned by provision_entra_oidc.ps1.
+ENTRA_OPERATOR_USER_OBJECT_ID,deploy_var,var,deploy_config,true,Azure AD object ID of the operator user assigned application roles during Entra OIDC provisioning. Provisioned by provision_entra_oidc.ps1.

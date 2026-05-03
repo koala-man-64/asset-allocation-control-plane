@@ -1,10 +1,28 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _provisioner_text() -> str:
+    return (
+        _repo_root()
+        / "scripts"
+        / "ops"
+        / "provision"
+        / "provision_entra_oidc.ps1"
+    ).read_text(encoding="utf-8")
+
+
+def _role_definition_line(text: str, role_value: str) -> str:
+    pattern = rf'^\s*\[pscustomobject\]@\{{[^\n]*Value = "{re.escape(role_value)}"[^\n]*$'
+    match = re.search(pattern, text, flags=re.MULTILINE)
+    assert match is not None, f"missing app role definition for {role_value}"
+    return match.group(0)
 
 
 def test_control_plane_keeps_repo_local_env_bootstrap_scripts() -> None:
@@ -143,6 +161,49 @@ def test_entra_oidc_provisioner_covers_app_registrations_permissions_and_env_upd
     )
 
 
+def test_entra_oidc_provisioner_defines_safe_trade_desk_and_account_policy_roles() -> None:
+    text = _provisioner_text()
+    expected_operator_assignment = {
+        "AssetAllocation.TradeDesk.Read": True,
+        "AssetAllocation.TradeDesk.Preview": False,
+        "AssetAllocation.TradeDesk.Place": False,
+        "AssetAllocation.TradeDesk.Cancel": False,
+        "AssetAllocation.TradeDesk.Live": False,
+        "AssetAllocation.AccountPolicy.Read": True,
+        "AssetAllocation.AccountPolicy.Write": False,
+        "AssetAllocation.TradeConfirmation.Release": False,
+    }
+
+    access_line = _role_definition_line(text, "AssetAllocation.Access")
+    assert 'AllowedMemberTypes = @("User", "Application")' in access_line, (
+        "Access must remain assignable to deploy/runtime service principals"
+    )
+
+    for role_value, should_assign_to_operator in expected_operator_assignment.items():
+        line = _role_definition_line(text, role_value)
+        expected_assignment = "$true" if should_assign_to_operator else "$false"
+        assert f"AssignToOperator = {expected_assignment}" in line, (
+            f"{role_value} has the wrong default operator assignment policy"
+        )
+        assert 'AllowedMemberTypes = @("User")' in line, (
+            f"{role_value} should be assignable only to users/groups by default"
+        )
+
+
+def test_entra_oidc_provisioner_pages_app_role_assignment_lookup() -> None:
+    text = _provisioner_text()
+
+    assert 'PSObject.Properties["@odata.nextLink"]' in text, (
+        "app-role assignment lookup must follow Microsoft Graph pagination"
+    )
+    assert 'while (-not [string]::IsNullOrWhiteSpace($url))' in text, (
+        "app-role assignment lookup must keep reading Graph pages until no nextLink remains"
+    )
+    assert "Invoke-GraphJson -Method GET -Url $url" in text, (
+        "pagination must request the current page URL rather than a fixed first page"
+    )
+
+
 def test_entra_oidc_provisioner_auto_resolves_and_persists_operator_user() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_entra_oidc.ps1"
@@ -242,6 +303,28 @@ def test_permission_validator_supports_release_scenario() -> None:
     )
 
 
+def test_permission_validator_checks_api_log_analytics_reader_access() -> None:
+    repo_root = _repo_root()
+    script = repo_root / "scripts" / "ops" / "validate" / "validate_azure_permissions.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert '[string]$LogAnalyticsWorkspaceName = ""' in text, (
+        "Azure permission validation must accept the Log Analytics workspace name"
+    )
+    assert '"LOG_ANALYTICS_WORKSPACE_NAME"' in text, (
+        "Azure permission validation must resolve the workspace name from env config"
+    )
+    assert "az monitor log-analytics workspace show" in text, (
+        "Azure permission validation must resolve the workspace resource id"
+    )
+    assert 'Add-Result -Name "API runtime identity has Log Analytics Reader"' in text, (
+        "Azure permission validation must fail when API runtime log-read access is missing"
+    )
+    assert '"Log Analytics Reader", "Log Analytics Contributor", "Contributor", "Owner"' in text, (
+        "Azure permission validation must recognize built-in log-reader access and stronger explicit roles"
+    )
+
+
 def test_shared_provisioner_uses_workspace_safe_log_analytics_retention() -> None:
     repo_root = _repo_root()
     script = repo_root / "scripts" / "ops" / "provision" / "provision_azure.ps1"
@@ -335,6 +418,18 @@ def test_shared_provisioner_supports_parallel_private_runtime_and_network_smoke(
     assert "Asset Allocation ACA Operator" in text, (
         "Shared Azure provisioning must replace RG Contributor job-start behavior with a narrow custom role"
     )
+    assert '"Microsoft.OperationalInsights/workspaces/query/read"' not in text, (
+        "ACA operator role must not rely on misleading generic Log Analytics query permissions"
+    )
+    assert '--query "{customerId:customerId,id:id}"' in text, (
+        "Shared Azure provisioning must resolve the Log Analytics workspace resource id"
+    )
+    assert '-RoleName "Log Analytics Reader"' in text, (
+        "API runtime identity must receive built-in Log Analytics Reader for console log queries"
+    )
+    assert "-Scope $lawWorkspaceResourceId" in text, (
+        "Log Analytics Reader must be scoped to the workspace, not only the resource group"
+    )
     assert "Storage Blob Data Contributor granted to $AcrPullIdentityName" not in text, (
         "ACR pull identity must not receive storage data-plane permissions"
     )
@@ -404,6 +499,12 @@ def test_infra_shared_workflow_passes_parallel_private_runtime_inputs() -> None:
     )
     assert "ApiRuntimeIdentityName =" in text, (
         "Shared infra workflow must pass the API runtime identity name to the provisioner"
+    )
+    assert "Reapply Container Apps/job operator RBAC and API Log Analytics read access" in text, (
+        "Shared infra workflow must describe the RBAC reconcile input as covering log-read access"
+    )
+    assert "Job operation and log-read RBAC reconciled" in text, (
+        "Shared infra workflow summary must report the combined job/log RBAC reconcile state"
     )
     assert "$provisionArgs.EnableAcrPrivateLink = $true" in text, (
         "Shared infra workflow must pass the ACR private link input to the provisioner"

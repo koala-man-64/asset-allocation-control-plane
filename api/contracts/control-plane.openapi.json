@@ -1,6 +1,18 @@
 {
   "components": {
     "schemas": {
+      "AcknowledgeBrokerAlertRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "title": "AcknowledgeBrokerAlertRequest",
+        "type": "object"
+      },
       "ActivateRegimeModelRequest": {
         "properties": {
           "version": {
@@ -1344,6 +1356,183 @@
         "title": "BacktestLookupResponse",
         "type": "object"
       },
+      "BacktestPolicyEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "bar_ts": {
+            "format": "date-time",
+            "title": "Bar Ts",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "applied",
+              "skipped",
+              "blocked"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "event_seq": {
+            "minimum": 0.0,
+            "title": "Event Seq",
+            "type": "integer"
+          },
+          "observed_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Value"
+          },
+          "policy_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Id"
+          },
+          "policy_type": {
+            "enum": [
+              "rebalance",
+              "strategy_risk",
+              "position_exit",
+              "reentry"
+            ],
+            "title": "Policy Type",
+            "type": "string"
+          },
+          "position_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Id"
+          },
+          "reason_code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "strategy",
+              "sleeve",
+              "position",
+              "symbol",
+              "portfolio"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "threshold_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Value"
+          }
+        },
+        "required": [
+          "run_id",
+          "event_seq",
+          "bar_ts",
+          "scope",
+          "policy_type",
+          "decision",
+          "reason_code"
+        ],
+        "title": "BacktestPolicyEvent",
+        "type": "object"
+      },
+      "BacktestPolicyEventListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestPolicyEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "events",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "BacktestPolicyEventListResponse",
+        "type": "object"
+      },
       "BacktestReconcileResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2332,6 +2521,18 @@
             ],
             "title": "Approval Readiness"
           },
+          "approval_readiness": {
+            "anyOf": [
+              {
+                "const": "research_only",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Readiness"
+          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -2443,6 +2644,18 @@
             ],
             "title": "Data Quality Event Count"
           },
+          "data_quality_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Quality Event Count"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -2453,6 +2666,30 @@
               }
             ],
             "title": "End Date"
+          },
+          "execution_model": {
+            "anyOf": [
+              {
+                "const": "simple_bps",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model"
+          },
+          "execution_model_quality": {
+            "anyOf": [
+              {
+                "const": "not_tca_grade",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model Quality"
           },
           "execution_model": {
             "anyOf": [
@@ -2600,6 +2837,18 @@
             ],
             "title": "Policy Event Count"
           },
+          "policy_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Event Count"
+          },
           "profit_factor": {
             "anyOf": [
               {
@@ -2610,6 +2859,22 @@
               }
             ],
             "title": "Profit Factor"
+          },
+          "research_integrity_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strict_passed",
+                  "strict_failed",
+                  "legacy_uncontrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Integrity Status"
           },
           "research_integrity_status": {
             "anyOf": [
@@ -2878,6 +3143,333 @@
         "title": "BacktestValidationReport",
         "type": "object"
       },
+      "BrokerAccountActionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "reconnect",
+              "pause_sync",
+              "resume_sync",
+              "refresh",
+              "acknowledge_alert",
+              "update_trading_policy",
+              "update_allocation"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "actionId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Actionid",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "resultingConnectionHealth": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerConnectionHealth"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "default": "accepted",
+            "enum": [
+              "accepted",
+              "in_progress",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "syncPaused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Syncpaused"
+          },
+          "tradeReadiness": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ready",
+                  "review",
+                  "blocked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tradereadiness"
+          }
+        },
+        "required": [
+          "actionId",
+          "accountId",
+          "action",
+          "requestedAt"
+        ],
+        "title": "BrokerAccountActionResponse",
+        "type": "object"
+      },
+      "BrokerAccountActivity": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "activityId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Activityid",
+            "type": "string"
+          },
+          "activityType": {
+            "enum": [
+              "reconnect",
+              "pause_sync",
+              "resume_sync",
+              "refresh",
+              "acknowledge_alert",
+              "update_trading_policy",
+              "update_allocation"
+            ],
+            "title": "Activitytype",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "relatedAlertId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relatedalertid"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "status": {
+            "default": "accepted",
+            "enum": [
+              "accepted",
+              "in_progress",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activityId",
+          "accountId",
+          "activityType",
+          "requestedAt"
+        ],
+        "title": "BrokerAccountActivity",
+        "type": "object"
+      },
+      "BrokerAccountAlert": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedat"
+          },
+          "acknowledgedBy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedby"
+          },
+          "alertId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Alertid",
+            "type": "string"
+          },
+          "asOfDate": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asofdate"
+          },
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "severity": {
+            "default": "warning",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "accountId",
+          "code",
+          "title",
+          "observedAt"
+        ],
+        "title": "BrokerAccountAlert",
+        "type": "object"
+      },
       "BrokerAccountAllocationUpdateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3142,6 +3734,348 @@
         "title": "BrokerAccountConfigurationAuditRecord",
         "type": "object"
       },
+      "BrokerAccountDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/BrokerAccountSummary"
+          },
+          "accountType": {
+            "default": "other",
+            "enum": [
+              "cash",
+              "margin",
+              "retirement",
+              "paper",
+              "other"
+            ],
+            "title": "Accounttype",
+            "type": "string"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerAccountAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/BrokerCapabilityFlags"
+          },
+          "configuration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerAccountConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dayTradeBuyingPower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daytradebuyingpower"
+          },
+          "maintenanceExcess": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maintenanceexcess"
+          },
+          "recentActivity": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerAccountActivity"
+            },
+            "title": "Recentactivity",
+            "type": "array"
+          },
+          "syncRuns": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerSyncRun"
+            },
+            "title": "Syncruns",
+            "type": "array"
+          },
+          "tradingBlocked": {
+            "default": false,
+            "title": "Tradingblocked",
+            "type": "boolean"
+          },
+          "tradingBlockedReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tradingblockedreason"
+          },
+          "unsettledFunds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsettledfunds"
+          }
+        },
+        "required": [
+          "account"
+        ],
+        "title": "BrokerAccountDetail",
+        "type": "object"
+      },
+      "BrokerAccountListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerAccountSummary"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generatedat"
+          }
+        },
+        "title": "BrokerAccountListResponse",
+        "type": "object"
+      },
+      "BrokerAccountSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountNumberMasked": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountnumbermasked"
+          },
+          "activePortfolioName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activeportfolioname"
+          },
+          "alertCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Alertcount",
+            "type": "integer"
+          },
+          "allocationSummary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerStrategyAllocationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "broker": {
+            "enum": [
+              "alpaca",
+              "schwab",
+              "etrade"
+            ],
+            "title": "Broker",
+            "type": "string"
+          },
+          "buyingPower": {
+            "default": 0.0,
+            "title": "Buyingpower",
+            "type": "number"
+          },
+          "cash": {
+            "default": 0.0,
+            "title": "Cash",
+            "type": "number"
+          },
+          "configurationVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configurationversion"
+          },
+          "connectionHealth": {
+            "$ref": "#/components/schemas/BrokerConnectionHealth"
+          },
+          "equity": {
+            "default": 0.0,
+            "title": "Equity",
+            "type": "number"
+          },
+          "highestAlertSeverity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "info",
+                  "warning",
+                  "critical"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highestalertseverity"
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastsyncedat"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "openOrderCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Openordercount",
+            "type": "integer"
+          },
+          "openPositionCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Openpositioncount",
+            "type": "integer"
+          },
+          "overallStatus": {
+            "default": "warning",
+            "enum": [
+              "healthy",
+              "warning",
+              "critical"
+            ],
+            "title": "Overallstatus",
+            "type": "string"
+          },
+          "snapshotAsOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshotasof"
+          },
+          "strategyLabel": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategylabel"
+          },
+          "tradeReadiness": {
+            "default": "review",
+            "enum": [
+              "ready",
+              "review",
+              "blocked"
+            ],
+            "title": "Tradereadiness",
+            "type": "string"
+          },
+          "tradeReadinessReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tradereadinessreason"
+          }
+        },
+        "required": [
+          "accountId",
+          "broker",
+          "name"
+        ],
+        "title": "BrokerAccountSummary",
+        "type": "object"
+      },
       "BrokerCapabilityFlags": {
         "additionalProperties": false,
         "properties": {
@@ -3223,6 +4157,134 @@
           }
         },
         "title": "BrokerCapabilityFlags",
+        "type": "object"
+      },
+      "BrokerConnectionHealth": {
+        "additionalProperties": false,
+        "properties": {
+          "authExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authexpiresat"
+          },
+          "authStatus": {
+            "default": "not_connected",
+            "enum": [
+              "authenticated",
+              "expires_soon",
+              "expired",
+              "reauth_required",
+              "not_connected"
+            ],
+            "title": "Authstatus",
+            "type": "string"
+          },
+          "connectionState": {
+            "default": "disconnected",
+            "enum": [
+              "connected",
+              "degraded",
+              "disconnected",
+              "reconnect_required"
+            ],
+            "title": "Connectionstate",
+            "type": "string"
+          },
+          "failureMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failuremessage"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcheckedat"
+          },
+          "lastFailedSyncAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastfailedsyncat"
+          },
+          "lastSuccessfulSyncAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastsuccessfulsyncat"
+          },
+          "overallStatus": {
+            "default": "warning",
+            "enum": [
+              "healthy",
+              "warning",
+              "critical"
+            ],
+            "title": "Overallstatus",
+            "type": "string"
+          },
+          "staleReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stalereason"
+          },
+          "syncPaused": {
+            "default": false,
+            "title": "Syncpaused",
+            "type": "boolean"
+          },
+          "syncStatus": {
+            "default": "never_synced",
+            "enum": [
+              "fresh",
+              "stale",
+              "syncing",
+              "paused",
+              "failed",
+              "never_synced"
+            ],
+            "title": "Syncstatus",
+            "type": "string"
+          }
+        },
+        "title": "BrokerConnectionHealth",
         "type": "object"
       },
       "BrokerPositionSizeLimit": {
@@ -3480,6 +4542,132 @@
         "title": "BrokerStrategyReference",
         "type": "object"
       },
+      "BrokerSyncRun": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Accountid",
+            "type": "string"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "rowsSynced": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rowssynced"
+          },
+          "runId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "scope": {
+            "default": "full",
+            "enum": [
+              "balances",
+              "positions",
+              "orders",
+              "full"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "default": "queued",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "trigger": {
+            "default": "scheduled",
+            "enum": [
+              "scheduled",
+              "manual",
+              "reconnect",
+              "backfill"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "warningCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Warningcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runId",
+          "accountId",
+          "requestedAt"
+        ],
+        "title": "BrokerSyncRun",
+        "type": "object"
+      },
       "BrokerTradingPolicy": {
         "additionalProperties": false,
         "properties": {
@@ -3720,6 +4908,33 @@
           "version"
         ],
         "title": "ConfigReference",
+        "type": "object"
+      },
+      "ConfigUpsertRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ],
+        "title": "ConfigUpsertRequest",
         "type": "object"
       },
       "CongressTradeEvent": {
@@ -9400,6 +10615,23 @@
         "title": "NotificationStatusResponse",
         "type": "object"
       },
+      "PauseBrokerSyncRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "paused": {
+            "default": true,
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "PauseBrokerSyncRequest",
+        "type": "object"
+      },
       "PortfolioAccount": {
         "additionalProperties": false,
         "properties": {
@@ -13195,6 +14427,94 @@
         "title": "RebalancePolicy",
         "type": "object"
       },
+      "RebalancePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowPartialRebalance": {
+            "default": true,
+            "title": "Allowpartialrebalance",
+            "type": "boolean"
+          },
+          "cashBufferPct": {
+            "default": 0.0,
+            "exclusiveMaximum": 100.0,
+            "minimum": 0.0,
+            "title": "Cashbufferpct",
+            "type": "number"
+          },
+          "closeRemovedPositions": {
+            "default": true,
+            "title": "Closeremovedpositions",
+            "type": "boolean"
+          },
+          "driftThresholdPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driftthresholdpct"
+          },
+          "executionTiming": {
+            "const": "next_bar_open",
+            "default": "next_bar_open",
+            "title": "Executiontiming",
+            "type": "string"
+          },
+          "frequency": {
+            "default": "every_bar",
+            "enum": [
+              "every_bar",
+              "daily",
+              "weekly",
+              "monthly",
+              "quarterly",
+              "every_n_bars",
+              "manual"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "intervalBars": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intervalbars"
+          },
+          "maxTurnoverPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxturnoverpct"
+          },
+          "minTradeNotional": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Mintradenotional",
+            "type": "number"
+          }
+        },
+        "title": "RebalancePolicy",
+        "type": "object"
+      },
       "RebalanceProposal": {
         "additionalProperties": false,
         "properties": {
@@ -13335,6 +14655,46 @@
         "title": "RebalanceTradeProposal",
         "type": "object"
       },
+      "ReconnectBrokerAccountRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "ReconnectBrokerAccountRequest",
+        "type": "object"
+      },
+      "RefreshBrokerAccountRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "scope": {
+            "default": "full",
+            "enum": [
+              "balances",
+              "positions",
+              "orders",
+              "full"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "title": "RefreshBrokerAccountRequest",
+        "type": "object"
+      },
       "RegimePolicy": {
         "additionalProperties": false,
         "properties": {
@@ -13350,6 +14710,18 @@
             "minLength": 1,
             "title": "Modelname",
             "type": "string"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelversion"
           },
           "modelVersion": {
             "anyOf": [
@@ -14467,6 +15839,31 @@
             ],
             "title": "Exitrulesetversion"
           },
+          "exitRuleSetName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetname"
+          },
+          "exitRuleSetVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetversion"
+          },
           "exits": {
             "items": {
               "$ref": "#/components/schemas/ExitRule"
@@ -14536,12 +15933,34 @@
             ],
             "title": "Rankingschemaversion"
           },
+          "rankingSchemaVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaversion"
+          },
           "rebalance": {
             "default": "monthly",
             "maxLength": 64,
             "minLength": 1,
             "title": "Rebalance",
             "type": "string"
+          },
+          "rebalancePolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RebalancePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "rebalancePolicy": {
             "anyOf": [
@@ -14562,6 +15981,56 @@
                 "type": "null"
               }
             ]
+          },
+          "regimePolicyConfigName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigname"
+          },
+          "regimePolicyConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigversion"
+          },
+          "riskPolicyName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyname"
+          },
+          "riskPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyversion"
           },
           "regimePolicyConfigName": {
             "anyOf": [
@@ -14636,6 +16105,16 @@
               }
             ]
           },
+          "strategyRiskPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "topN": {
             "default": 20,
             "minimum": 1.0,
@@ -14664,6 +16143,18 @@
               }
             ],
             "title": "Universeconfigname"
+          },
+          "universeConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universeconfigversion"
           },
           "universeConfigVersion": {
             "anyOf": [
@@ -14836,6 +16327,187 @@
           "strategyName"
         ],
         "title": "StrategyReferenceInput",
+        "type": "object"
+      },
+      "StrategyRiskPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "reentry": {
+            "$ref": "#/components/schemas/StrategyRiskReentryPolicy"
+          },
+          "scope": {
+            "default": "strategy",
+            "enum": [
+              "strategy",
+              "sleeve"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "stopLoss": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskStopLossPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "takeProfit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskTakeProfitPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "StrategyRiskPolicy",
+        "type": "object"
+      },
+      "StrategyRiskReentryPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "cooldownBars": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Cooldownbars",
+            "type": "integer"
+          },
+          "requireApproval": {
+            "default": false,
+            "title": "Requireapproval",
+            "type": "boolean"
+          }
+        },
+        "title": "StrategyRiskReentryPolicy",
+        "type": "object"
+      },
+      "StrategyRiskStopLossPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "default": "reduce_exposure",
+            "enum": [
+              "reduce_exposure",
+              "liquidate",
+              "freeze_buys"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "basis": {
+            "default": "strategy_nav_drawdown",
+            "enum": [
+              "strategy_nav_drawdown",
+              "sleeve_nav_drawdown"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "default": "strategy-stop-loss",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "reductionPct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reductionpct"
+          },
+          "thresholdPct": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Thresholdpct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "thresholdPct"
+        ],
+        "title": "StrategyRiskStopLossPolicy",
+        "type": "object"
+      },
+      "StrategyRiskTakeProfitPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "default": "rebalance_to_target",
+            "enum": [
+              "reduce_exposure",
+              "rebalance_to_target"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "basis": {
+            "default": "strategy_nav_gain",
+            "enum": [
+              "strategy_nav_gain",
+              "sleeve_nav_gain"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "default": "strategy-take-profit",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "reductionPct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reductionpct"
+          },
+          "thresholdPct": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Thresholdpct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "thresholdPct"
+        ],
+        "title": "StrategyRiskTakeProfitPolicy",
         "type": "object"
       },
       "StrategyRiskPolicy": {
@@ -15315,6 +16987,18 @@
             ],
             "title": "Approval Readiness"
           },
+          "approval_readiness": {
+            "anyOf": [
+              {
+                "const": "research_only",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Readiness"
+          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -15426,6 +17110,18 @@
             ],
             "title": "Data Quality Event Count"
           },
+          "data_quality_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Quality Event Count"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -15436,6 +17132,30 @@
               }
             ],
             "title": "End Date"
+          },
+          "execution_model": {
+            "anyOf": [
+              {
+                "const": "simple_bps",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model"
+          },
+          "execution_model_quality": {
+            "anyOf": [
+              {
+                "const": "not_tca_grade",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model Quality"
           },
           "execution_model": {
             "anyOf": [
@@ -15593,6 +17313,18 @@
             ],
             "title": "Policy Event Count"
           },
+          "policy_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Event Count"
+          },
           "profit_factor": {
             "anyOf": [
               {
@@ -15603,6 +17335,22 @@
               }
             ],
             "title": "Profit Factor"
+          },
+          "research_integrity_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strict_passed",
+                  "strict_failed",
+                  "legacy_uncontrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Integrity Status"
           },
           "research_integrity_status": {
             "anyOf": [
@@ -22028,6 +23776,71 @@
         ]
       }
     },
+    "/api/backtests/{run_id}/policy-events": {
+      "get": {
+        "operationId": "get_policy_events_api_backtests__run_id__policy_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestPolicyEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Policy Events",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
     "/api/backtests/{run_id}/positions/closed": {
       "get": {
         "operationId": "get_closed_positions_api_backtests__run_id__positions_closed_get",
@@ -22325,6 +24138,130 @@
         ]
       }
     },
+    "/api/broker-accounts": {
+      "get": {
+        "operationId": "list_broker_accounts_api_broker_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Broker Accounts",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}": {
+      "get": {
+        "operationId": "get_broker_account_api_broker_accounts__account_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Broker Account",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/alerts/{alert_id}/acknowledge": {
+      "post": {
+        "operationId": "acknowledge_broker_account_alert_api_broker_accounts__account_id__alerts__alert_id__acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeBrokerAlertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Broker Account Alert",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
     "/api/broker-accounts/{account_id}/allocation": {
       "put": {
         "operationId": "save_broker_account_allocation_api_broker_accounts__account_id__allocation_put",
@@ -22414,6 +24351,214 @@
           }
         },
         "summary": "Get Broker Account Configuration",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/reconnect": {
+      "post": {
+        "operationId": "reconnect_broker_account_api_broker_accounts__account_id__reconnect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconnectBrokerAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconnect Broker Account",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/refresh": {
+      "post": {
+        "operationId": "refresh_broker_account_api_broker_accounts__account_id__refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshBrokerAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh Broker Account",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/sync/pause": {
+      "post": {
+        "operationId": "pause_broker_account_sync_api_broker_accounts__account_id__sync_pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PauseBrokerSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pause Broker Account Sync",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/{account_id}/sync/resume": {
+      "post": {
+        "operationId": "resume_broker_account_sync_api_broker_accounts__account_id__sync_resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PauseBrokerSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Broker Account Sync",
         "tags": [
           "Broker Accounts"
         ]
@@ -23540,6 +25685,213 @@
         "summary": "Get Data Generic",
         "tags": [
           "Data"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/": {
+      "get": {
+        "operationId": "list_exit_rule_sets_api_exit_rule_sets__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Exit Rule Sets Api Exit Rule Sets  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Exit Rule Sets",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      },
+      "post": {
+        "operationId": "save_exit_rule_set_api_exit_rule_sets__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Exit Rule Set Api Exit Rule Sets  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Exit Rule Set",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/{name}": {
+      "delete": {
+        "operationId": "archive_exit_rule_set_api_exit_rule_sets__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Exit Rule Set Api Exit Rule Sets  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Exit Rule Set",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/{name}/detail": {
+      "get": {
+        "operationId": "get_exit_rule_set_detail_api_exit_rule_sets__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Exit Rule Set Detail Api Exit Rule Sets  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Exit Rule Set Detail",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_exit_rule_set_revision_api_exit_rule_sets__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Exit Rule Set Revision Api Exit Rule Sets  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Exit Rule Set Revision",
+        "tags": [
+          "Exit Rule Sets"
         ]
       }
     },
@@ -35285,6 +37637,57 @@
         ]
       }
     },
+    "/api/rankings/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_ranking_schema_revision_api_rankings__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankingSchemaDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ranking Schema Revision",
+        "tags": [
+          "Rankings"
+        ]
+      }
+    },
     "/api/realtime/ticket": {
       "post": {
         "operationId": "issue_realtime_ticket_api_realtime_ticket_post",
@@ -35301,6 +37704,213 @@
         "summary": "Issue Realtime Ticket",
         "tags": [
           "Realtime"
+        ]
+      }
+    },
+    "/api/regime-policies/": {
+      "get": {
+        "operationId": "list_regime_policies_api_regime_policies__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Regime Policies Api Regime Policies  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Regime Policies",
+        "tags": [
+          "Regime Policies"
+        ]
+      },
+      "post": {
+        "operationId": "save_regime_policy_api_regime_policies__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Regime Policy Api Regime Policies  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Regime Policy",
+        "tags": [
+          "Regime Policies"
+        ]
+      }
+    },
+    "/api/regime-policies/{name}": {
+      "delete": {
+        "operationId": "archive_regime_policy_api_regime_policies__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Regime Policy Api Regime Policies  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Regime Policy",
+        "tags": [
+          "Regime Policies"
+        ]
+      }
+    },
+    "/api/regime-policies/{name}/detail": {
+      "get": {
+        "operationId": "get_regime_policy_detail_api_regime_policies__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Regime Policy Detail Api Regime Policies  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Regime Policy Detail",
+        "tags": [
+          "Regime Policies"
+        ]
+      }
+    },
+    "/api/regime-policies/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_regime_policy_revision_api_regime_policies__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Regime Policy Revision Api Regime Policies  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Regime Policy Revision",
+        "tags": [
+          "Regime Policies"
         ]
       }
     },
@@ -35635,6 +38245,213 @@
         "summary": "Activate Regime Model",
         "tags": [
           "Regimes"
+        ]
+      }
+    },
+    "/api/risk-policies/": {
+      "get": {
+        "operationId": "list_risk_policies_api_risk_policies__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Risk Policies Api Risk Policies  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Risk Policies",
+        "tags": [
+          "Risk Policies"
+        ]
+      },
+      "post": {
+        "operationId": "save_risk_policy_api_risk_policies__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Risk Policy Api Risk Policies  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Risk Policy",
+        "tags": [
+          "Risk Policies"
+        ]
+      }
+    },
+    "/api/risk-policies/{name}": {
+      "delete": {
+        "operationId": "archive_risk_policy_api_risk_policies__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Risk Policy Api Risk Policies  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Risk Policy",
+        "tags": [
+          "Risk Policies"
+        ]
+      }
+    },
+    "/api/risk-policies/{name}/detail": {
+      "get": {
+        "operationId": "get_risk_policy_detail_api_risk_policies__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Risk Policy Detail Api Risk Policies  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Risk Policy Detail",
+        "tags": [
+          "Risk Policies"
+        ]
+      }
+    },
+    "/api/risk-policies/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_risk_policy_revision_api_risk_policies__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Risk Policy Revision Api Risk Policies  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Risk Policy Revision",
+        "tags": [
+          "Risk Policies"
         ]
       }
     },
@@ -39193,6 +42010,57 @@
           }
         },
         "summary": "Get Universe Config Detail",
+        "tags": [
+          "Universes"
+        ]
+      }
+    },
+    "/api/universes/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_universe_config_revision_api_universes__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UniverseConfigDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Universe Config Revision",
         "tags": [
           "Universes"
         ]

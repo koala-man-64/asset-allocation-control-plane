@@ -4,6 +4,7 @@ param(
   [string]$ResourceGroup = "",
   [string]$AcrName = "",
   [string]$StorageAccountName = "",
+  [string]$LogAnalyticsWorkspaceName = "",
   [string]$AcrPullIdentityName = "",
   [string]$ApiRuntimeIdentityName = "",
   [string]$AzureClientId = "",
@@ -16,7 +17,7 @@ $ErrorActionPreference = "Stop"
 
 function Write-Usage {
   @"
-Usage: validate_azure_permissions.ps1 [-Scenario <Standard|Release>] [-SubscriptionId <sub>] [-ResourceGroup <rg>] [-AcrName <name>] [-StorageAccountName <name>] [-AcrPullIdentityName <name>] [-ApiRuntimeIdentityName <name>] [-AzureClientId <clientId>] [-EnvFile <path>]
+Usage: validate_azure_permissions.ps1 [-Scenario <Standard|Release>] [-SubscriptionId <sub>] [-ResourceGroup <rg>] [-AcrName <name>] [-StorageAccountName <name>] [-LogAnalyticsWorkspaceName <name>] [-AcrPullIdentityName <name>] [-ApiRuntimeIdentityName <name>] [-AzureClientId <clientId>] [-EnvFile <path>]
 
 Validates the Azure RBAC permissions required for the GitHub Actions deploy workflow and
 Container Apps managed identity operations, plus the Microsoft Graph read access needed by
@@ -296,6 +297,13 @@ if ([string]::IsNullOrWhiteSpace($StorageAccountName)) {
   $StorageAccountName = "assetallocstorage001"
 }
 
+if ([string]::IsNullOrWhiteSpace($LogAnalyticsWorkspaceName)) {
+  $LogAnalyticsWorkspaceName = Get-EnvValueFirst -Keys @("LOG_ANALYTICS_WORKSPACE_NAME") -Lines $envLines
+}
+if ([string]::IsNullOrWhiteSpace($LogAnalyticsWorkspaceName)) {
+  $LogAnalyticsWorkspaceName = "asset-allocation-law"
+}
+
 if ([string]::IsNullOrWhiteSpace($AcrPullIdentityName)) {
   $AcrPullIdentityName = Get-EnvValueFirst -Keys @("ACR_PULL_IDENTITY_NAME", "ACR_PULL_USER_ASSIGNED_IDENTITY_NAME") -Lines $envLines
 }
@@ -337,6 +345,7 @@ Write-Host "SubscriptionId: $SubscriptionId"
 Write-Host "ResourceGroup: $ResourceGroup"
 Write-Host "ACR: $AcrName"
 Write-Host "Storage: $StorageAccountName"
+Write-Host "Log Analytics Workspace: $LogAnalyticsWorkspaceName"
 Write-Host "ACR Pull Identity: $AcrPullIdentityName"
 Write-Host "API Runtime Identity: $ApiRuntimeIdentityName"
 Write-Host "Azure Client ID: $AzureClientId"
@@ -418,6 +427,16 @@ catch {
   Add-Result -Name "Storage account exists" -Ok $false -Details "Storage '$StorageAccountName' not found in RG '$ResourceGroup'." -Remediation "Provision the storage account or update -StorageAccountName/-ResourceGroup."
 }
 
+$logAnalyticsWorkspaceId = ""
+try {
+  $logAnalyticsWorkspaceId = (az monitor log-analytics workspace show --workspace-name $LogAnalyticsWorkspaceName --resource-group $ResourceGroup --query id -o tsv --only-show-errors) -replace "`r", ""
+  if ([string]::IsNullOrWhiteSpace($logAnalyticsWorkspaceId)) { throw "Log Analytics workspace not found" }
+  Add-Result -Name "Log Analytics workspace exists" -Ok $true -Details "$LogAnalyticsWorkspaceName ($logAnalyticsWorkspaceId)" -Remediation ""
+}
+catch {
+  Add-Result -Name "Log Analytics workspace exists" -Ok $false -Details "Workspace '$LogAnalyticsWorkspaceName' not found in RG '$ResourceGroup'." -Remediation "Provision the workspace or update -LogAnalyticsWorkspaceName/-ResourceGroup."
+}
+
 $identityId = ""
 $acrPullPrincipalId = ""
 $acrPullClientId = ""
@@ -458,10 +477,16 @@ catch {
   Add-Result -Name "API runtime identity exists" -Ok $false -Details "Managed identity '$ApiRuntimeIdentityName' not found in RG '$ResourceGroup'." -Remediation "Run scripts/ops/provision/provision_azure.ps1 to create the identity."
 }
 
-if (-not [string]::IsNullOrWhiteSpace($apiRuntimePrincipalId) -and -not [string]::IsNullOrWhiteSpace($storageId)) {
+if (-not [string]::IsNullOrWhiteSpace($apiRuntimePrincipalId)) {
   $runtimeAssignments = Get-RoleAssignments -PrincipalId $apiRuntimePrincipalId
-  $runtimeHasStorageData = Has-RoleAtScope -Assignments $runtimeAssignments -RoleNames @("Storage Blob Data Contributor", "Storage Blob Data Owner") -Scope $storageId
-  Add-Result -Name "API runtime identity has storage data access" -Ok $runtimeHasStorageData -Details "principalId=$apiRuntimePrincipalId" -Remediation "Grant Storage Blob Data Contributor on $StorageAccountName to $ApiRuntimeIdentityName."
+  if (-not [string]::IsNullOrWhiteSpace($storageId)) {
+    $runtimeHasStorageData = Has-RoleAtScope -Assignments $runtimeAssignments -RoleNames @("Storage Blob Data Contributor", "Storage Blob Data Owner") -Scope $storageId
+    Add-Result -Name "API runtime identity has storage data access" -Ok $runtimeHasStorageData -Details "principalId=$apiRuntimePrincipalId" -Remediation "Grant Storage Blob Data Contributor on $StorageAccountName to $ApiRuntimeIdentityName."
+  }
+  if (-not [string]::IsNullOrWhiteSpace($logAnalyticsWorkspaceId)) {
+    $runtimeHasLogReader = Has-RoleAtScope -Assignments $runtimeAssignments -RoleNames @("Log Analytics Reader", "Log Analytics Contributor", "Contributor", "Owner") -Scope $logAnalyticsWorkspaceId
+    Add-Result -Name "API runtime identity has Log Analytics Reader" -Ok $runtimeHasLogReader -Details "principalId=$apiRuntimePrincipalId workspace=$LogAnalyticsWorkspaceName" -Remediation "Grant Log Analytics Reader on $LogAnalyticsWorkspaceName to $ApiRuntimeIdentityName."
+  }
 }
 
 $azureSpObjectId = ""

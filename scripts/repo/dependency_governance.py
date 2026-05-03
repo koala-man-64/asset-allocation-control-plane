@@ -479,6 +479,7 @@ def download_exact_wheel_metadata(requirement: str) -> str:
             "pip",
             "download",
             "--disable-pip-version-check",
+            "--no-cache-dir",
             "--no-deps",
             "--dest",
             str(download_dir),

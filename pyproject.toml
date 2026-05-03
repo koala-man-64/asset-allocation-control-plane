@@ -41,8 +41,8 @@ dependencies = [
     "pydantic-settings==2.13.1",
     "PyYAML==6.0.3",
     "pydantic==2.12.5",
-    "asset-allocation-contracts==3.10.1",
-    "asset-allocation-runtime-common==3.4.6",
+    "asset-allocation-contracts==3.15.2",
+    "asset-allocation-runtime-common==3.5.7",
 ]
 
 [project.optional-dependencies]

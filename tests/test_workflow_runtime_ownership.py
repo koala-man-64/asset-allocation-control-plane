@@ -200,6 +200,10 @@ def test_deploy_workflow_exports_subscription_id_for_manifest_rendering() -> Non
     assert "API_RUNTIME_IDENTITY_NAME: ${{ vars.API_RUNTIME_IDENTITY_NAME || 'asset-allocation-api-runtime-mi' }}" in text
     assert "API_RUNTIME_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.api_runtime_identity_id }}" in text
     assert "API_RUNTIME_IDENTITY_CLIENT_ID: ${{ steps.azure.outputs.api_runtime_identity_client_id }}" in text
+    assert (
+        "API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS: ${{ vars.API_COOKIE_AUTH_BEARER_ALLOWED_CLIENT_IDS || steps.azure.outputs.identity_client_id }}"
+        in text
+    )
     assert "ACR_PULL_IDENTITY_RESOURCE_ID: ${{ steps.azure.outputs.identity_id }}" in text
     assert 'az containerapp identity assign \\' in text
     assert '--user-assigned "${ACR_PULL_IDENTITY_RESOURCE_ID}" \\' in text

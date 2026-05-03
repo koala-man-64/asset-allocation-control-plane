@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from monitoring.control_plane import collect_jobs_and_executions
+from monitoring.control_plane import collect_jobs_and_executions, discover_container_app_job_names
 
 
 class FakeArmClient:
@@ -11,6 +11,9 @@ class FakeArmClient:
 
     def resource_url(self, *, provider: str, resource_type: str, name: str) -> str:
         return f"https://example.test/{provider}/{resource_type}/{name}"
+
+    def resource_collection_url(self, *, provider: str, resource_type: str) -> str:
+        return f"https://example.test/{provider}/{resource_type}"
 
     def get_json(self, url: str, *, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         return self._responses[url]
@@ -85,6 +88,31 @@ def test_collect_jobs_and_executions_maps_status_sorts_and_limits() -> None:
     assert runs[0]["statusCode"] == "Unknown"
     assert runs[1]["statusCode"] == "Running"
     assert runs[2]["statusCode"] == "Succeeded"
+
+
+def test_discover_container_app_job_names_lists_all_jobs_and_dedupes() -> None:
+    arm = FakeArmClient(
+        responses={
+            "https://example.test/Microsoft.App/jobs": {
+                "value": [
+                    {"name": "silver-market-job"},
+                    {"name": "bronze-market-job"},
+                    {"name": "bronze-market-job"},
+                    {"name": "../not-a-job"},
+                ],
+                "nextLink": "https://example.test/Microsoft.App/jobs?page=2&api-version=2023-05-01",
+            },
+            "https://example.test/Microsoft.App/jobs?page=2&api-version=2023-05-01": {
+                "value": [{"name": "gold-market-job"}]
+            },
+        }
+    )
+
+    assert discover_container_app_job_names(arm) == [
+        "bronze-market-job",
+        "gold-market-job",
+        "silver-market-job",
+    ]
 
 
 def test_collect_jobs_and_executions_preserves_warning_status_codes() -> None:
