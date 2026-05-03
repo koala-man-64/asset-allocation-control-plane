@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -98,6 +100,187 @@ class TradeDeskRepository:
         detail = TradeAccountDetail.model_validate(detail_payload) if detail_payload else TradeAccountDetail(account=account)
         provider_account_key = str(row[2]).strip() if row[2] else None
         return TradeAccountRecord(account=account, detail=detail, providerAccountKey=provider_account_key or None)
+
+    def list_account_records(self, *, limit: int | None = None) -> list[TradeAccountRecord]:
+        query = """
+            SELECT account_payload, detail_payload, provider_account_key
+            FROM core.trade_accounts
+            WHERE enabled = true
+            ORDER BY name, account_id
+        """
+        params: tuple[Any, ...] = ()
+        if limit is not None:
+            query = f"{query}\nLIMIT %s"
+            params = (max(1, int(limit)),)
+
+        with connect(self._dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+
+        records: list[TradeAccountRecord] = []
+        for row in rows:
+            account = TradeAccountSummary.model_validate(_json_payload(row[0]))
+            detail_payload = _json_payload(row[1])
+            detail = (
+                TradeAccountDetail.model_validate(detail_payload)
+                if detail_payload
+                else TradeAccountDetail(account=account)
+            )
+            provider_account_key = str(row[2]).strip() if row[2] else None
+            records.append(
+                TradeAccountRecord(
+                    account=account,
+                    detail=detail,
+                    providerAccountKey=provider_account_key or None,
+                )
+            )
+        return records
+
+    @contextmanager
+    def account_refresh_lock(self, account_id: str) -> Iterator[bool]:
+        namespace = "broker_account_status_refresh"
+        with connect(self._dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_try_advisory_lock(hashtext(%s), hashtext(%s))",
+                    (namespace, account_id),
+                )
+                acquired = bool(cur.fetchone()[0])
+                try:
+                    yield acquired
+                finally:
+                    if acquired:
+                        cur.execute(
+                            "SELECT pg_advisory_unlock(hashtext(%s), hashtext(%s))",
+                            (namespace, account_id),
+                        )
+
+    def save_account_snapshot(
+        self,
+        *,
+        account: TradeAccountSummary,
+        detail: TradeAccountDetail | None = None,
+        positions: list[TradePosition] | None = None,
+        orders: list[TradeOrder] | None = None,
+    ) -> None:
+        account_payload = account.model_dump(mode="json")
+        detail_payload = (detail or TradeAccountDetail(account=account)).model_dump(mode="json")
+        now = utc_now()
+        terminal_statuses = ["filled", "cancelled", "rejected", "expired"]
+
+        with connect(self._dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE core.trade_accounts
+                    SET
+                        name = %s,
+                        account_number_masked = %s,
+                        base_currency = %s,
+                        account_payload = %s::jsonb,
+                        detail_payload = %s::jsonb,
+                        updated_at = %s
+                    WHERE account_id = %s AND enabled = true
+                    """,
+                    (
+                        account.name,
+                        account.accountNumberMasked,
+                        account.baseCurrency,
+                        _json_dumps(account_payload),
+                        _json_dumps(detail_payload),
+                        now,
+                        account.accountId,
+                    ),
+                )
+
+                if positions is not None:
+                    cur.execute("DELETE FROM core.trade_positions WHERE account_id = %s", (account.accountId,))
+                    for position in positions:
+                        position_payload = position.model_dump(mode="json")
+                        cur.execute(
+                            """
+                            INSERT INTO core.trade_positions (
+                                account_id,
+                                symbol,
+                                position_payload,
+                                as_of,
+                                updated_at
+                            )
+                            VALUES (%s, %s, %s::jsonb, %s, %s)
+                            ON CONFLICT (account_id, symbol) DO UPDATE
+                            SET
+                                position_payload = EXCLUDED.position_payload,
+                                as_of = EXCLUDED.as_of,
+                                updated_at = EXCLUDED.updated_at
+                            """,
+                            (
+                                position.accountId,
+                                position.symbol,
+                                _json_dumps(position_payload),
+                                position.asOf,
+                                now,
+                            ),
+                        )
+
+                if orders is not None:
+                    cur.execute(
+                        """
+                        DELETE FROM core.trade_orders
+                        WHERE account_id = %s AND status <> ALL(%s)
+                        """,
+                        (account.accountId, terminal_statuses),
+                    )
+                    for order in orders:
+                        order_payload = order.model_dump(mode="json")
+                        cur.execute(
+                            """
+                            INSERT INTO core.trade_orders (
+                                order_id,
+                                account_id,
+                                provider,
+                                environment,
+                                status,
+                                symbol,
+                                side,
+                                client_request_id,
+                                idempotency_key,
+                                provider_order_id,
+                                request_hash,
+                                request_payload,
+                                response_payload,
+                                order_payload,
+                                reconciliation_required,
+                                created_at,
+                                updated_at
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '{}'::jsonb, '{}'::jsonb, %s::jsonb, %s, %s, %s)
+                            ON CONFLICT (order_id) DO UPDATE
+                            SET
+                                status = EXCLUDED.status,
+                                provider_order_id = EXCLUDED.provider_order_id,
+                                order_payload = EXCLUDED.order_payload,
+                                reconciliation_required = EXCLUDED.reconciliation_required,
+                                updated_at = EXCLUDED.updated_at
+                            """,
+                            (
+                                order.orderId,
+                                order.accountId,
+                                order.provider,
+                                order.environment,
+                                order.status,
+                                order.symbol,
+                                order.side,
+                                order.clientRequestId,
+                                order.idempotencyKey,
+                                order.providerOrderId,
+                                None,
+                                _json_dumps(order_payload),
+                                order.reconciliationRequired,
+                                order.createdAt or now,
+                                order.updatedAt or now,
+                            ),
+                        )
 
     def list_positions(self, account_id: str) -> TradePositionListResponse:
         record = self.get_account_record(account_id)

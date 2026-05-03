@@ -46,6 +46,10 @@ from api.endpoints import (
 from api.service.auth import AuthManager
 from api.service.alpaca_gateway import AlpacaGateway
 from api.service.alpha_vantage_gateway import AlphaVantageGateway
+from api.service.broker_account_status_refresh_service import (
+    BrokerAccountStatusRefreshService,
+    run_broker_account_status_refresh_loop,
+)
 from api.service.dependencies import validate_auth
 from api.service.etrade_gateway import ETradeGateway
 from api.service.kalshi_gateway import KalshiGateway
@@ -59,6 +63,7 @@ from api.service.realtime_tickets import WebSocketTicketStore
 from api.service.schwab_gateway import SchwabGateway
 from api.service.settings import ServiceSettings
 from core.log_redaction import install_log_redaction, redact_text
+from core.trade_desk_repository import TradeDeskRepository
 from api.service.realtime import manager as realtime_manager
 from monitoring.ttl_cache import TtlCache
 from asset_allocation_runtime_common.market_data.delta_core import get_delta_storage_auth_diagnostics
@@ -323,6 +328,38 @@ def create_app() -> FastAPI:
 
         app.state.system_health_cache = TtlCache(ttl_seconds=_system_health_ttl_seconds())
 
+        broker_account_refresh_stop_event: asyncio.Event | None = None
+        broker_account_refresh_task: asyncio.Task[None] | None = None
+        if (
+            settings.postgres_dsn
+            and workers_enabled
+            and settings.broker_account_status_refresh.enabled
+        ):
+            broker_account_refresh_service = BrokerAccountStatusRefreshService(
+                TradeDeskRepository(settings.postgres_dsn),
+                settings.broker_account_status_refresh,
+                alpaca_gateway=app.state.alpaca_gateway,
+                etrade_gateway=app.state.etrade_gateway,
+                schwab_gateway=app.state.schwab_gateway,
+            )
+            broker_account_refresh_stop_event = asyncio.Event()
+            broker_account_refresh_task = asyncio.create_task(
+                run_broker_account_status_refresh_loop(
+                    broker_account_refresh_service,
+                    settings.broker_account_status_refresh,
+                    broker_account_refresh_stop_event,
+                )
+            )
+            app.state.broker_account_status_refresh_service = broker_account_refresh_service
+            app.state.broker_account_status_refresh_task = broker_account_refresh_task
+        else:
+            logger.info(
+                "Broker account status refresh worker disabled: postgres=%s workers_enabled=%s enabled=%s",
+                bool(settings.postgres_dsn),
+                workers_enabled,
+                settings.broker_account_status_refresh.enabled,
+            )
+
         try:
             storage_diag = get_delta_storage_auth_diagnostics(container=None)
             logger.info(
@@ -342,6 +379,12 @@ def create_app() -> FastAPI:
             logger.warning("Failed to resolve Delta storage auth diagnostics: %s", exc)
 
         yield
+
+        await _shutdown_background_task(
+            broker_account_refresh_task,
+            stop_event=broker_account_refresh_stop_event,
+            task_name="broker-account-status-refresh",
+        )
 
         try:
             app.state.alpha_vantage_gateway.close()

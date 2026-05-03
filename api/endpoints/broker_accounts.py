@@ -24,6 +24,7 @@ from api.service.broker_account_operations_service import (
     BrokerAccountOperationsError,
     BrokerAccountOperationsService,
 )
+from api.service.broker_account_status_refresh_service import BrokerAccountStatusRefreshService
 from api.service.dependencies import (
     require_account_policy_read_access,
     require_account_policy_write_access,
@@ -64,6 +65,13 @@ def _operations_service(request: Request) -> BrokerAccountOperationsService:
             headers={"Cache-Control": "no-store"},
         )
     trade_repo = TradeDeskRepository(dsn)
+    refresh_service = BrokerAccountStatusRefreshService(
+        trade_repo,
+        request.app.state.settings.broker_account_status_refresh,
+        alpaca_gateway=getattr(request.app.state, "alpaca_gateway", None),
+        etrade_gateway=getattr(request.app.state, "etrade_gateway", None),
+        schwab_gateway=getattr(request.app.state, "schwab_gateway", None),
+    )
     return BrokerAccountOperationsService(
         trade_repo,
         request.app.state.settings.trade_desk,
@@ -72,6 +80,7 @@ def _operations_service(request: Request) -> BrokerAccountOperationsService:
             trade_repo,
             PortfolioRepository(dsn),
         ),
+        refresh_service,
     )
 
 
@@ -149,11 +158,10 @@ async def reconnect_broker_account(
 ) -> BrokerAccountActionResponse:
     _set_no_store(response)
     try:
-        _operations_service(request).reconnect_account(account_id)
+        return _operations_service(request).reconnect_account(account_id)
     except BrokerAccountOperationsError as exc:
         _handle_operations_error(exc)
         raise
-    raise HTTPException(status_code=501, detail="Broker account reconnect is not implemented in Account Operations v1.")
 
 
 @router.post("/broker-accounts/{account_id}/sync/pause", response_model=BrokerAccountActionResponse)
@@ -200,11 +208,10 @@ async def refresh_broker_account(
 ) -> BrokerAccountActionResponse:
     _set_no_store(response)
     try:
-        _operations_service(request).refresh_account(account_id)
+        return _operations_service(request).refresh_account(account_id)
     except BrokerAccountOperationsError as exc:
         _handle_operations_error(exc)
         raise
-    raise HTTPException(status_code=501, detail="Broker account refresh is not implemented in Account Operations v1.")
 
 
 @router.post(

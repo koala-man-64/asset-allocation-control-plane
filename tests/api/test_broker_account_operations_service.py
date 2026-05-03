@@ -4,8 +4,10 @@ from datetime import datetime, timezone
 
 import pytest
 from asset_allocation_contracts.broker_accounts import (
+    BrokerAccountActionResponse,
     BrokerAccountConfiguration,
     BrokerCapabilityFlags,
+    BrokerConnectionHealth,
     BrokerStrategyAllocationItem,
     BrokerStrategyAllocationSummary,
 )
@@ -134,14 +136,41 @@ class FakeConfigurationService:
         return self._configuration
 
 
+class FakeRefreshService:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    def action_response(self, *, account_id: str, action: str, trigger: str) -> BrokerAccountActionResponse:
+        self.calls.append((account_id, action, trigger))
+        return BrokerAccountActionResponse(
+            actionId=f"{action}-1",
+            accountId=account_id,
+            action=action,
+            status="completed",
+            requestedAt=_now(),
+            message="Broker account refreshed.",
+            resultingConnectionHealth=BrokerConnectionHealth(
+                overallStatus="healthy",
+                authStatus="authenticated",
+                connectionState="connected",
+                syncStatus="fresh",
+                lastCheckedAt=_now(),
+            ),
+            tradeReadiness="ready",
+            syncPaused=False,
+        )
+
+
 def _service(
     account: TradeAccountSummary | None = None,
     configuration: BrokerAccountConfiguration | None = None,
+    refresh_service: FakeRefreshService | None = None,
 ) -> BrokerAccountOperationsService:
     return BrokerAccountOperationsService(
         FakeTradeRepo(account or _trade_account()),
         TradeDeskSettings(),
         FakeConfigurationService(configuration or _configuration()),
+        refresh_service or FakeRefreshService(),
     )
 
 
@@ -163,7 +192,7 @@ def test_broker_account_operations_maps_trade_account_summary_into_broker_contra
     assert account.allocationSummary is not None
 
 
-def test_broker_account_operations_detail_disables_unsupported_v1_actions() -> None:
+def test_broker_account_operations_detail_enables_supported_refresh_actions() -> None:
     detail = _service().get_account("acct-paper")
 
     assert detail.account.accountId == "acct-paper"
@@ -173,9 +202,9 @@ def test_broker_account_operations_detail_disables_unsupported_v1_actions() -> N
     assert detail.syncRuns == []
     assert detail.recentActivity == []
     assert detail.capabilities.canReadBalances is True
-    assert detail.capabilities.canReconnect is False
+    assert detail.capabilities.canReconnect is True
     assert detail.capabilities.canPauseSync is False
-    assert detail.capabilities.canRefresh is False
+    assert detail.capabilities.canRefresh is True
     assert detail.capabilities.canAcknowledgeAlerts is False
 
 
@@ -188,11 +217,31 @@ def test_broker_account_operations_unknown_account_returns_404() -> None:
     assert exc_info.value.status_code == 404
 
 
-def test_broker_account_operations_unsupported_action_returns_501_after_account_lookup() -> None:
+def test_broker_account_operations_refresh_invokes_refresh_service_after_account_lookup() -> None:
+    refresh_service = FakeRefreshService()
+    service = _service(refresh_service=refresh_service)
+
+    response = service.refresh_account("acct-paper")
+
+    assert response.status == "completed"
+    assert refresh_service.calls == [("acct-paper", "refresh", "manual")]
+
+
+def test_broker_account_operations_reconnect_invokes_refresh_service_with_reconnect_trigger() -> None:
+    refresh_service = FakeRefreshService()
+    service = _service(refresh_service=refresh_service)
+
+    response = service.reconnect_account("acct-paper")
+
+    assert response.action == "reconnect"
+    assert refresh_service.calls == [("acct-paper", "reconnect", "reconnect")]
+
+
+def test_broker_account_operations_pause_remains_unsupported_after_account_lookup() -> None:
     service = _service()
 
     with pytest.raises(BrokerAccountOperationsError) as exc_info:
-        service.refresh_account("acct-paper")
+        service.set_sync_paused("acct-paper", paused=True)
 
     assert exc_info.value.status_code == 501
     assert "not implemented" in exc_info.value.detail

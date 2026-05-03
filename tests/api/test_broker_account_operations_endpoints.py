@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 from asset_allocation_contracts.broker_accounts import (
+    BrokerAccountActionResponse,
     BrokerAccountConfiguration,
     BrokerAccountDetail,
     BrokerAccountListResponse,
@@ -92,6 +93,26 @@ def _detail() -> BrokerAccountDetail:
     )
 
 
+def _action_response(account_id: str, action: str) -> BrokerAccountActionResponse:
+    return BrokerAccountActionResponse(
+        actionId=f"{action}-1",
+        accountId=account_id,
+        action=action,
+        status="completed",
+        requestedAt=_now(),
+        message="Broker account refreshed.",
+        resultingConnectionHealth=BrokerConnectionHealth(
+            overallStatus="healthy",
+            authStatus="authenticated",
+            connectionState="connected",
+            syncStatus="fresh",
+            lastCheckedAt=_now(),
+        ),
+        tradeReadiness="ready",
+        syncPaused=False,
+    )
+
+
 @pytest.mark.asyncio
 async def test_broker_account_read_endpoints_return_contract_shapes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
@@ -141,21 +162,54 @@ async def test_broker_account_detail_unknown_account_returns_404(monkeypatch: py
 
 
 @pytest.mark.asyncio
-async def test_broker_account_actions_return_501_not_route_404(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_broker_account_refresh_and_reconnect_return_action_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    monkeypatch.setattr(
+        BrokerAccountOperationsService,
+        "reconnect_account",
+        lambda self, account_id: _action_response(account_id, "reconnect"),
+    )
+    monkeypatch.setattr(
+        BrokerAccountOperationsService,
+        "refresh_account",
+        lambda self, account_id: _action_response(account_id, "refresh"),
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        reconnect_response = await client.post(
+            "/api/broker-accounts/acct-paper/reconnect",
+            json={"reason": "operator request"},
+        )
+        refresh_response = await client.post(
+            "/api/broker-accounts/acct-paper/refresh",
+            json={"scope": "full", "force": True, "reason": "operator request"},
+        )
+
+    assert reconnect_response.status_code == 200
+    assert reconnect_response.headers["cache-control"] == "no-store"
+    assert reconnect_response.json()["action"] == "reconnect"
+    assert reconnect_response.json()["resultingConnectionHealth"]["connectionState"] == "connected"
+
+    assert refresh_response.status_code == 200
+    assert refresh_response.headers["cache-control"] == "no-store"
+    assert refresh_response.json()["action"] == "refresh"
+
+
+@pytest.mark.asyncio
+async def test_broker_account_unsupported_actions_return_501_not_route_404(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
 
     def unsupported(self, *args, **kwargs):
         raise BrokerAccountOperationsError(501, "Action is not implemented in Account Operations v1.")
 
-    monkeypatch.setattr(BrokerAccountOperationsService, "reconnect_account", unsupported)
     monkeypatch.setattr(BrokerAccountOperationsService, "set_sync_paused", unsupported)
-    monkeypatch.setattr(BrokerAccountOperationsService, "refresh_account", unsupported)
     monkeypatch.setattr(BrokerAccountOperationsService, "acknowledge_alert", unsupported)
 
     app = create_app()
     async with get_test_client(app) as client:
         responses = [
-            await client.post("/api/broker-accounts/acct-paper/reconnect", json={"reason": "operator request"}),
             await client.post(
                 "/api/broker-accounts/acct-paper/sync/pause",
                 json={"paused": True, "reason": "operator request"},
@@ -163,10 +217,6 @@ async def test_broker_account_actions_return_501_not_route_404(monkeypatch: pyte
             await client.post(
                 "/api/broker-accounts/acct-paper/sync/resume",
                 json={"paused": False, "reason": "operator request"},
-            ),
-            await client.post(
-                "/api/broker-accounts/acct-paper/refresh",
-                json={"scope": "full", "force": True, "reason": "operator request"},
             ),
             await client.post(
                 "/api/broker-accounts/acct-paper/alerts/alert-1/acknowledge",

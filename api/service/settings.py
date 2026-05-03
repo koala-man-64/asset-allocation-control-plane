@@ -918,6 +918,40 @@ class BrokerAccountPolicySettings:
 
 
 @dataclass(frozen=True)
+class BrokerAccountStatusRefreshSettings:
+    enabled: bool = True
+    interval_seconds: int = 60
+    stale_after_seconds: int = 300
+    batch_size: int = 50
+    refresh_on_startup: bool = True
+
+    @staticmethod
+    def from_env() -> "BrokerAccountStatusRefreshSettings":
+        return BrokerAccountStatusRefreshSettings(
+            enabled=_get_optional_bool("BROKER_ACCOUNT_STATUS_REFRESH_ENABLED", default=True),
+            interval_seconds=_get_optional_int(
+                "BROKER_ACCOUNT_STATUS_REFRESH_INTERVAL_SECONDS",
+                default=60,
+                minimum=15,
+                maximum=86_400,
+            ),
+            stale_after_seconds=_get_optional_int(
+                "BROKER_ACCOUNT_STATUS_STALE_AFTER_SECONDS",
+                default=300,
+                minimum=15,
+                maximum=86_400,
+            ),
+            batch_size=_get_optional_int(
+                "BROKER_ACCOUNT_STATUS_REFRESH_BATCH_SIZE",
+                default=50,
+                minimum=1,
+                maximum=1_000,
+            ),
+            refresh_on_startup=_get_optional_bool("BROKER_ACCOUNT_STATUS_REFRESH_ON_STARTUP", default=True),
+        )
+
+
+@dataclass(frozen=True)
 class TradeDeskSettings:
     read_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Read"])
     preview_required_roles: list[str] = field(default_factory=lambda: ["AssetAllocation.TradeDesk.Preview"])
@@ -1070,6 +1104,9 @@ class ServiceSettings:
     data_discovery: DataDiscoverySettings = field(default_factory=DataDiscoverySettings)
     system_access: SystemAccessSettings = field(default_factory=SystemAccessSettings)
     broker_account_policy: BrokerAccountPolicySettings = field(default_factory=BrokerAccountPolicySettings)
+    broker_account_status_refresh: BrokerAccountStatusRefreshSettings = field(
+        default_factory=BrokerAccountStatusRefreshSettings
+    )
     trade_desk: TradeDeskSettings = field(default_factory=TradeDeskSettings)
     notifications: NotificationSettings = field(default_factory=NotificationSettings)
 
@@ -1225,6 +1262,7 @@ class ServiceSettings:
         data_discovery = DataDiscoverySettings.from_env()
         system_access = SystemAccessSettings.from_env()
         broker_account_policy = BrokerAccountPolicySettings.from_env()
+        broker_account_status_refresh = BrokerAccountStatusRefreshSettings.from_env()
         trade_desk = TradeDeskSettings.from_env()
         notifications = NotificationSettings.from_env(api_public_base_url=api_public_base_url)
         ui_oidc_config = {
@@ -1276,6 +1314,7 @@ class ServiceSettings:
             data_discovery=data_discovery,
             system_access=system_access,
             broker_account_policy=broker_account_policy,
+            broker_account_status_refresh=broker_account_status_refresh,
             trade_desk=trade_desk,
             notifications=notifications,
         )

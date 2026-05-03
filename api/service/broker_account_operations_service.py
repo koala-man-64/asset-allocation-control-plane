@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from asset_allocation_contracts.broker_accounts import (
+    BrokerAccountActionResponse,
     BrokerAccountConfiguration,
     BrokerAccountDetail,
     BrokerAccountListResponse,
@@ -16,6 +17,7 @@ from api.service.broker_account_configuration_service import (
     BrokerAccountConfigurationError,
     BrokerAccountConfigurationService,
 )
+from api.service.broker_account_status_refresh_service import BrokerAccountStatusRefreshService
 from api.service.settings import TradeDeskSettings
 from core.trade_desk_repository import TradeDeskRepository, TradeAccountRecord, utc_now
 
@@ -33,10 +35,12 @@ class BrokerAccountOperationsService:
         trade_repo: TradeDeskRepository,
         settings: TradeDeskSettings,
         configuration_service: BrokerAccountConfigurationService,
+        refresh_service: BrokerAccountStatusRefreshService | None = None,
     ) -> None:
         self._trade_repo = trade_repo
         self._settings = settings
         self._configuration_service = configuration_service
+        self._refresh_service = refresh_service
 
     def list_accounts(self) -> BrokerAccountListResponse:
         response = self._trade_repo.list_accounts()
@@ -68,17 +72,25 @@ class BrokerAccountOperationsService:
             configuration=configuration,
         )
 
-    def reconnect_account(self, account_id: str) -> None:
-        self._account_record(account_id)
-        self._unsupported("reconnect")
+    def reconnect_account(self, account_id: str) -> BrokerAccountActionResponse:
+        record = self._account_record(account_id)
+        return self._require_refresh_service().action_response(
+            account_id=record.account.accountId,
+            action="reconnect",
+            trigger="reconnect",
+        )
 
     def set_sync_paused(self, account_id: str, *, paused: bool) -> None:
         self._account_record(account_id)
         self._unsupported("pause sync" if paused else "resume sync")
 
-    def refresh_account(self, account_id: str) -> None:
-        self._account_record(account_id)
-        self._unsupported("refresh")
+    def refresh_account(self, account_id: str) -> BrokerAccountActionResponse:
+        record = self._account_record(account_id)
+        return self._require_refresh_service().action_response(
+            account_id=record.account.accountId,
+            action="refresh",
+            trigger="manual",
+        )
 
     def acknowledge_alert(self, account_id: str, alert_id: str) -> None:
         self._account_record(account_id)
@@ -160,14 +172,15 @@ class BrokerAccountOperationsService:
         )
         can_read_account = account.capabilities.canReadAccount
         connection_state = self._connection_state(can_read_account=can_read_account, sync_status=sync_status)
+        reconnect_required = self._requires_reauth(account)
         return BrokerConnectionHealth(
             overallStatus=overall_status,
-            authStatus="authenticated" if can_read_account else "not_connected",
-            connectionState=connection_state,
+            authStatus="authenticated" if can_read_account else "reauth_required" if reconnect_required else "not_connected",
+            connectionState="reconnect_required" if reconnect_required else connection_state,
             syncStatus=sync_status,
             lastCheckedAt=latest_sync or utc_now(),
-            lastSuccessfulSyncAt=latest_sync if sync_status in {"fresh", "stale"} else None,
-            lastFailedSyncAt=None,
+            lastSuccessfulSyncAt=latest_sync if can_read_account and sync_status in {"fresh", "stale"} else None,
+            lastFailedSyncAt=latest_sync if not can_read_account else None,
             authExpiresAt=None,
             staleReason=account.freshness.staleReason if sync_status in {"stale", "never_synced"} else None,
             failureMessage=self._failure_message(account),
@@ -259,12 +272,35 @@ class BrokerAccountOperationsService:
             )
         return base.model_copy(
             update={
-                "canReconnect": False,
+                "canReconnect": True,
                 "canPauseSync": False,
-                "canRefresh": False,
+                "canRefresh": True,
                 "canAcknowledgeAlerts": False,
             }
         )
+
+    def _require_refresh_service(self) -> BrokerAccountStatusRefreshService:
+        if self._refresh_service is None:
+            raise BrokerAccountOperationsError(
+                503,
+                "Broker account status refresh service is not initialized.",
+            )
+        return self._refresh_service
+
+    @staticmethod
+    def _requires_reauth(account: TradeAccountSummary) -> bool:
+        if account.capabilities.canReadAccount:
+            return False
+        text = " ".join(
+            value
+            for value in (
+                account.capabilities.unsupportedReason,
+                account.readinessReason,
+                account.freshness.staleReason,
+            )
+            if value
+        ).lower()
+        return any(marker in text for marker in ("auth", "connect", "credential", "oauth", "reauth", "session", "token"))
 
     @staticmethod
     def _unsupported(action: str) -> None:
