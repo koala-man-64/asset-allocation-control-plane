@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -156,6 +157,41 @@ class _UnsuffixedJobLogAnalyticsClient:
                             "bronze-market-job-exec-001",
                             "stdout",
                             "current schema line",
+                        ],
+                    ],
+                }
+            ]
+        }
+
+
+class _UnexpectedSchemaJobLogAnalyticsClient:
+    def __init__(self, *, timeout_seconds: float = 5.0) -> None:
+        self.timeout_seconds = timeout_seconds
+        self.queries: list[tuple[str, str, str | None]] = []
+
+    def __enter__(self) -> "_UnexpectedSchemaJobLogAnalyticsClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def query(self, *, workspace_id: str, query: str, timespan: str | None = None):
+        self.queries.append((workspace_id, query, timespan))
+        return {
+            "tables": [
+                {
+                    "columns": [
+                        {"name": "TimeGenerated", "type": "datetime"},
+                        {"name": "ContainerGroupName_s", "type": "string"},
+                        {"name": "Stream_s", "type": "string"},
+                        {"name": "UnexpectedPayload_s", "type": "string"},
+                    ],
+                    "rows": [
+                        [
+                            "2026-02-10T00:00:02Z",
+                            "bronze-market-job-exec-001",
+                            "stdout",
+                            "row exists but not in a supported message column",
                         ],
                     ],
                 }
@@ -388,6 +424,33 @@ async def test_get_job_logs_supports_current_unsuffixed_console_log_columns(
     assert "Log" in query
     assert "Stream" in query
     assert "| where msg != ''" in query
+
+
+@pytest.mark.asyncio
+async def test_get_job_logs_logs_diagnostics_when_raw_rows_extract_to_blank(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _set_job_env(monkeypatch)
+    caplog.set_level(logging.WARNING, logger="asset-allocation.api.system")
+
+    fake_logs = _UnexpectedSchemaJobLogAnalyticsClient()
+    with patch("api.endpoints.system.AzureArmClient", _FakeJobArmClient), patch(
+        "api.endpoints.system.AzureLogAnalyticsClient", return_value=fake_logs
+    ):
+        app = create_app()
+        async with get_test_client(app) as client:
+            resp = await client.get("/api/system/jobs/bronze-market-job/logs?runs=1")
+
+    assert resp.status_code == 200
+    run = resp.json()["runs"][0]
+    assert run["tail"] == []
+    assert run["consoleLogs"] == []
+    assert run["error"] is None
+    assert "raw rows but no extractable console log entries" in caplog.text
+    assert "UnexpectedPayload_s" in caplog.text
+    assert "raw_rows_without_extractable_message" in caplog.text
+    assert "Job log response summary" in caplog.text
 
 
 @pytest.mark.asyncio

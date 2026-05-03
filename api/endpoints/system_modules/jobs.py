@@ -40,6 +40,36 @@ _JOB_LOG_EMPTY_ROWS_ERROR = (
     "No Log Analytics console rows were returned for this execution. Verify API runtime "
     "identity Log Analytics Reader access and Container Apps log ingestion."
 )
+_JOB_LOG_MESSAGE_KEYS = (
+    "msg",
+    "Log_s",
+    "Log",
+    "LogMessage_s",
+    "LogMessage",
+    "Message_s",
+    "Message",
+    "message",
+)
+_JOB_LOG_EXECUTION_KEYS = (
+    "executionName",
+    "ExecutionName",
+    "exec",
+    "Exec",
+    "execution_name",
+    "Execution_Name",
+    "ContainerGroupName_s",
+    "ContainerGroupName_g",
+    "ContainerGroupName",
+    "ContainerAppJobExecutionName_s",
+    "ContainerAppJobExecutionName",
+    "ContainerAppJobExecutionId_s",
+    "ContainerAppJobExecutionId_g",
+    "ContainerAppJobExecutionId",
+)
+_JOB_LOG_STREAM_KEYS = ("stream_s", "Stream_s", "stream", "Stream")
+_JOB_LOG_TIMESTAMP_KEYS = ("TimeGenerated", "timegenerated")
+_JOB_LOG_DIAGNOSTIC_MAX_COLUMNS = 40
+_JOB_LOG_DIAGNOSTIC_PREVIEW_CHARS = 180
 
 
 def _configured_job_allowlist(os_module: Any) -> List[str]:
@@ -111,6 +141,63 @@ def _coalesce_log_row_string(row: Dict[str, Any], *keys: str) -> str:
         if text:
             return text
     return ""
+
+
+def _first_log_row_field(row: Dict[str, Any], keys: Sequence[str]) -> tuple[Optional[str], str]:
+    lowered = {str(key).lower(): (str(key), value) for key, value in row.items()}
+    for key in keys:
+        match = lowered.get(key.lower())
+        if match is None:
+            continue
+        name, value = match
+        text = str(value or "").strip()
+        if text:
+            return name, text
+    return None, ""
+
+
+def _truncate_diagnostic_value(value: str, *, limit: int = _JOB_LOG_DIAGNOSTIC_PREVIEW_CHARS) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}..."
+
+
+def _summarize_log_row_extraction(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    first_row = next((row for row in rows if isinstance(row, dict)), None)
+    if first_row is None:
+        return {"sampleRow": "none"}
+
+    message_key, message = _first_log_row_field(first_row, _JOB_LOG_MESSAGE_KEYS)
+    execution_key, execution = _first_log_row_field(first_row, _JOB_LOG_EXECUTION_KEYS)
+    stream_key, stream = _first_log_row_field(first_row, _JOB_LOG_STREAM_KEYS)
+    timestamp_key, timestamp = _first_log_row_field(first_row, _JOB_LOG_TIMESTAMP_KEYS)
+    columns = [str(key) for key in first_row.keys()]
+
+    return {
+        "columnCount": len(columns),
+        "columns": columns[:_JOB_LOG_DIAGNOSTIC_MAX_COLUMNS],
+        "truncatedColumns": max(0, len(columns) - _JOB_LOG_DIAGNOSTIC_MAX_COLUMNS),
+        "messageKey": message_key or "-",
+        "messageLength": len(message),
+        "messagePreview": redact_sensitive_text(_truncate_diagnostic_value(message)),
+        "executionKey": execution_key or "-",
+        "executionValue": _truncate_diagnostic_value(execution, limit=96),
+        "streamKey": stream_key or "-",
+        "streamValue": _truncate_diagnostic_value(stream, limit=48),
+        "timestampKey": timestamp_key or "-",
+        "timestampValue": _truncate_diagnostic_value(timestamp, limit=64),
+    }
+
+
+def _summarize_job_log_execution(execution: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "executionName": execution.get("executionName"),
+        "status": execution.get("status"),
+        "startTime": execution.get("startTime"),
+        "endTime": execution.get("endTime"),
+        "active": _is_active_job_execution(execution),
+    }
 
 
 def _extract_console_log_entries(payload: Dict[str, Any]) -> List[Dict[str, Optional[str]]]:
@@ -365,6 +452,7 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
         extract_console_log_entries = _runtime_attr(runtime, "_extract_console_log_entries")
 
         require_system_logs_read_access(request)
+        request_id = str(getattr(request.state, "request_id", "") or request.headers.get("x-request-id") or "-")
 
         subscription_id_raw = os_module.environ.get("SYSTEM_HEALTH_ARM_SUBSCRIPTION_ID")
         subscription_id = subscription_id_raw.strip() if subscription_id_raw else ""
@@ -441,6 +529,29 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
 
         executions.sort(key=lambda e: float(e.get("_start_ts") or 0.0), reverse=True)
         selected = select_anchored_job_executions(executions, limit=max(0, int(runs)))
+        active_executions = [execution for execution in executions if _is_active_job_execution(execution)]
+        logger.info(
+            "Job log execution selection: request_id=%s job=%s runs_requested=%d total_executions=%d "
+            "active_executions=%d selected_executions=%d latest_execution=%s selected=%s",
+            request_id,
+            resolved,
+            int(runs),
+            len(executions),
+            len(active_executions),
+            len(selected),
+            _summarize_job_log_execution(executions[0]) if executions else None,
+            [_summarize_job_log_execution(item) for item in selected],
+        )
+        if not selected:
+            logger.warning(
+                "Job log request selected no executions: request_id=%s job=%s runs_requested=%d "
+                "total_executions=%d workspace=%s",
+                request_id,
+                resolved,
+                int(runs),
+                len(executions),
+                workspace_log_label,
+            )
         tail_lines = 10
 
         out_runs: List[Dict[str, Any]] = []
@@ -454,8 +565,10 @@ def build_router(*, runtime: ModuleType) -> tuple[APIRouter, dict[str, Any]]:
 
                 start = start_dt - timedelta_cls(minutes=5)
                 end = end_dt + timedelta_cls(minutes=10)
+                timespan_clamped = False
                 if end - start > timedelta_cls(hours=24):
                     start = end - timedelta_cls(hours=24)
+                    timespan_clamped = True
 
                 timespan = f"{start.isoformat()}/{end.isoformat()}"
                 job_kql = escape_kql_literal(resolved)
@@ -531,8 +644,24 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
 """.strip()
 
                 try:
+                    logger.info(
+                        "Job log query starting: request_id=%s job=%s execution=%s status=%s active=%s "
+                        "workspace=%s timespan=%s timespan_clamped=%s startTime=%s endTime=%s tail_lines=%d",
+                        request_id,
+                        resolved,
+                        exec_name or "-",
+                        run.get("status") or "-",
+                        _is_active_job_execution(run),
+                        workspace_log_label,
+                        timespan,
+                        timespan_clamped,
+                        run.get("startTime") or "-",
+                        run.get("endTime") or "-",
+                        tail_lines,
+                    )
                     payload = log_client.query(workspace_id=workspace_id, query=query, timespan=timespan)
-                    row_count = len(extract_first_table_rows(payload))
+                    rows = extract_first_table_rows(payload)
+                    row_count = len(rows)
                     console_logs = extract_console_log_entries(payload)
                     lines = [
                         str(item.get("message") or "") for item in console_logs if item.get("message")
@@ -549,9 +678,51 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
                         )
                         else None
                     )
+                    blank_reason = None
+                    if not lines:
+                        if row_count == 0 and err:
+                            blank_reason = "no_log_analytics_rows_after_grace"
+                        elif row_count == 0:
+                            blank_reason = "no_log_analytics_rows_waiting_for_ingestion"
+                        elif not console_logs:
+                            blank_reason = "raw_rows_without_extractable_message"
+                        else:
+                            blank_reason = "console_entries_without_tail_messages"
+
+                    if row_count > 0 and not console_logs:
+                        logger.warning(
+                            "Job log query returned raw rows but no extractable console log entries: "
+                            "request_id=%s job=%s execution=%s status=%s workspace=%s timespan=%s "
+                            "raw_rows=%d blank_reason=%s diagnostics=%s",
+                            request_id,
+                            resolved,
+                            exec_name or "-",
+                            run.get("status") or "-",
+                            workspace_log_label,
+                            timespan,
+                            row_count,
+                            blank_reason or "-",
+                            _summarize_log_row_extraction(rows),
+                        )
+                    elif not lines:
+                        logger.warning(
+                            "Job log query produced blank UI payload: request_id=%s job=%s execution=%s "
+                            "status=%s workspace=%s timespan=%s raw_rows=%d console_logs=%d error=%s "
+                            "blank_reason=%s",
+                            request_id,
+                            resolved,
+                            exec_name or "-",
+                            run.get("status") or "-",
+                            workspace_log_label,
+                            timespan,
+                            row_count,
+                            len(console_logs),
+                            err or "-",
+                            blank_reason or "-",
+                        )
                     logger.info(
                         "Job log query completed: job=%s execution=%s status=%s workspace=%s "
-                        "timespan=%s raw_rows=%d console_logs=%d tail_lines=%d error=%s",
+                        "timespan=%s raw_rows=%d console_logs=%d tail_lines=%d error=%s blank_reason=%s",
                         resolved,
                         exec_name or "-",
                         run.get("status") or "-",
@@ -561,10 +732,13 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
                         len(console_logs),
                         len(lines),
                         err or "-",
+                        blank_reason or "-",
                     )
                 except Exception as exc:
                     logger.warning(
-                        "Job log query failed: job=%s execution=%s status=%s workspace=%s timespan=%s error=%s",
+                        "Job log query failed: request_id=%s job=%s execution=%s status=%s workspace=%s "
+                        "timespan=%s error=%s",
+                        request_id,
                         resolved,
                         exec_name or "-",
                         run.get("status") or "-",
@@ -592,6 +766,29 @@ union isfuzzy=true ContainerAppConsoleLogs_CL, ContainerAppConsoleLogs
 
         for item in selected:
             item.pop("_start_ts", None)
+
+        blank_runs = [
+            str(item.get("executionName") or "-")
+            for item in out_runs
+            if not item.get("tail") and not item.get("consoleLogs")
+        ]
+        response_summary = {
+            "runsReturned": len(out_runs),
+            "runsWithTail": sum(1 for item in out_runs if item.get("tail")),
+            "runsWithConsoleLogs": sum(1 for item in out_runs if item.get("consoleLogs")),
+            "runsWithErrors": sum(1 for item in out_runs if item.get("error")),
+            "totalTailLines": sum(len(item.get("tail") or []) for item in out_runs),
+            "blankExecutions": blank_runs,
+        }
+        log_response = logger.warning if blank_runs else logger.info
+        log_response(
+            "Job log response summary: request_id=%s job=%s runs_requested=%d workspace=%s summary=%s",
+            request_id,
+            resolved,
+            int(runs),
+            workspace_log_label,
+            response_summary,
+        )
 
         return JSONResponse(
             {
