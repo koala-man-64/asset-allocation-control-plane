@@ -117,6 +117,11 @@ ALPACA_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Optional route-specific 
 ALPACA_TRADING_REQUIRED_ROLES,deploy_var,var,deploy_config,true,Route-specific roles required for Alpaca submit, replace, and cancel access.
 ALPACA_PAPER_TRADING_BASE_URL,deploy_var,var,deploy_config,true,Optional paper Alpaca Trading API base URL override.
 ALPACA_LIVE_TRADING_BASE_URL,deploy_var,var,deploy_config,true,Optional live Alpaca Trading API base URL override.
+BROKER_ACCOUNT_STATUS_REFRESH_ENABLED,deploy_var,var,deploy_config,true,Enable or disable periodic broker account status refresh.
+BROKER_ACCOUNT_STATUS_REFRESH_INTERVAL_SECONDS,deploy_var,var,deploy_config,true,Interval in seconds between broker account status refresh runs.
+BROKER_ACCOUNT_STATUS_STALE_AFTER_SECONDS,deploy_var,var,deploy_config,true,Age in seconds after which cached broker account status is considered stale.
+BROKER_ACCOUNT_STATUS_REFRESH_BATCH_SIZE,deploy_var,var,deploy_config,true,Maximum number of broker accounts refreshed in one batch.
+BROKER_ACCOUNT_STATUS_REFRESH_ON_STARTUP,deploy_var,var,deploy_config,true,Refresh broker account status once during service startup.
 KALSHI_ENABLED,deploy_var,var,deploy_config,true,Enable or disable the repo-local Kalshi integration routes.
 KALSHI_TRADING_ENABLED,deploy_var,var,deploy_config,true,Separately enable or disable Kalshi create amend and cancel operations.
 KALSHI_TIMEOUT_SECONDS,deploy_var,var,deploy_config,true,Timeout in seconds for outbound Kalshi API requests.
