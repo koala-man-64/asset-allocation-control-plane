@@ -1194,6 +1194,18 @@
             ],
             "title": "Annualized Volatility"
           },
+          "approval_readiness": {
+            "anyOf": [
+              {
+                "const": "research_only",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Readiness"
+          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -1293,6 +1305,18 @@
             ],
             "title": "Cost Drag Bps"
           },
+          "data_quality_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Quality Event Count"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -1303,6 +1327,30 @@
               }
             ],
             "title": "End Date"
+          },
+          "execution_model": {
+            "anyOf": [
+              {
+                "const": "simple_bps",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model"
+          },
+          "execution_model_quality": {
+            "anyOf": [
+              {
+                "const": "not_tca_grade",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model Quality"
           },
           "expectancy_pnl": {
             "anyOf": [
@@ -1414,6 +1462,18 @@
             ],
             "title": "Payoff Ratio"
           },
+          "policy_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Event Count"
+          },
           "profit_factor": {
             "anyOf": [
               {
@@ -1424,6 +1484,22 @@
               }
             ],
             "title": "Profit Factor"
+          },
+          "research_integrity_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strict_passed",
+                  "strict_failed",
+                  "legacy_uncontrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Integrity Status"
           },
           "run_id": {
             "anyOf": [
@@ -3293,6 +3369,33 @@
           "total_transaction_cost"
         ],
         "title": "ClosedPositionResponse",
+        "type": "object"
+      },
+      "ConfigUpsertRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ],
+        "title": "ConfigUpsertRequest",
         "type": "object"
       },
       "CongressTradeEvent": {
@@ -12891,6 +12994,18 @@
             "minLength": 1,
             "title": "Modelname",
             "type": "string"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelversion"
           }
         },
         "title": "RegimePolicy",
@@ -13635,6 +13750,31 @@
             "title": "Costmodel",
             "type": "string"
           },
+          "exitRuleSetName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetname"
+          },
+          "exitRuleSetVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetversion"
+          },
           "exits": {
             "items": {
               "$ref": "#/components/schemas/ExitRule"
@@ -13692,6 +13832,18 @@
             ],
             "title": "Rankingschemaname"
           },
+          "rankingSchemaVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaversion"
+          },
           "rebalance": {
             "default": "monthly",
             "maxLength": 64,
@@ -13718,6 +13870,56 @@
                 "type": "null"
               }
             ]
+          },
+          "regimePolicyConfigName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigname"
+          },
+          "regimePolicyConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigversion"
+          },
+          "riskPolicyName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyname"
+          },
+          "riskPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyversion"
           },
           "riskProfileName": {
             "anyOf": [
@@ -13770,6 +13972,18 @@
               }
             ],
             "title": "Universeconfigname"
+          },
+          "universeConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universeconfigversion"
           }
         },
         "title": "StrategyConfig-Output",
@@ -14397,6 +14611,18 @@
             ],
             "title": "Annualized Volatility"
           },
+          "approval_readiness": {
+            "anyOf": [
+              {
+                "const": "research_only",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Readiness"
+          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -14496,6 +14722,18 @@
             ],
             "title": "Cost Drag Bps"
           },
+          "data_quality_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Quality Event Count"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -14506,6 +14744,30 @@
               }
             ],
             "title": "End Date"
+          },
+          "execution_model": {
+            "anyOf": [
+              {
+                "const": "simple_bps",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model"
+          },
+          "execution_model_quality": {
+            "anyOf": [
+              {
+                "const": "not_tca_grade",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model Quality"
           },
           "expectancy_pnl": {
             "anyOf": [
@@ -14627,6 +14889,18 @@
             ],
             "title": "Payoff Ratio"
           },
+          "policy_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Event Count"
+          },
           "profit_factor": {
             "anyOf": [
               {
@@ -14637,6 +14911,22 @@
               }
             ],
             "title": "Profit Factor"
+          },
+          "research_integrity_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strict_passed",
+                  "strict_failed",
+                  "legacy_uncontrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Integrity Status"
           },
           "run_id": {
             "anyOf": [
@@ -22701,6 +22991,213 @@
         "summary": "Get Data Generic",
         "tags": [
           "Data"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/": {
+      "get": {
+        "operationId": "list_exit_rule_sets_api_exit_rule_sets__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Exit Rule Sets Api Exit Rule Sets  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Exit Rule Sets",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      },
+      "post": {
+        "operationId": "save_exit_rule_set_api_exit_rule_sets__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Exit Rule Set Api Exit Rule Sets  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Exit Rule Set",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/{name}": {
+      "delete": {
+        "operationId": "archive_exit_rule_set_api_exit_rule_sets__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Exit Rule Set Api Exit Rule Sets  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Exit Rule Set",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/{name}/detail": {
+      "get": {
+        "operationId": "get_exit_rule_set_detail_api_exit_rule_sets__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Exit Rule Set Detail Api Exit Rule Sets  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Exit Rule Set Detail",
+        "tags": [
+          "Exit Rule Sets"
+        ]
+      }
+    },
+    "/api/exit-rule-sets/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_exit_rule_set_revision_api_exit_rule_sets__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Exit Rule Set Revision Api Exit Rule Sets  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Exit Rule Set Revision",
+        "tags": [
+          "Exit Rule Sets"
         ]
       }
     },
@@ -34446,6 +34943,57 @@
         ]
       }
     },
+    "/api/rankings/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_ranking_schema_revision_api_rankings__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankingSchemaDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ranking Schema Revision",
+        "tags": [
+          "Rankings"
+        ]
+      }
+    },
     "/api/realtime/ticket": {
       "post": {
         "operationId": "issue_realtime_ticket_api_realtime_ticket_post",
@@ -34462,6 +35010,213 @@
         "summary": "Issue Realtime Ticket",
         "tags": [
           "Realtime"
+        ]
+      }
+    },
+    "/api/regime-policies/": {
+      "get": {
+        "operationId": "list_regime_policies_api_regime_policies__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Regime Policies Api Regime Policies  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Regime Policies",
+        "tags": [
+          "Regime Policies"
+        ]
+      },
+      "post": {
+        "operationId": "save_regime_policy_api_regime_policies__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Regime Policy Api Regime Policies  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Regime Policy",
+        "tags": [
+          "Regime Policies"
+        ]
+      }
+    },
+    "/api/regime-policies/{name}": {
+      "delete": {
+        "operationId": "archive_regime_policy_api_regime_policies__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Regime Policy Api Regime Policies  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Regime Policy",
+        "tags": [
+          "Regime Policies"
+        ]
+      }
+    },
+    "/api/regime-policies/{name}/detail": {
+      "get": {
+        "operationId": "get_regime_policy_detail_api_regime_policies__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Regime Policy Detail Api Regime Policies  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Regime Policy Detail",
+        "tags": [
+          "Regime Policies"
+        ]
+      }
+    },
+    "/api/regime-policies/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_regime_policy_revision_api_regime_policies__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Regime Policy Revision Api Regime Policies  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Regime Policy Revision",
+        "tags": [
+          "Regime Policies"
         ]
       }
     },
@@ -34796,6 +35551,213 @@
         "summary": "Activate Regime Model",
         "tags": [
           "Regimes"
+        ]
+      }
+    },
+    "/api/risk-policies/": {
+      "get": {
+        "operationId": "list_risk_policies_api_risk_policies__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Risk Policies Api Risk Policies  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Risk Policies",
+        "tags": [
+          "Risk Policies"
+        ]
+      },
+      "post": {
+        "operationId": "save_risk_policy_api_risk_policies__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Risk Policy Api Risk Policies  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Risk Policy",
+        "tags": [
+          "Risk Policies"
+        ]
+      }
+    },
+    "/api/risk-policies/{name}": {
+      "delete": {
+        "operationId": "archive_risk_policy_api_risk_policies__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Risk Policy Api Risk Policies  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Risk Policy",
+        "tags": [
+          "Risk Policies"
+        ]
+      }
+    },
+    "/api/risk-policies/{name}/detail": {
+      "get": {
+        "operationId": "get_risk_policy_detail_api_risk_policies__name__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Risk Policy Detail Api Risk Policies  Name  Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Risk Policy Detail",
+        "tags": [
+          "Risk Policies"
+        ]
+      }
+    },
+    "/api/risk-policies/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_risk_policy_revision_api_risk_policies__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Risk Policy Revision Api Risk Policies  Name  Revisions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Risk Policy Revision",
+        "tags": [
+          "Risk Policies"
         ]
       }
     },
@@ -38354,6 +39316,57 @@
           }
         },
         "summary": "Get Universe Config Detail",
+        "tags": [
+          "Universes"
+        ]
+      }
+    },
+    "/api/universes/{name}/revisions/{version}": {
+      "get": {
+        "operationId": "get_universe_config_revision_api_universes__name__revisions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UniverseConfigDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Universe Config Revision",
         "tags": [
           "Universes"
         ]
