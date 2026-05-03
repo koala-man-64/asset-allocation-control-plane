@@ -4,6 +4,7 @@ import pytest
 
 from api.service.app import create_app
 from api.service.auth import AuthContext
+from kalshi import KalshiAccountLimits, KalshiInvalidResponseError
 from tests.api._auth import install_auth_stub
 from tests.api._client import get_test_client
 
@@ -62,6 +63,75 @@ async def test_kalshi_market_route_calls_gateway(monkeypatch: pytest.MonkeyPatch
     assert response.status_code == 200
     assert response.json() == {"ticker": "KXTEST-1", "event_ticker": "KXTEST", "status": "open"}
     assert captured == {"environment": "demo", "ticker": "KXTEST-1", "subject": "user-123"}
+
+
+@pytest.mark.asyncio
+async def test_kalshi_account_limits_route_calls_gateway(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure_oidc(monkeypatch)
+    monkeypatch.setenv("KALSHI_ENABLED", "true")
+
+    app = create_app()
+    _install_auth(monkeypatch, app)
+    captured: dict[str, object] = {}
+
+    def _get_account_limits(**kwargs):
+        captured.update(kwargs)
+        return KalshiAccountLimits(usage_tier="basic", read_limit=200, write_limit=100)
+
+    app.state.kalshi_gateway.get_account_limits = _get_account_limits  # type: ignore[method-assign]
+
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/providers/kalshi/account/limits",
+            params={"environment": "live"},
+            headers={"Authorization": "Bearer placeholder"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"usage_tier": "basic", "read_limit": 200, "write_limit": 100}
+    assert response.headers["Cache-Control"] == "no-store"
+    assert captured == {"environment": "live", "subject": "user-123"}
+
+
+@pytest.mark.asyncio
+async def test_kalshi_account_limits_route_returns_503_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KALSHI_ENABLED", "false")
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/providers/kalshi/account/limits",
+            params={"environment": "live"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Kalshi integration is disabled."
+
+
+@pytest.mark.asyncio
+async def test_kalshi_account_limits_invalid_provider_response_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_oidc(monkeypatch)
+    monkeypatch.setenv("KALSHI_ENABLED", "true")
+
+    app = create_app()
+    _install_auth(monkeypatch, app)
+
+    def _get_account_limits(**kwargs):
+        raise KalshiInvalidResponseError("Kalshi account limits response was invalid.")
+
+    app.state.kalshi_gateway.get_account_limits = _get_account_limits  # type: ignore[method-assign]
+
+    async with get_test_client(app) as client:
+        response = await client.get(
+            "/api/providers/kalshi/account/limits",
+            params={"environment": "live"},
+            headers={"Authorization": "Bearer placeholder"},
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Kalshi account limits response was invalid."
 
 
 @pytest.mark.asyncio

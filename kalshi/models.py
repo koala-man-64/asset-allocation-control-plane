@@ -29,6 +29,80 @@ def _int_or_none(value: Any) -> int | None:
     return int(value)
 
 
+def _required_non_empty_string(data: dict[str, Any], field_name: str) -> str:
+    if field_name not in data:
+        raise ValueError(f"Kalshi account limits field {field_name} is required.")
+
+    value = data[field_name]
+    if not isinstance(value, str):
+        raise ValueError(f"Kalshi account limits field {field_name} must be a string.")
+
+    text = value.strip()
+    if not text:
+        raise ValueError(f"Kalshi account limits field {field_name} must not be blank.")
+    return text
+
+
+def _strict_non_negative_int(value: Any, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"Kalshi account limits field {field_name} must be an integer.")
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError(f"Kalshi account limits field {field_name} must be non-negative.")
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or not text.isascii() or not text.isdecimal():
+            raise ValueError(f"Kalshi account limits field {field_name} must be a non-negative integer.")
+        return int(text)
+    raise ValueError(f"Kalshi account limits field {field_name} must be an integer.")
+
+
+def _account_limit_candidates(
+    data: dict[str, Any],
+    bucket_name: str,
+    flat_name: str,
+    alias_name: str,
+) -> list[tuple[str, Any]]:
+    candidates: list[tuple[str, Any]] = []
+
+    if bucket_name in data:
+        bucket = data[bucket_name]
+        if not isinstance(bucket, dict):
+            raise ValueError(f"Kalshi account limits field {bucket_name} must be an object.")
+        if "bucket_capacity" not in bucket:
+            raise ValueError(f"Kalshi account limits field {bucket_name}.bucket_capacity is required.")
+        candidates.append((f"{bucket_name}.bucket_capacity", bucket["bucket_capacity"]))
+
+    if flat_name in data:
+        candidates.append((flat_name, data[flat_name]))
+    if alias_name in data:
+        candidates.append((alias_name, data[alias_name]))
+
+    return candidates
+
+
+def _resolve_account_limit(
+    data: dict[str, Any],
+    bucket_name: str,
+    flat_name: str,
+    alias_name: str,
+) -> int:
+    candidates = _account_limit_candidates(data, bucket_name, flat_name, alias_name)
+    if not candidates:
+        raise ValueError(f"Kalshi account limits {bucket_name} limit is required.")
+
+    parsed_values = {
+        _strict_non_negative_int(value, field_name)
+        for field_name, value in candidates
+    }
+    if len(parsed_values) != 1:
+        candidate_names = ", ".join(field_name for field_name, _ in candidates)
+        raise ValueError(f"Kalshi account limits {bucket_name} candidates conflict: {candidate_names}.")
+
+    return parsed_values.pop()
+
+
 def _bool_or_none(value: Any) -> bool | None:
     if value is None or value == "":
         return None
@@ -438,7 +512,7 @@ class KalshiAccountLimits(SerializableModel):
     @staticmethod
     def from_api_dict(data: dict[str, Any]) -> "KalshiAccountLimits":
         return KalshiAccountLimits(
-            usage_tier=str(data["usage_tier"]),
-            read_limit=int(data.get("read_limit", data.get("read_rate_limit"))),
-            write_limit=int(data.get("write_limit", data.get("write_rate_limit"))),
+            usage_tier=_required_non_empty_string(data, "usage_tier"),
+            read_limit=_resolve_account_limit(data, "read", "read_limit", "read_rate_limit"),
+            write_limit=_resolve_account_limit(data, "write", "write_limit", "write_rate_limit"),
         )
