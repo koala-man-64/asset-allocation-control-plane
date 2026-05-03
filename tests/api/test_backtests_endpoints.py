@@ -1072,3 +1072,310 @@ async def test_get_closed_positions_returns_paginated_payload(monkeypatch: pytes
     assert payload["total"] == 1
     assert payload["positions"][0]["position_id"] == "pos-1"
     assert payload["positions"][0]["exit_rule_id"] == "tp-1"
+
+
+@pytest.mark.asyncio
+async def test_validate_backtest_reports_duplicate_and_inflight_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    captured: dict[str, Any] = {}
+
+    def fake_resolve(*args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return _sample_resolved_request()
+
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", fake_resolve)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "find_latest_completed_request_run",
+        lambda self, *, request_fingerprint: {
+            "run_id": "run-completed-1",
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "results_ready_at": datetime(2026, 3, 8, 0, 5, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": request_fingerprint,
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    )
+    monkeypatch.setattr(
+        BacktestRepository,
+        "find_latest_inflight_request_run",
+        lambda self, *, request_fingerprint: {
+            "run_id": "run-inflight-1",
+            "status": "queued",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "request_fingerprint": request_fingerprint,
+            "effective_config": {"pins": _sample_resolved_request().effective_config["pins"]},
+        },
+    )
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+        "assumptions": {"benchmarkSymbol": "SPY", "costModel": "desk-default"},
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/validation", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["verdict"] == "warn"
+    assert body["duplicateRun"]["run_id"] == "run-completed-1"
+    assert body["reusedInflightRun"]["run_id"] == "run-inflight-1"
+    assert captured["assumptions"].benchmarkSymbol == "SPY"
+
+
+@pytest.mark.asyncio
+async def test_validate_backtest_returns_block_report_for_resolution_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+
+    def fake_resolve(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ValueError("strategy is quarantined")
+
+    monkeypatch.setattr(backtest_endpoints, "resolve_backtest_request", fake_resolve)
+
+    app = create_app()
+    payload = {
+        "strategyRef": {"strategyName": "quality-trend"},
+        "startTs": "2026-03-03T14:30:00Z",
+        "endTs": "2026-03-03T14:35:00Z",
+        "barSize": "5m",
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/validation", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["verdict"] == "block"
+    assert body["blockedReasons"] == ["strategy is quarantined"]
+
+
+@pytest.mark.asyncio
+async def test_get_run_detail_returns_config_validation_and_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "completed_at": datetime(2026, 3, 8, 0, 5, tzinfo=timezone.utc),
+            "results_ready_at": datetime(2026, 3, 8, 0, 6, tzinfo=timezone.utc),
+            "results_schema_version": 4,
+            "run_name": "Desk review",
+            "start_date": "2026-03-03",
+            "end_date": "2026-03-04",
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "bar_size": "5m",
+            "config": {
+                "strategyRef": {"strategyName": "quality-trend", "strategyVersion": 4},
+                "startTs": "2026-03-03T14:30:00Z",
+                "endTs": "2026-03-03T14:35:00Z",
+                "barSize": "5m",
+                "assumptions": {"benchmarkSymbol": "SPY", "costModel": "desk-default"},
+            },
+            "effective_config": {
+                "pins": _sample_resolved_request().effective_config["pins"],
+                "execution": {
+                    "assumptions": {"benchmarkSymbol": "SPY", "costModel": "desk-default"},
+                },
+                "dataProvenance": {
+                    "quality": "complete",
+                    "dataSnapshotId": "snap-1",
+                    "source": "gold",
+                    "coveragePct": 0.99,
+                },
+            },
+            "config_fingerprint": "config-fp-1",
+            "request_fingerprint": "request-fp-1",
+            "submitted_by": "pm@example.com",
+        },
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-detail-1/detail")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run"]["run_id"] == "run-detail-1"
+    assert body["assumptions"]["benchmarkSymbol"] == "SPY"
+    assert body["provenance"]["quality"] == "complete"
+    assert body["provenance"]["dataSnapshotId"] == "snap-1"
+    assert body["validation"]["verdict"] == "pass"
+    assert body["links"]["summaryUrl"] == "/api/backtests/run-detail-1/summary"
+
+
+@pytest.mark.asyncio
+async def test_get_replay_timeline_uses_simulated_trade_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(BacktestRepository, "count_trades", lambda self, run_id: 1)
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_trades",
+        lambda self, run_id, **kwargs: [
+            {
+                "execution_date": "2026-03-08T10:00:00Z",
+                "symbol": "MSFT",
+                "quantity": 10.0,
+                "price": 100.0,
+                "notional": 1000.0,
+                "commission": 1.0,
+                "slippage_cost": 0.5,
+                "cash_after": 98998.5,
+                "position_id": "pos-1",
+                "trade_role": "entry",
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/replay?limit=50&offset=0")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["runId"] == "run-1"
+    assert body["events"][0]["source"] == "simulated"
+    assert body["events"][0]["eventType"] == "fill_assumption"
+    assert body["events"][0]["evidence"]["derivedFrom"] == "core.backtest_trades"
+    assert body["warnings"][0].startswith("Replay events are simulated")
+
+
+@pytest.mark.asyncio
+async def test_get_attribution_exposure_returns_gross_to_net_and_outliers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_run",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "status": "completed",
+            "results_ready_at": "2026-03-08T12:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(
+        BacktestRepository,
+        "get_summary",
+        lambda self, run_id: {
+            "run_id": run_id,
+            "total_return": 0.12,
+            "gross_total_return": 0.125,
+            "initial_cash": 100000.0,
+            "total_commission": 30.0,
+            "total_slippage_cost": 20.0,
+            "total_transaction_cost": 50.0,
+            "cost_drag_bps": 5.0,
+            "avg_gross_exposure": 0.9,
+            "avg_net_exposure": 0.88,
+            "trades": 5,
+        },
+    )
+    monkeypatch.setattr(
+        BacktestRepository,
+        "list_closed_positions",
+        lambda self, run_id, **kwargs: [
+            {
+                "position_id": "pos-1",
+                "symbol": "MSFT",
+                "realized_pnl": 250.0,
+                "realized_return": 0.05,
+            }
+        ],
+    )
+
+    app = create_app()
+    async with get_test_client(app) as client:
+        response = await client.get("/api/backtests/run-1/attribution-exposure")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["grossToNet"]["grossReturn"] == 0.125
+    assert body["grossToNet"]["netReturn"] == 0.12
+    assert body["slices"][0]["kind"] == "implementation"
+    assert body["concentration"][0]["name"] == "MSFT"
+
+
+@pytest.mark.asyncio
+async def test_compare_backtest_runs_suppresses_winner_when_assumptions_differ(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("POSTGRES_DSN", "postgresql://test:test@localhost:5432/asset_allocation")
+    runs = {
+        "run-base": {
+            "run_id": "run-base",
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "results_ready_at": datetime(2026, 3, 8, 0, 10, tzinfo=timezone.utc),
+            "results_schema_version": 4,
+            "start_date": "2026-03-01",
+            "end_date": "2026-03-08",
+            "bar_size": "5m",
+            "strategy_name": "quality-trend",
+            "strategy_version": 4,
+            "config": {"assumptions": {"benchmarkSymbol": "SPY", "costModel": "desk-default"}},
+        },
+        "run-challenger": {
+            "run_id": "run-challenger",
+            "status": "completed",
+            "submitted_at": datetime(2026, 3, 8, tzinfo=timezone.utc),
+            "results_ready_at": datetime(2026, 3, 8, 0, 12, tzinfo=timezone.utc),
+            "results_schema_version": 4,
+            "start_date": "2026-03-01",
+            "end_date": "2026-03-08",
+            "bar_size": "5m",
+            "strategy_name": "quality-trend",
+            "strategy_version": 5,
+            "config": {"assumptions": {"benchmarkSymbol": "SPY", "costModel": "high-touch"}},
+        },
+    }
+    summaries = {
+        "run-base": {"run_id": "run-base", "total_return": 0.10, "sharpe_ratio": 1.2},
+        "run-challenger": {"run_id": "run-challenger", "total_return": 0.15, "sharpe_ratio": 1.5},
+    }
+    monkeypatch.setattr(BacktestRepository, "get_run", lambda self, run_id: runs.get(run_id))
+    monkeypatch.setattr(BacktestRepository, "get_summary", lambda self, run_id: summaries.get(run_id))
+
+    app = create_app()
+    payload = {
+        "baselineRunId": "run-base",
+        "challengerRunIds": ["run-challenger"],
+        "metricKeys": ["total_return", "sharpe_ratio"],
+    }
+    async with get_test_client(app) as client:
+        response = await client.post("/api/backtests/compare", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["alignment"] == "caveated"
+    assert "assumptions" in body["alignmentWarnings"][0]
+    assert body["metrics"][0]["winnerRunId"] is None

@@ -49,11 +49,17 @@ API Root
     # Backtest Data & Execution (Matches ui/src/services/backtestHooks.ts)
     |-- /backtests [GET] (backtests.list_backtests) - Lists historical backtest runs with filtering :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
     |-- /backtests [POST] (backtests.submit_backtest) - Submits a new backtest job :: api/endpoints/backtests.py <== ui/src/app/components/pages/StrategyConfigPage.tsx
+    |-- /backtests/validation [POST] (backtests.validate_backtest) - Validates a proposed run, including duplicate and inflight run evidence, before launch :: api/endpoints/backtests.py <== ui/src/services/backtestApi.ts
+    |-- /backtests/runs [POST] (backtests.run_backtest) - Queues or reuses a split-contract backtest run with execution assumptions in the run fingerprint :: api/endpoints/backtests.py <== ui/src/services/backtestApi.ts
+    |-- /backtests/compare [POST] (backtests.compare_backtest_runs) - Compares baseline/challenger runs and suppresses winners when assumptions or alignment differ :: api/endpoints/backtests.py <== ui/src/services/backtestApi.ts
     `-- /backtests/{run_id}
+        |-- /detail [GET] (backtests.get_run_detail) - Returns run status, request/effective config, pins, hashes, owner, warnings, validation, and provenance :: api/endpoints/backtests.py <== ui/src/services/backtestApi.ts
         |-- /status [GET] (backtests.get_status) - Polls current status of a running backtest :: api/endpoints/backtests.py
         |-- /summary [GET] (backtests.get_summary) - Returns performance summary plus additive v4 metadata, cost-drag fields, and closed-position statistics from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
         |-- /trades [GET] (backtests.get_trades) - Returns executed trade audit rows, including `position_id` and `trade_role`, for a run from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
         |-- /positions/closed [GET] (backtests.get_closed_positions) - Returns flat-to-flat closed position cycles with realized PnL, return, costs, and exit reason :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
+        |-- /replay [GET] (backtests.get_replay_timeline) - Returns windowed simulated-vs-real replay events with cash, position, exposure, rule, evidence, and warning fields :: api/endpoints/backtests.py <== ui/src/services/backtestApi.ts
+        |-- /attribution-exposure [GET] (backtests.get_attribution_exposure) - Returns gross-to-net bridge, attribution slices, exposure slices, concentration, and outlier contribution :: api/endpoints/backtests.py <== ui/src/services/backtestApi.ts
         |-- /metrics
         |   |-- /timeseries [GET] (backtests.get_timeseries) - Returns equity curve and drawdown series with additive period_return metadata from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts
         |   `-- /rolling [GET] (backtests.get_rolling_metrics) - Returns rolling metrics with additive window_periods metadata from Postgres :: api/endpoints/backtests.py <== ui/src/services/backtestHooks.ts

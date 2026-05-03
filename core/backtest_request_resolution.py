@@ -92,6 +92,7 @@ def resolve_backtest_request(
     start_ts: datetime,
     end_ts: datetime,
     bar_size: str,
+    assumptions: BaseModel | dict[str, Any] | None = None,
 ) -> ResolvedBacktestRequest:
     normalized_start_ts = _ensure_utc(start_ts)
     normalized_end_ts = _ensure_utc(end_ts)
@@ -135,6 +136,7 @@ def resolve_backtest_request(
         bar_size=normalized_bar_size,
     )
     pins = _frozen_pins(definition)
+    normalized_assumptions = _as_request_dict(assumptions) or {}
     config_fingerprint = _json_hash(
         {
             "schemaVersion": _CONFIG_FINGERPRINT_VERSION,
@@ -149,6 +151,7 @@ def resolve_backtest_request(
             "startTs": normalized_start_ts.isoformat(),
             "endTs": normalized_end_ts.isoformat(),
             "barSize": normalized_bar_size,
+            "assumptions": normalized_assumptions,
             "resultsSchemaVersion": BACKTEST_RESULTS_SCHEMA_VERSION,
         }
     )
@@ -158,6 +161,7 @@ def resolve_backtest_request(
         "startTs": normalized_start_ts.isoformat(),
         "endTs": normalized_end_ts.isoformat(),
         "barSize": normalized_bar_size,
+        "assumptions": normalized_assumptions or None,
     }
     effective_config = {
         "schemaVersion": _REPLAY_CONFIG_VERSION,
@@ -170,6 +174,7 @@ def resolve_backtest_request(
             "endTs": normalized_end_ts.isoformat(),
             "barSize": normalized_bar_size,
             "barsResolved": len(schedule),
+            "assumptions": normalized_assumptions,
         },
         "fingerprints": {
             "configFingerprint": config_fingerprint,

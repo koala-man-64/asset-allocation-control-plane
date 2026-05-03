@@ -5,19 +5,27 @@ import json
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from collections.abc import Callable
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from api.service.backtest_contracts_compat import (
+    BacktestAttributionExposureResponse,
+    BacktestDataProvenance,
+    BacktestExecutionAssumptions,
     BacktestLookupRequest,
     BacktestLookupResponse,
+    BacktestReplayTimelineResponse,
     BacktestResultLinks,
+    BacktestRunComparisonRequest,
+    BacktestRunComparisonResponse,
+    BacktestRunDetailResponse,
     BacktestRunResponse,
     BacktestRunRequest,
     BacktestSummary,
     BacktestStreamEvent,
+    BacktestValidationReport,
     ClosedPositionListResponse,
     RunListResponse,
     RunPinsResponse,
@@ -177,6 +185,305 @@ def _backtest_metadata(run: dict[str, Any]) -> BacktestResponseMetadata:
     )
 
 
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _safe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _model_payload(model_type: type[BaseModel], value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    try:
+        return model_type.model_validate(value).model_dump(mode="json", exclude_none=True)
+    except Exception:
+        return None
+
+
+def _execution_assumptions_payload(run: dict[str, Any]) -> dict[str, Any] | None:
+    config = run.get("config") if isinstance(run.get("config"), dict) else {}
+    effective_config = run.get("effective_config") if isinstance(run.get("effective_config"), dict) else {}
+    execution = effective_config.get("execution") if isinstance(effective_config.get("execution"), dict) else {}
+    raw_assumptions = config.get("assumptions") or execution.get("assumptions")
+    return _model_payload(BacktestExecutionAssumptions, raw_assumptions)
+
+
+def _run_request_payload(run: dict[str, Any]) -> dict[str, Any] | None:
+    raw_config = run.get("config") if isinstance(run.get("config"), dict) else {}
+    if not raw_config:
+        return None
+
+    payload = {
+        "strategyRef": raw_config.get("strategyRef"),
+        "strategyConfig": raw_config.get("strategyConfig"),
+        "startTs": raw_config.get("startTs") or run.get("start_ts"),
+        "endTs": raw_config.get("endTs") or run.get("end_ts"),
+        "barSize": raw_config.get("barSize") or run.get("bar_size"),
+        "runName": raw_config.get("runName") or run.get("run_name"),
+        "assumptions": raw_config.get("assumptions") or _execution_assumptions_payload(run),
+    }
+    return _model_payload(BacktestRunRequest, {key: value for key, value in payload.items() if value is not None})
+
+
+def _data_provenance_payload(run: dict[str, Any]) -> dict[str, Any]:
+    effective_config = run.get("effective_config") if isinstance(run.get("effective_config"), dict) else {}
+    raw = {}
+    for key in ("dataProvenance", "provenance", "data"):
+        value = effective_config.get(key)
+        if isinstance(value, dict):
+            raw = value
+            break
+
+    quality = str(raw.get("quality") or "").strip().lower()
+    if quality not in {"complete", "partial", "missing", "contradictory"}:
+        quality = "partial" if raw else "missing"
+
+    warnings = list(raw.get("warnings") or []) if isinstance(raw.get("warnings"), list) else []
+    if not raw:
+        warnings.append("Data provenance is not yet embedded in the run effective config.")
+
+    payload = {
+        "quality": quality,
+        "dataSnapshotId": raw.get("dataSnapshotId") or raw.get("snapshotId"),
+        "vendor": raw.get("vendor"),
+        "source": raw.get("source") or "postgres_backtest_results",
+        "loadId": raw.get("loadId"),
+        "schemaVersion": raw.get("schemaVersion") or str(run.get("results_schema_version") or ""),
+        "adjustmentPolicy": raw.get("adjustmentPolicy"),
+        "symbolMapVersion": raw.get("symbolMapVersion"),
+        "corporateActionState": raw.get("corporateActionState"),
+        "coveragePct": _safe_float(raw.get("coveragePct")),
+        "nullCount": _safe_int(raw.get("nullCount")),
+        "gapCount": _safe_int(raw.get("gapCount")),
+        "staleCount": _safe_int(raw.get("staleCount")),
+        "quarantined": bool(raw.get("quarantined") or False),
+        "warnings": warnings,
+    }
+    return BacktestDataProvenance.model_validate(payload).model_dump(mode="json")
+
+
+def _validation_check(
+    *,
+    code: str,
+    label: str,
+    verdict: Literal["pass", "warn", "block"],
+    severity: Literal["info", "warning", "critical"] = "info",
+    message: str = "",
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "code": code,
+        "label": label,
+        "verdict": verdict,
+        "severity": severity,
+        "message": message,
+        "evidence": evidence or {},
+    }
+
+
+def _validation_report_payload(
+    *,
+    resolved_request: ResolvedBacktestRequest | None = None,
+    duplicate_run: dict[str, Any] | None = None,
+    inflight_run: dict[str, Any] | None = None,
+    blocked_reason: str | None = None,
+) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    blocked_reasons: list[str] = []
+
+    if blocked_reason:
+        blocked_reasons.append(blocked_reason)
+        checks.append(
+            _validation_check(
+                code="request_resolution",
+                label="Request resolution",
+                verdict="block",
+                severity="critical",
+                message=blocked_reason,
+            )
+        )
+    elif resolved_request is not None:
+        checks.append(
+            _validation_check(
+                code="request_resolution",
+                label="Request resolution",
+                verdict="pass",
+                message="Strategy, pins, calendar window, and request fingerprint resolved.",
+                evidence={
+                    "configFingerprint": resolved_request.config_fingerprint,
+                    "requestFingerprint": resolved_request.request_fingerprint,
+                    "barsResolved": len(resolved_request.schedule),
+                    "strategyName": resolved_request.definition.strategy_name,
+                    "strategyVersion": resolved_request.definition.strategy_version,
+                },
+            )
+        )
+        checks.append(
+            _validation_check(
+                code="execution_window",
+                label="Execution window",
+                verdict="pass",
+                message="Window is valid for the requested bar size.",
+                evidence={
+                    "startTs": resolved_request.start_ts.isoformat(),
+                    "endTs": resolved_request.end_ts.isoformat(),
+                    "barSize": resolved_request.bar_size,
+                },
+            )
+        )
+        assumptions = resolved_request.request_payload.get("assumptions") or {}
+        checks.append(
+            _validation_check(
+                code="execution_assumptions",
+                label="Execution assumptions",
+                verdict="pass",
+                message="Execution assumptions are included in the request fingerprint.",
+                evidence={"assumptions": assumptions},
+            )
+        )
+
+    if duplicate_run:
+        warnings.append("A completed run already exists for this exact request fingerprint.")
+        checks.append(
+            _validation_check(
+                code="duplicate_completed_run",
+                label="Duplicate completed run",
+                verdict="warn",
+                severity="warning",
+                message="Review or compare the existing completed run before launching new work.",
+                evidence={"run": _run_status_payload(duplicate_run)},
+            )
+        )
+    else:
+        checks.append(
+            _validation_check(
+                code="duplicate_completed_run",
+                label="Duplicate completed run",
+                verdict="pass",
+                message="No completed run found for this exact request fingerprint.",
+            )
+        )
+
+    if inflight_run:
+        warnings.append("A matching run is already queued or running.")
+        checks.append(
+            _validation_check(
+                code="inflight_run",
+                label="Inflight run",
+                verdict="warn",
+                severity="warning",
+                message="Reuse the inflight run instead of dispatching duplicate work.",
+                evidence={"run": _run_status_payload(inflight_run)},
+            )
+        )
+    else:
+        checks.append(
+            _validation_check(
+                code="inflight_run",
+                label="Inflight run",
+                verdict="pass",
+                message="No queued or running run found for this exact request fingerprint.",
+            )
+        )
+
+    verdict: Literal["pass", "warn", "block"] = "pass"
+    if blocked_reasons:
+        verdict = "block"
+    elif warnings:
+        verdict = "warn"
+
+    return BacktestValidationReport.model_validate(
+        {
+            "verdict": verdict,
+            "checks": checks,
+            "blockedReasons": blocked_reasons,
+            "warnings": warnings,
+            "duplicateRun": _run_status_payload(duplicate_run) if duplicate_run else None,
+            "reusedInflightRun": _run_status_payload(inflight_run) if inflight_run else None,
+            "generatedAt": _now_utc(),
+        }
+    ).model_dump(mode="json")
+
+
+def _run_review_validation_payload(run: dict[str, Any]) -> dict[str, Any]:
+    status = str(run.get("status") or "unknown")
+    blocked_reasons: list[str] = []
+    warnings: list[str] = []
+    status_verdict: Literal["pass", "warn", "block"] = "pass"
+    status_severity: Literal["info", "warning", "critical"] = "info"
+    if status == "failed":
+        status_verdict = "block"
+        status_severity = "critical"
+        blocked_reasons.append(str(run.get("error") or "Backtest run failed."))
+    elif status != "completed":
+        status_verdict = "warn"
+        status_severity = "warning"
+        warnings.append("Run is not complete; published result evidence may be absent.")
+
+    publication_verdict: Literal["pass", "warn", "block"] = "pass"
+    publication_severity: Literal["info", "warning", "critical"] = "info"
+    if not run.get("results_ready_at"):
+        publication_verdict = "warn" if status != "failed" else "block"
+        publication_severity = "warning" if status != "failed" else "critical"
+        message = "Result publication timestamp is absent."
+        if status == "failed":
+            blocked_reasons.append(message)
+        else:
+            warnings.append(message)
+    else:
+        message = "Results are published."
+
+    verdict: Literal["pass", "warn", "block"] = "pass"
+    if blocked_reasons:
+        verdict = "block"
+    elif warnings:
+        verdict = "warn"
+
+    return BacktestValidationReport.model_validate(
+        {
+            "verdict": verdict,
+            "checks": [
+                _validation_check(
+                    code="run_status",
+                    label="Run status",
+                    verdict=status_verdict,
+                    severity=status_severity,
+                    message=f"Run status is {status}.",
+                    evidence={"runId": run.get("run_id"), "status": status},
+                ),
+                _validation_check(
+                    code="result_publication",
+                    label="Result publication",
+                    verdict=publication_verdict,
+                    severity=publication_severity,
+                    message=message,
+                    evidence={"resultsReadyAt": run.get("results_ready_at")},
+                ),
+            ],
+            "blockedReasons": blocked_reasons,
+            "warnings": warnings,
+            "generatedAt": _now_utc(),
+        }
+    ).model_dump(mode="json")
+
+
 def _attach_metadata(payload: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
     payload["metadata"] = _backtest_metadata(run).model_dump(mode="json")
     return payload
@@ -227,6 +534,216 @@ def _result_links_payload(run_id: str) -> dict[str, Any]:
             "closedPositionsUrl": f"{base_path}/positions/closed",
         }
     ).model_dump(mode="json")
+
+
+def _run_detail_payload(run: dict[str, Any]) -> dict[str, Any]:
+    run_id = str(run["run_id"])
+    warnings: list[str] = []
+    provenance = _data_provenance_payload(run)
+    if provenance.get("quality") == "missing":
+        warnings.append("Data provenance is not yet published in the run metadata.")
+    if run.get("status") == "failed" and run.get("error"):
+        warnings.append(str(run["error"]))
+
+    return BacktestRunDetailResponse.model_validate(
+        {
+            "run": _run_status_payload(run),
+            "request": _run_request_payload(run),
+            "effectiveConfig": run.get("effective_config") if isinstance(run.get("effective_config"), dict) else {},
+            "configHash": run.get("config_fingerprint") or run.get("canonical_fingerprint"),
+            "requestHash": run.get("request_fingerprint"),
+            "owner": run.get("submitted_by"),
+            "assumptions": _execution_assumptions_payload(run),
+            "validation": _run_review_validation_payload(run),
+            "provenance": provenance,
+            "links": _result_links_payload(run_id),
+            "warnings": warnings,
+        }
+    ).model_dump(mode="json")
+
+
+def _trade_replay_event_payload(run_id: str, trade: dict[str, Any], sequence: int) -> dict[str, Any]:
+    quantity = _safe_float(trade.get("quantity"))
+    price = _safe_float(trade.get("price"))
+    symbol = str(trade.get("symbol") or "").strip() or None
+    role = str(trade.get("trade_role") or "").strip().lower()
+    side = "Buy" if quantity is not None and quantity >= 0 else "Sell"
+    quantity_text = abs(quantity) if quantity is not None else "unknown quantity"
+    price_text = f" @ {price:g}" if price is not None else ""
+    event_type: Literal[
+        "signal",
+        "order_decision",
+        "fill_assumption",
+        "position_update",
+        "risk_limit",
+        "exit",
+        "corporate_action",
+        "data_event",
+        "cash",
+    ] = "exit" if role == "exit" else "fill_assumption"
+    transaction_cost = sum(
+        value for value in (_safe_float(trade.get("commission")), _safe_float(trade.get("slippage_cost"))) if value is not None
+    )
+
+    return {
+        "eventId": f"{run_id}:{sequence}",
+        "sequence": sequence,
+        "timestamp": trade.get("execution_date") or _now_utc(),
+        "eventType": event_type,
+        "symbol": symbol,
+        "ruleId": trade.get("exit_rule_id"),
+        "source": "simulated",
+        "summary": f"{side} {quantity_text} {symbol or 'symbol'}{price_text}",
+        "beforeCash": None,
+        "afterCash": _safe_float(trade.get("cash_after")),
+        "beforeGrossExposure": None,
+        "afterGrossExposure": None,
+        "beforeNetExposure": None,
+        "afterNetExposure": None,
+        "beforePositions": [],
+        "afterPositions": [],
+        "transactionCost": transaction_cost,
+        "benchmarkPrice": None,
+        "evidence": {
+            "derivedFrom": "core.backtest_trades",
+            "positionId": trade.get("position_id"),
+            "tradeRole": trade.get("trade_role"),
+            "notional": _safe_float(trade.get("notional")),
+            "commission": _safe_float(trade.get("commission")),
+            "slippageCost": _safe_float(trade.get("slippage_cost")),
+        },
+        "warnings": [],
+    }
+
+
+def _gross_to_net_bridge_payload(summary: dict[str, Any]) -> dict[str, Any]:
+    initial_cash = _safe_float(summary.get("initial_cash"))
+
+    def drag(cost: Any) -> float | None:
+        cost_value = _safe_float(cost)
+        if cost_value is None or not initial_cash:
+            return None
+        return -abs(cost_value) / initial_cash
+
+    return {
+        "grossReturn": _safe_float(summary.get("gross_total_return")),
+        "commissionDrag": drag(summary.get("total_commission")),
+        "slippageDrag": drag(summary.get("total_slippage_cost")),
+        "spreadDrag": None,
+        "marketImpactDrag": None,
+        "borrowFinancingDrag": None,
+        "netReturn": _safe_float(summary.get("total_return")),
+        "costDragBps": _safe_float(summary.get("cost_drag_bps")),
+    }
+
+
+def _attribution_payload(
+    *,
+    run_id: str,
+    summary: dict[str, Any],
+    closed_positions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    warnings = [
+        "Attribution is derived from published summary and closed-position ledgers; canonical decomposition remains backend-owned."
+    ]
+    gross_return = _safe_float(summary.get("gross_total_return"))
+    net_return = _safe_float(summary.get("total_return"))
+    total_cost = _safe_float(summary.get("total_transaction_cost"))
+    slices: list[dict[str, Any]] = []
+    if gross_return is not None or net_return is not None or total_cost is not None:
+        slices.append(
+            {
+                "kind": "implementation",
+                "name": "Implementation cost",
+                "contributionReturn": (net_return - gross_return) if net_return is not None and gross_return is not None else None,
+                "contributionPnl": -abs(total_cost) if total_cost is not None else None,
+                "exposureAvg": None,
+                "tradeCount": _safe_int(summary.get("trades")),
+                "notes": ["Commission and slippage are included where published."],
+            }
+        )
+
+    ordered_positions = sorted(
+        closed_positions,
+        key=lambda item: abs(_safe_float(item.get("realized_pnl")) or 0.0),
+        reverse=True,
+    )
+    concentration = [
+        {
+            "kind": "outlier",
+            "name": str(position.get("symbol") or position.get("position_id") or "position"),
+            "contributionReturn": _safe_float(position.get("realized_return")),
+            "contributionPnl": _safe_float(position.get("realized_pnl")),
+            "exposureAvg": None,
+            "tradeCount": None,
+            "notes": [f"Position {position.get('position_id')}"] if position.get("position_id") else [],
+        }
+        for position in ordered_positions[:10]
+    ]
+
+    return BacktestAttributionExposureResponse.model_validate(
+        {
+            "runId": run_id,
+            "asOf": _now_utc(),
+            "grossToNet": _gross_to_net_bridge_payload(summary),
+            "slices": slices,
+            "concentration": concentration,
+            "grossExposureAvg": _safe_float(summary.get("avg_gross_exposure")),
+            "netExposureAvg": _safe_float(summary.get("avg_net_exposure")),
+            "turnover": None,
+            "warnings": warnings,
+        }
+    ).model_dump(mode="json")
+
+
+def _comparison_signature(run: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "startDate": run.get("start_date"),
+        "endDate": run.get("end_date"),
+        "barSize": run.get("bar_size"),
+        "resultsSchemaVersion": run.get("results_schema_version"),
+        "assumptions": _execution_assumptions_payload(run) or {},
+    }
+
+
+def _comparison_metrics_payload(
+    *,
+    requested_keys: list[str],
+    run_ids: list[str],
+    summaries: dict[str, dict[str, Any]],
+    alignment: Literal["aligned", "caveated", "blocked"],
+) -> list[dict[str, Any]]:
+    catalog: dict[str, tuple[str, str, Literal["higher", "lower"]]] = {
+        "total_return": ("Net return", "ratio", "higher"),
+        "gross_total_return": ("Gross return", "ratio", "higher"),
+        "sharpe_ratio": ("Sharpe", "ratio", "higher"),
+        "max_drawdown": ("Max drawdown", "ratio", "higher"),
+        "cost_drag_bps": ("Cost drag", "bps", "lower"),
+    }
+    metric_keys = requested_keys or list(catalog.keys())
+    metrics: list[dict[str, Any]] = []
+    for key in metric_keys:
+        label, unit, direction = catalog.get(key, (key, "value", "higher"))
+        values = {run_id: _safe_float(summaries.get(run_id, {}).get(key)) for run_id in run_ids}
+        winner_run_id: str | None = None
+        numeric_values = {run_id: value for run_id, value in values.items() if value is not None}
+        if alignment == "aligned" and numeric_values:
+            winner_run_id = (
+                min(numeric_values, key=numeric_values.get)
+                if direction == "lower"
+                else max(numeric_values, key=numeric_values.get)
+            )
+        metrics.append(
+            {
+                "metric": key,
+                "label": label,
+                "unit": unit,
+                "values": values,
+                "winnerRunId": winner_run_id,
+                "notes": "" if winner_run_id else "No winner selected because runs are not fully aligned.",
+            }
+        )
+    return metrics
 
 
 def _stream_url(run_id: str) -> str:
@@ -410,6 +927,7 @@ async def submit_backtest(payload: SubmitBacktestRequest, request: Request) -> R
                 start_ts=payload.startTs,
                 end_ts=payload.endTs,
                 bar_size=payload.barSize,
+                assumptions=getattr(payload, "assumptions", None),
             ),
         )
     except ValueError as exc:
@@ -460,6 +978,7 @@ async def lookup_backtest_results(
                 start_ts=payload.startTs,
                 end_ts=payload.endTs,
                 bar_size=payload.barSize,
+                assumptions=getattr(payload, "assumptions", None),
             ),
         )
     except ValueError as exc:
@@ -575,6 +1094,7 @@ async def run_backtest(
                 start_ts=payload.startTs,
                 end_ts=payload.endTs,
                 bar_size=payload.barSize,
+                assumptions=getattr(payload, "assumptions", None),
             ),
         )
     except ValueError as exc:
@@ -632,6 +1152,198 @@ async def run_backtest(
             "reusedInflight": False,
             "streamUrl": _stream_url(str(run["run_id"])),
         }
+    )
+
+
+@router.post("/validation", response_model=BacktestValidationReport)
+async def validate_backtest_request(
+    payload: BacktestRunRequest,
+    request: Request,
+) -> BacktestValidationReport:
+    validate_auth(request)
+    dsn = _require_postgres_dsn(request)
+    repo = BacktestRepository(dsn)
+
+    try:
+        resolved_request = _postgres_or_503(
+            "Postgres is unavailable for backtest validation.",
+            lambda: resolve_backtest_request(
+                dsn,
+                strategy_ref=payload.strategyRef,
+                strategy_config=payload.strategyConfig,
+                start_ts=payload.startTs,
+                end_ts=payload.endTs,
+                bar_size=payload.barSize,
+                assumptions=getattr(payload, "assumptions", None),
+            ),
+        )
+    except ValueError as exc:
+        return BacktestValidationReport.model_validate(_validation_report_payload(blocked_reason=str(exc)))
+
+    duplicate_run = _postgres_or_503(
+        "Postgres is unavailable for backtest validation.",
+        lambda: repo.find_latest_completed_request_run(request_fingerprint=resolved_request.request_fingerprint),
+    )
+    inflight_run = _postgres_or_503(
+        "Postgres is unavailable for backtest validation.",
+        lambda: repo.find_latest_inflight_request_run(request_fingerprint=resolved_request.request_fingerprint),
+    )
+    return BacktestValidationReport.model_validate(
+        _validation_report_payload(
+            resolved_request=resolved_request,
+            duplicate_run=duplicate_run,
+            inflight_run=inflight_run,
+        )
+    )
+
+
+@router.post("/compare", response_model=BacktestRunComparisonResponse)
+async def compare_backtest_runs(
+    payload: BacktestRunComparisonRequest,
+    request: Request,
+) -> BacktestRunComparisonResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    run_ids = [payload.baselineRunId, *payload.challengerRunIds]
+    runs = [_require_run(repo, run_id) for run_id in run_ids]
+
+    blocked_reasons: list[str] = []
+    summaries: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        run_id = str(run["run_id"])
+        if run.get("status") != "completed" or not run.get("results_ready_at"):
+            blocked_reasons.append(f"Run '{run_id}' is not completed with published results.")
+            continue
+        summary = _postgres_or_503(
+            "Postgres is unavailable for backtest comparison.",
+            lambda run_id=run_id: repo.get_summary(run_id),
+        )
+        if summary is None:
+            blocked_reasons.append(f"Run '{run_id}' has no published summary.")
+        else:
+            summaries[run_id] = summary
+
+    alignment_warnings: list[str] = []
+    if not blocked_reasons:
+        baseline_signature = _comparison_signature(runs[0])
+        for run in runs[1:]:
+            challenger_signature = _comparison_signature(run)
+            for key, baseline_value in baseline_signature.items():
+                challenger_value = challenger_signature.get(key)
+                if challenger_value != baseline_value:
+                    alignment_warnings.append(
+                        f"Run '{run['run_id']}' differs from baseline on {key}; comparison winner is suppressed."
+                    )
+
+    alignment: Literal["aligned", "caveated", "blocked"] = "aligned"
+    if blocked_reasons:
+        alignment = "blocked"
+    elif alignment_warnings:
+        alignment = "caveated"
+
+    return BacktestRunComparisonResponse.model_validate(
+        {
+            "asOf": _now_utc(),
+            "alignment": alignment,
+            "baselineRunId": payload.baselineRunId,
+            "runs": [_run_status_payload(run) for run in runs],
+            "metrics": _comparison_metrics_payload(
+                requested_keys=payload.metricKeys,
+                run_ids=run_ids,
+                summaries=summaries,
+                alignment=alignment,
+            ),
+            "alignmentWarnings": alignment_warnings,
+            "blockedReasons": blocked_reasons,
+        }
+    )
+
+
+@router.get("/{run_id}/detail", response_model=BacktestRunDetailResponse)
+async def get_run_detail(run_id: str, request: Request) -> BacktestRunDetailResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    run = _require_run(repo, run_id)
+    return BacktestRunDetailResponse.model_validate(_run_detail_payload(run))
+
+
+@router.get("/{run_id}/replay", response_model=BacktestReplayTimelineResponse)
+async def get_replay_timeline(
+    run_id: str,
+    request: Request,
+    limit: int = Query(default=500, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    symbol: str | None = Query(default=None, min_length=1, max_length=32),
+) -> BacktestReplayTimelineResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    _require_published_run(repo, run_id)
+
+    warnings = ["Replay events are simulated unless a specific event source says broker_fill."]
+    normalized_symbol = str(symbol or "").strip().upper()
+    if normalized_symbol:
+        all_trades = _postgres_or_503(
+            "Postgres is unavailable for backtest replay.",
+            lambda: repo.list_trades(run_id, limit=10000, offset=0),
+        )
+        filtered_trades = [
+            trade for trade in all_trades if str(trade.get("symbol") or "").strip().upper() == normalized_symbol
+        ]
+        total = len(filtered_trades)
+        trades = filtered_trades[offset : offset + limit]
+        warnings.append("Symbol filter was applied to trade-ledger replay events.")
+        if len(all_trades) >= 10000:
+            warnings.append("Replay symbol filtering is capped at the first 10000 trade rows.")
+    else:
+        total = _postgres_or_503(
+            "Postgres is unavailable for backtest replay.",
+            lambda: repo.count_trades(run_id),
+        )
+        trades = _postgres_or_503(
+            "Postgres is unavailable for backtest replay.",
+            lambda: repo.list_trades(run_id, limit=limit, offset=offset),
+        )
+
+    if total == 0:
+        warnings.append("No trade-ledger replay events are available for this run.")
+
+    next_offset = offset + len(trades) if offset + len(trades) < total else None
+    return BacktestReplayTimelineResponse.model_validate(
+        {
+            "runId": run_id,
+            "events": [
+                _trade_replay_event_payload(run_id, trade, offset + index)
+                for index, trade in enumerate(trades)
+            ],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "nextOffset": next_offset,
+            "warnings": warnings,
+        }
+    )
+
+
+@router.get("/{run_id}/attribution-exposure", response_model=BacktestAttributionExposureResponse)
+async def get_attribution_exposure(
+    run_id: str,
+    request: Request,
+) -> BacktestAttributionExposureResponse:
+    validate_auth(request)
+    repo = BacktestRepository(_require_postgres_dsn(request))
+    _require_published_run(repo, run_id)
+    summary = _postgres_or_503(
+        "Postgres is unavailable for backtest attribution.",
+        lambda: repo.get_summary(run_id),
+    )
+    if summary is None:
+        raise HTTPException(status_code=404, detail=f"Summary for run '{run_id}' not found.")
+    closed_positions = _postgres_or_503(
+        "Postgres is unavailable for backtest attribution.",
+        lambda: repo.list_closed_positions(run_id, limit=250, offset=0),
+    )
+    return BacktestAttributionExposureResponse.model_validate(
+        _attribution_payload(run_id=run_id, summary=summary, closed_positions=closed_positions)
     )
 
 

@@ -122,7 +122,7 @@ Evidence:
 
 - Confirmed: `/api/system/*` owns system health, runtime config, debug symbols, purge operations, container app control, and job control surfaces.
 - Confirmed: `/api/data/*` owns raw and derived data access surfaces.
-- Confirmed: `/api/backtests/*` owns backtest submission, status, summaries, metrics, and artifact retrieval.
+- Confirmed: `/api/backtests/*` owns backtest submission, validation, run detail, status, summaries, metrics, trades, closed positions, replay timelines, attribution/exposure, comparison, and artifact retrieval.
 - Confirmed: `/api/providers/alpha-vantage/*` and `/api/providers/massive/*` own API-side provider gateway surfaces.
 - Confirmed: `/api/internal/*` owns trusted internal control-plane reads and backtest worker coordination, including a readiness endpoint for auth and Postgres probing.
 - Confirmed: `/api/ws/updates` and realtime ticket issuance support browser realtime updates.
@@ -145,6 +145,7 @@ Evidence:
 Evidence:
 - `api/service/app.py`
 - `api/API_ENDPOINTS.md`
+- `api/endpoints/backtests.py`
 - `api/endpoints/internal.py`
 - `api/contracts/*`
 - `scripts/automation/export_contract_artifacts.py`
@@ -313,6 +314,7 @@ Evidence:
 
 - `api/service/app.py`
 - `api/service/settings.py`
+- `api/endpoints/backtests.py`
 - `api/endpoints/internal.py`
 - `api/endpoints/system.py`
 - `api/endpoints/system_modules/*`
@@ -320,6 +322,7 @@ Evidence:
 - `monitoring/system_health_modules/*`
 - `monitoring/control_plane.py`
 - `core/runtime_config.py`
+- `core/backtest_request_resolution.py`
 - `Dockerfile.asset_allocation_api`
 
 ### Docs
