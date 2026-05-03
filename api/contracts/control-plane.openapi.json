@@ -544,6 +544,182 @@
         "title": "AuthSessionStatus",
         "type": "object"
       },
+      "BacktestAttributionExposureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "concentration": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestAttributionSlice"
+            },
+            "title": "Concentration",
+            "type": "array"
+          },
+          "grossExposureAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grossexposureavg"
+          },
+          "grossToNet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestGrossToNetBridge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "netExposureAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Netexposureavg"
+          },
+          "runId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "slices": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestAttributionSlice"
+            },
+            "title": "Slices",
+            "type": "array"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnover"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "title": "BacktestAttributionExposureResponse",
+        "type": "object"
+      },
+      "BacktestAttributionSlice": {
+        "additionalProperties": false,
+        "properties": {
+          "contributionPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contributionpnl"
+          },
+          "contributionReturn": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contributionreturn"
+          },
+          "exposureAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposureavg"
+          },
+          "kind": {
+            "enum": [
+              "selection",
+              "sizing",
+              "timing",
+              "implementation",
+              "sector",
+              "factor",
+              "regime",
+              "symbol",
+              "outlier"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "tradeCount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tradecount"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "BacktestAttributionSlice",
+        "type": "object"
+      },
       "BacktestClaimRequest": {
         "additionalProperties": false,
         "properties": {
@@ -575,6 +751,350 @@
         "title": "BacktestCompleteRequest",
         "type": "object"
       },
+      "BacktestDataProvenance": {
+        "additionalProperties": false,
+        "properties": {
+          "adjustmentPolicy": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustmentpolicy"
+          },
+          "corporateActionState": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corporateactionstate"
+          },
+          "coveragePct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coveragepct"
+          },
+          "dataSnapshotId": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datasnapshotid"
+          },
+          "gapCount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gapcount"
+          },
+          "loadId": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loadid"
+          },
+          "nullCount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nullcount"
+          },
+          "quality": {
+            "enum": [
+              "complete",
+              "partial",
+              "missing",
+              "contradictory"
+            ],
+            "title": "Quality",
+            "type": "string"
+          },
+          "quarantined": {
+            "default": false,
+            "title": "Quarantined",
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schemaversion"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "staleCount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stalecount"
+          },
+          "symbolMapVersion": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbolmapversion"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quality"
+        ],
+        "title": "BacktestDataProvenance",
+        "type": "object"
+      },
+      "BacktestExecutionAssumptions": {
+        "additionalProperties": false,
+        "properties": {
+          "benchmarkSymbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarksymbol"
+          },
+          "borrowCostBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrowcostbps"
+          },
+          "commissionBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commissionbps"
+          },
+          "commissionPerShare": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commissionpershare"
+          },
+          "costModel": {
+            "default": "default",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Costmodel",
+            "type": "string"
+          },
+          "financingCostBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Financingcostbps"
+          },
+          "initialCapital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initialcapital"
+          },
+          "latencyBars": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latencybars"
+          },
+          "liquidityFilters": {
+            "additionalProperties": true,
+            "title": "Liquidityfilters",
+            "type": "object"
+          },
+          "marketImpactBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketimpactbps"
+          },
+          "notes": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Notes",
+            "type": "string"
+          },
+          "participationCapPct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participationcappct"
+          },
+          "slippageBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippagebps"
+          },
+          "spreadBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spreadbps"
+          }
+        },
+        "title": "BacktestExecutionAssumptions",
+        "type": "object"
+      },
       "BacktestFailRequest": {
         "additionalProperties": false,
         "properties": {
@@ -589,6 +1109,101 @@
           "error"
         ],
         "title": "BacktestFailRequest",
+        "type": "object"
+      },
+      "BacktestGrossToNetBridge": {
+        "additionalProperties": false,
+        "properties": {
+          "borrowFinancingDrag": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrowfinancingdrag"
+          },
+          "commissionDrag": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commissiondrag"
+          },
+          "costDragBps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Costdragbps"
+          },
+          "grossReturn": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grossreturn"
+          },
+          "marketImpactDrag": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketimpactdrag"
+          },
+          "netReturn": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Netreturn"
+          },
+          "slippageDrag": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippagedrag"
+          },
+          "spreadDrag": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spreaddrag"
+          }
+        },
+        "title": "BacktestGrossToNetBridge",
         "type": "object"
       },
       "BacktestLookupRequest": {
@@ -606,6 +1221,16 @@
           }
         ],
         "properties": {
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestExecutionAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "barSize": {
             "maxLength": 32,
             "minLength": 1,
@@ -637,7 +1262,7 @@
           "strategyConfig": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/StrategyConfig-Output"
+                "$ref": "#/components/schemas/StrategyConfig-Input"
               },
               {
                 "type": "null"
@@ -777,6 +1402,333 @@
         "title": "BacktestReconcileResponse",
         "type": "object"
       },
+      "BacktestReplayEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "afterCash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aftercash"
+          },
+          "afterGrossExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aftergrossexposure"
+          },
+          "afterNetExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Afternetexposure"
+          },
+          "afterPositions": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestReplayPositionState"
+            },
+            "title": "Afterpositions",
+            "type": "array"
+          },
+          "beforeCash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beforecash"
+          },
+          "beforeGrossExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beforegrossexposure"
+          },
+          "beforeNetExposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beforenetexposure"
+          },
+          "beforePositions": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestReplayPositionState"
+            },
+            "title": "Beforepositions",
+            "type": "array"
+          },
+          "benchmarkPrice": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmarkprice"
+          },
+          "eventId": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Eventid",
+            "type": "string"
+          },
+          "eventType": {
+            "enum": [
+              "signal",
+              "order_decision",
+              "fill_assumption",
+              "position_update",
+              "risk_limit",
+              "exit",
+              "corporate_action",
+              "data_event",
+              "cash"
+            ],
+            "title": "Eventtype",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "ruleId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleid"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "source": {
+            "default": "simulated",
+            "enum": [
+              "simulated",
+              "broker_fill",
+              "portfolio_ledger",
+              "unknown"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Summary",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "transactionCost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactioncost"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "eventId",
+          "sequence",
+          "timestamp",
+          "eventType"
+        ],
+        "title": "BacktestReplayEvent",
+        "type": "object"
+      },
+      "BacktestReplayPositionState": {
+        "additionalProperties": false,
+        "properties": {
+          "averageCost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Averagecost"
+          },
+          "marketValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketvalue"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "number"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "unrealizedPnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealizedpnl"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "symbol",
+          "quantity"
+        ],
+        "title": "BacktestReplayPositionState",
+        "type": "object"
+      },
+      "BacktestReplayTimelineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestReplayEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "limit": {
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "nextOffset": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextoffset"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "runId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Runid",
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runId",
+          "events",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "BacktestReplayTimelineResponse",
+        "type": "object"
+      },
       "BacktestResponseMetadata": {
         "additionalProperties": false,
         "properties": {
@@ -860,7 +1812,278 @@
         "title": "BacktestResultLinks",
         "type": "object"
       },
-      "BacktestRunRequest": {
+      "BacktestRunComparisonMetric": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "metric": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Notes",
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          },
+          "winnerRunId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winnerrunid"
+          }
+        },
+        "required": [
+          "metric",
+          "label",
+          "unit"
+        ],
+        "title": "BacktestRunComparisonMetric",
+        "type": "object"
+      },
+      "BacktestRunComparisonRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "baselineRunId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Baselinerunid",
+            "type": "string"
+          },
+          "challengerRunIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Challengerrunids",
+            "type": "array"
+          },
+          "metricKeys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrickeys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "baselineRunId",
+          "challengerRunIds"
+        ],
+        "title": "BacktestRunComparisonRequest",
+        "type": "object"
+      },
+      "BacktestRunComparisonResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "alignment": {
+            "enum": [
+              "aligned",
+              "caveated",
+              "blocked"
+            ],
+            "title": "Alignment",
+            "type": "string"
+          },
+          "alignmentWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alignmentwarnings",
+            "type": "array"
+          },
+          "asOf": {
+            "format": "date-time",
+            "title": "Asof",
+            "type": "string"
+          },
+          "baselineRunId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Baselinerunid",
+            "type": "string"
+          },
+          "blockedReasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockedreasons",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestRunComparisonMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunStatusResponse"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "asOf",
+          "alignment",
+          "baselineRunId",
+          "runs"
+        ],
+        "title": "BacktestRunComparisonResponse",
+        "type": "object"
+      },
+      "BacktestRunDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestExecutionAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "configHash": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confighash"
+          },
+          "effectiveConfig": {
+            "additionalProperties": true,
+            "title": "Effectiveconfig",
+            "type": "object"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestResultLinks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestDataProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestRunRequest-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestHash": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requesthash"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunStatusResponse"
+          },
+          "validation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestValidationReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run"
+        ],
+        "title": "BacktestRunDetailResponse",
+        "type": "object"
+      },
+      "BacktestRunRequest-Input": {
         "additionalProperties": false,
         "oneOf": [
           {
@@ -875,6 +2098,98 @@
           }
         ],
         "properties": {
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestExecutionAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "barSize": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Barsize",
+            "type": "string"
+          },
+          "endTs": {
+            "format": "date-time",
+            "title": "Endts",
+            "type": "string"
+          },
+          "runName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runname"
+          },
+          "startTs": {
+            "format": "date-time",
+            "title": "Startts",
+            "type": "string"
+          },
+          "strategyConfig": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyConfig-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategyRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyReferenceInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "startTs",
+          "endTs",
+          "barSize"
+        ],
+        "title": "BacktestRunRequest",
+        "type": "object"
+      },
+      "BacktestRunRequest-Output": {
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "strategyRef"
+            ]
+          },
+          {
+            "required": [
+              "strategyConfig"
+            ]
+          }
+        ],
+        "properties": {
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestExecutionAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "barSize": {
             "maxLength": 32,
             "minLength": 1,
@@ -1005,6 +2320,18 @@
             ],
             "title": "Annualized Volatility"
           },
+          "approval_readiness": {
+            "anyOf": [
+              {
+                "const": "research_only",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Readiness"
+          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -1104,6 +2431,18 @@
             ],
             "title": "Cost Drag Bps"
           },
+          "data_quality_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Quality Event Count"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -1114,6 +2453,30 @@
               }
             ],
             "title": "End Date"
+          },
+          "execution_model": {
+            "anyOf": [
+              {
+                "const": "simple_bps",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model"
+          },
+          "execution_model_quality": {
+            "anyOf": [
+              {
+                "const": "not_tca_grade",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model Quality"
           },
           "expectancy_pnl": {
             "anyOf": [
@@ -1225,6 +2588,18 @@
             ],
             "title": "Payoff Ratio"
           },
+          "policy_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Event Count"
+          },
           "profit_factor": {
             "anyOf": [
               {
@@ -1235,6 +2610,22 @@
               }
             ],
             "title": "Profit Factor"
+          },
+          "research_integrity_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strict_passed",
+                  "strict_failed",
+                  "legacy_uncontrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Integrity Status"
           },
           "run_id": {
             "anyOf": [
@@ -1359,6 +2750,132 @@
           }
         },
         "title": "BacktestSummary",
+        "type": "object"
+      },
+      "BacktestValidationCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "default": "info",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "warn",
+              "block"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "verdict"
+        ],
+        "title": "BacktestValidationCheck",
+        "type": "object"
+      },
+      "BacktestValidationReport": {
+        "additionalProperties": false,
+        "properties": {
+          "blockedReasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockedreasons",
+            "type": "array"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestValidationCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "duplicateRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunStatusResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generatedat"
+          },
+          "reusedInflightRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunStatusResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "warn",
+              "block"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "BacktestValidationReport",
         "type": "object"
       },
       "BrokerAccountAllocationUpdateRequest": {
@@ -2181,6 +3698,28 @@
           "total_transaction_cost"
         ],
         "title": "ClosedPositionResponse",
+        "type": "object"
+      },
+      "ConfigReference": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "ConfigReference",
         "type": "object"
       },
       "CongressTradeEvent": {
@@ -4137,6 +5676,18 @@
             ],
             "title": "Priority"
           },
+          "rankThreshold": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankthreshold"
+          },
           "reference": {
             "anyOf": [
               {
@@ -4164,7 +5715,8 @@
               "take_profit_fixed",
               "trailing_stop_pct",
               "trailing_stop_atr",
-              "time_stop"
+              "time_stop",
+              "rank_decay"
             ],
             "title": "Type",
             "type": "string"
@@ -11479,6 +13031,170 @@
         "title": "RankingTransform",
         "type": "object"
       },
+      "RebalancePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowPartialRebalance": {
+            "default": true,
+            "title": "Allowpartialrebalance",
+            "type": "boolean"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "enum": [
+                  "close",
+                  "next_open"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          },
+          "cadence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "monthly",
+                  "quarterly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence"
+          },
+          "cashBufferPct": {
+            "default": 0.0,
+            "exclusiveMaximum": 100.0,
+            "minimum": 0.0,
+            "title": "Cashbufferpct",
+            "type": "number"
+          },
+          "closeRemovedPositions": {
+            "default": true,
+            "title": "Closeremovedpositions",
+            "type": "boolean"
+          },
+          "dayRule": {
+            "anyOf": [
+              {
+                "enum": [
+                  "first_trading_day",
+                  "last_trading_day"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dayrule"
+          },
+          "driftThresholdBps": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driftthresholdbps"
+          },
+          "driftThresholdPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driftthresholdpct"
+          },
+          "executionTiming": {
+            "const": "next_bar_open",
+            "default": "next_bar_open",
+            "title": "Executiontiming",
+            "type": "string"
+          },
+          "frequency": {
+            "default": "every_bar",
+            "enum": [
+              "every_bar",
+              "daily",
+              "weekly",
+              "monthly",
+              "quarterly",
+              "every_n_bars",
+              "manual"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "intervalBars": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intervalbars"
+          },
+          "maxTurnoverPct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxturnoverpct"
+          },
+          "maxTurnoverPerRebalance": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxturnoverperrebalance"
+          },
+          "minTradeNotional": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Mintradenotional",
+            "type": "number"
+          },
+          "tradeDelayBars": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Tradedelaybars",
+            "type": "integer"
+          }
+        },
+        "title": "RebalancePolicy",
+        "type": "object"
+      },
       "RebalanceProposal": {
         "additionalProperties": false,
         "properties": {
@@ -11634,6 +13350,18 @@
             "minLength": 1,
             "title": "Modelname",
             "type": "string"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelversion"
           }
         },
         "title": "RegimePolicy",
@@ -12368,15 +14096,117 @@
         "title": "SchwabOrderRequest",
         "type": "object"
       },
-      "StrategyConfig-Output": {
+      "StrategyComponentRefs": {
         "additionalProperties": false,
         "properties": {
+          "exitPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ranking": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rebalance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regimePolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "riskPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "universe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "StrategyComponentRefs",
+        "type": "object"
+      },
+      "StrategyConfig-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "componentRefs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyComponentRefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "costModel": {
             "default": "default",
             "maxLength": 64,
             "minLength": 1,
             "title": "Costmodel",
             "type": "string"
+          },
+          "exitRuleSetName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetname"
+          },
+          "exitRuleSetVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetversion"
           },
           "exits": {
             "items": {
@@ -12435,12 +14265,34 @@
             ],
             "title": "Rankingschemaname"
           },
+          "rankingSchemaVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaversion"
+          },
           "rebalance": {
             "default": "monthly",
             "maxLength": 64,
             "minLength": 1,
             "title": "Rebalance",
             "type": "string"
+          },
+          "rebalancePolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RebalancePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "regimePolicy": {
             "anyOf": [
@@ -12451,6 +14303,56 @@
                 "type": "null"
               }
             ]
+          },
+          "regimePolicyConfigName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigname"
+          },
+          "regimePolicyConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigversion"
+          },
+          "riskPolicyName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyname"
+          },
+          "riskPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyversion"
           },
           "riskProfileName": {
             "anyOf": [
@@ -12464,6 +14366,275 @@
               }
             ],
             "title": "Riskprofilename"
+          },
+          "strategyRiskPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "topN": {
+            "default": 20,
+            "minimum": 1.0,
+            "title": "Topn",
+            "type": "integer"
+          },
+          "universe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UniverseDefinition-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "universeConfigName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universeconfigname"
+          },
+          "universeConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universeconfigversion"
+          }
+        },
+        "title": "StrategyConfig",
+        "type": "object"
+      },
+      "StrategyConfig-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "componentRefs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyComponentRefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costModel": {
+            "default": "default",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Costmodel",
+            "type": "string"
+          },
+          "exitRuleSetName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetname"
+          },
+          "exitRuleSetVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exitrulesetversion"
+          },
+          "exits": {
+            "items": {
+              "$ref": "#/components/schemas/ExitRule"
+            },
+            "title": "Exits",
+            "type": "array"
+          },
+          "holdingPeriod": {
+            "default": 21,
+            "minimum": 1.0,
+            "title": "Holdingperiod",
+            "type": "integer"
+          },
+          "intrabarConflictPolicy": {
+            "default": "stop_first",
+            "enum": [
+              "stop_first",
+              "take_profit_first",
+              "priority_order"
+            ],
+            "title": "Intrabarconflictpolicy",
+            "type": "string"
+          },
+          "longOnly": {
+            "default": true,
+            "title": "Longonly",
+            "type": "boolean"
+          },
+          "lookbackWindow": {
+            "default": 63,
+            "minimum": 1.0,
+            "title": "Lookbackwindow",
+            "type": "integer"
+          },
+          "positionPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyPositionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rankingSchemaName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaname"
+          },
+          "rankingSchemaVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rankingschemaversion"
+          },
+          "rebalance": {
+            "default": "monthly",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Rebalance",
+            "type": "string"
+          },
+          "rebalancePolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RebalancePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regimePolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regimePolicyConfigName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigname"
+          },
+          "regimePolicyConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regimepolicyconfigversion"
+          },
+          "riskPolicyName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyname"
+          },
+          "riskPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskpolicyversion"
+          },
+          "riskProfileName": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Riskprofilename"
+          },
+          "strategyRiskPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "topN": {
             "default": 20,
@@ -12493,9 +14664,21 @@
               }
             ],
             "title": "Universeconfigname"
+          },
+          "universeConfigVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universeconfigversion"
           }
         },
-        "title": "StrategyConfig-Output",
+        "title": "StrategyConfig",
         "type": "object"
       },
       "StrategyDetailResponse": {
@@ -12653,6 +14836,187 @@
           "strategyName"
         ],
         "title": "StrategyReferenceInput",
+        "type": "object"
+      },
+      "StrategyRiskPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "reentry": {
+            "$ref": "#/components/schemas/StrategyRiskReentryPolicy"
+          },
+          "scope": {
+            "default": "strategy",
+            "enum": [
+              "strategy",
+              "sleeve"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "stopLoss": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskStopLossPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "takeProfit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyRiskTakeProfitPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "StrategyRiskPolicy",
+        "type": "object"
+      },
+      "StrategyRiskReentryPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "cooldownBars": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Cooldownbars",
+            "type": "integer"
+          },
+          "requireApproval": {
+            "default": false,
+            "title": "Requireapproval",
+            "type": "boolean"
+          }
+        },
+        "title": "StrategyRiskReentryPolicy",
+        "type": "object"
+      },
+      "StrategyRiskStopLossPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "default": "reduce_exposure",
+            "enum": [
+              "reduce_exposure",
+              "liquidate",
+              "freeze_buys"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "basis": {
+            "default": "strategy_nav_drawdown",
+            "enum": [
+              "strategy_nav_drawdown",
+              "sleeve_nav_drawdown"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "default": "strategy-stop-loss",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "reductionPct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reductionpct"
+          },
+          "thresholdPct": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Thresholdpct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "thresholdPct"
+        ],
+        "title": "StrategyRiskStopLossPolicy",
+        "type": "object"
+      },
+      "StrategyRiskTakeProfitPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "default": "rebalance_to_target",
+            "enum": [
+              "reduce_exposure",
+              "rebalance_to_target"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "basis": {
+            "default": "strategy_nav_gain",
+            "enum": [
+              "strategy_nav_gain",
+              "sleeve_nav_gain"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "default": "strategy-take-profit",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "reductionPct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reductionpct"
+          },
+          "thresholdPct": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Thresholdpct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "thresholdPct"
+        ],
+        "title": "StrategyRiskTakeProfitPolicy",
         "type": "object"
       },
       "StrategySliceAttribution": {
@@ -12939,6 +15303,18 @@
             ],
             "title": "Annualized Volatility"
           },
+          "approval_readiness": {
+            "anyOf": [
+              {
+                "const": "research_only",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Readiness"
+          },
           "avg_gross_exposure": {
             "anyOf": [
               {
@@ -13038,6 +15414,18 @@
             ],
             "title": "Cost Drag Bps"
           },
+          "data_quality_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Quality Event Count"
+          },
           "end_date": {
             "anyOf": [
               {
@@ -13048,6 +15436,30 @@
               }
             ],
             "title": "End Date"
+          },
+          "execution_model": {
+            "anyOf": [
+              {
+                "const": "simple_bps",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model"
+          },
+          "execution_model_quality": {
+            "anyOf": [
+              {
+                "const": "not_tca_grade",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Model Quality"
           },
           "expectancy_pnl": {
             "anyOf": [
@@ -13169,6 +15581,18 @@
             ],
             "title": "Payoff Ratio"
           },
+          "policy_event_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Event Count"
+          },
           "profit_factor": {
             "anyOf": [
               {
@@ -13179,6 +15603,22 @@
               }
             ],
             "title": "Profit Factor"
+          },
+          "research_integrity_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "strict_passed",
+                  "strict_failed",
+                  "legacy_uncontrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Integrity Status"
           },
           "run_id": {
             "anyOf": [
@@ -17882,7 +20322,12 @@
               "returns.return_20d",
               "returns.return_126d",
               "quality.piotroski_f_score",
-              "earnings.surprise_pct"
+              "earnings.surprise_pct",
+              "security.market_cap",
+              "market.dollar_volume_20d",
+              "security.primary_listing",
+              "security.country",
+              "security.is_price_liquidity_eligible"
             ],
             "title": "Field",
             "type": "string"
@@ -19170,6 +21615,47 @@
         ]
       }
     },
+    "/api/backtests/compare": {
+      "post": {
+        "operationId": "compare_backtest_runs_api_backtests_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestRunComparisonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestRunComparisonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare Backtest Runs",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
     "/api/backtests/results/lookup": {
       "post": {
         "operationId": "lookup_backtest_results_api_backtests_results_lookup_post",
@@ -19218,7 +21704,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BacktestRunRequest"
+                "$ref": "#/components/schemas/BacktestRunRequest-Input"
               }
             }
           },
@@ -19247,6 +21733,131 @@
           }
         },
         "summary": "Run Backtest",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/validation": {
+      "post": {
+        "operationId": "validate_backtest_request_api_backtests_validation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestRunRequest-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestValidationReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Backtest Request",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/{run_id}/attribution-exposure": {
+      "get": {
+        "operationId": "get_attribution_exposure_api_backtests__run_id__attribution_exposure_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestAttributionExposureResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Attribution Exposure",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/{run_id}/detail": {
+      "get": {
+        "operationId": "get_run_detail_api_backtests__run_id__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestRunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Detail",
         "tags": [
           "Backtests"
         ]
@@ -19477,6 +22088,89 @@
           }
         },
         "summary": "Get Closed Positions",
+        "tags": [
+          "Backtests"
+        ]
+      }
+    },
+    "/api/backtests/{run_id}/replay": {
+      "get": {
+        "operationId": "get_replay_timeline_api_backtests__run_id__replay_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestReplayTimelineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replay Timeline",
         "tags": [
           "Backtests"
         ]
