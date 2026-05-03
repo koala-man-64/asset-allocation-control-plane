@@ -14596,15 +14596,185 @@
         "title": "RegimePolicy",
         "type": "object"
       },
+      "RegimePublicationModelReference": {
+        "additionalProperties": false,
+        "properties": {
+          "modelName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Modelname",
+            "type": "string"
+          },
+          "modelVersion": {
+            "minimum": 1.0,
+            "title": "Modelversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "modelName",
+          "modelVersion"
+        ],
+        "title": "RegimePublicationModelReference",
+        "type": "object"
+      },
+      "RegimePublicationReconcileMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "activeModels": {
+            "items": {
+              "$ref": "#/components/schemas/RegimePublicationModelReference"
+            },
+            "maxItems": 16,
+            "title": "Activemodels",
+            "type": "array"
+          },
+          "domainArtifactPath": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domainartifactpath"
+          },
+          "historyRows": {
+            "minimum": 0.0,
+            "title": "Historyrows",
+            "type": "integer"
+          },
+          "inputAsOfDate": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "minLength": 10,
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputasofdate"
+          },
+          "latestRows": {
+            "minimum": 0.0,
+            "title": "Latestrows",
+            "type": "integer"
+          },
+          "producerJobName": {
+            "default": "gold-regime-job",
+            "pattern": "^gold-regime-job$",
+            "title": "Producerjobname",
+            "type": "string"
+          },
+          "publishedAsOfDate": {
+            "maxLength": 10,
+            "minLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "Publishedasofdate",
+            "type": "string"
+          },
+          "transitionRows": {
+            "minimum": 0.0,
+            "title": "Transitionrows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "publishedAsOfDate",
+          "historyRows",
+          "latestRows",
+          "transitionRows"
+        ],
+        "title": "RegimePublicationReconcileMetadata",
+        "type": "object"
+      },
       "ResultsReconcileRequest": {
+        "additionalProperties": false,
         "properties": {
           "dryRun": {
-            "default": false,
             "title": "Dryrun",
             "type": "boolean"
           }
         },
+        "required": [
+          "dryRun"
+        ],
         "title": "ResultsReconcileRequest",
+        "type": "object"
+      },
+      "ResultsReconcileResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalEnqueuedCount": {
+            "minimum": 0.0,
+            "title": "Canonicalenqueuedcount",
+            "type": "integer"
+          },
+          "canonicalSkippedCount": {
+            "minimum": 0.0,
+            "title": "Canonicalskippedcount",
+            "type": "integer"
+          },
+          "canonicalUpToDateCount": {
+            "minimum": 0.0,
+            "title": "Canonicaluptodatecount",
+            "type": "integer"
+          },
+          "dryRun": {
+            "title": "Dryrun",
+            "type": "boolean"
+          },
+          "errorCount": {
+            "minimum": 0.0,
+            "title": "Errorcount",
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "publicationSignalsErrorCount": {
+            "minimum": 0.0,
+            "title": "Publicationsignalserrorcount",
+            "type": "integer"
+          },
+          "publicationSignalsProcessedCount": {
+            "minimum": 0.0,
+            "title": "Publicationsignalsprocessedcount",
+            "type": "integer"
+          },
+          "rankingDirtyCount": {
+            "minimum": 0.0,
+            "title": "Rankingdirtycount",
+            "type": "integer"
+          },
+          "rankingNoopCount": {
+            "minimum": 0.0,
+            "title": "Rankingnoopcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dryRun",
+          "rankingDirtyCount",
+          "rankingNoopCount",
+          "canonicalEnqueuedCount",
+          "canonicalUpToDateCount",
+          "canonicalSkippedCount",
+          "publicationSignalsProcessedCount",
+          "publicationSignalsErrorCount",
+          "errorCount",
+          "errors"
+        ],
+        "title": "ResultsReconcileResponse",
         "type": "object"
       },
       "RollingMetricPointResponse": {
@@ -16037,6 +16207,115 @@
           "value"
         ],
         "title": "StrategyPositionSizeLimit",
+        "type": "object"
+      },
+      "StrategyPublicationReconcileSignalRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "jobKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "title": "Jobkey",
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/RegimePublicationReconcileMetadata"
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishedat"
+          },
+          "sourceFingerprint": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Sourcefingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobKey",
+          "sourceFingerprint",
+          "metadata"
+        ],
+        "title": "StrategyPublicationReconcileSignalRequest",
+        "type": "object"
+      },
+      "StrategyPublicationReconcileSignalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "jobKey": {
+            "title": "Jobkey",
+            "type": "string"
+          },
+          "processedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processedat"
+          },
+          "sourceFingerprint": {
+            "title": "Sourcefingerprint",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "processed",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobKey",
+          "sourceFingerprint",
+          "status",
+          "created",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "StrategyPublicationReconcileSignalResponse",
         "type": "object"
       },
       "StrategyReferenceInput": {
@@ -28028,27 +28307,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/ResultsReconcileRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
+                "$ref": "#/components/schemas/ResultsReconcileRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reconcile Results Api Internal Results Reconcile Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ResultsReconcileResponse"
                 }
               }
             },
@@ -28197,6 +28467,47 @@
           }
         },
         "summary": "Get Strategy Revision",
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/api/internal/strategy-publications/reconcile-signal": {
+      "post": {
+        "operationId": "record_strategy_publication_reconcile_signal_route_api_internal_strategy_publications_reconcile_signal_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StrategyPublicationReconcileSignalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyPublicationReconcileSignalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Strategy Publication Reconcile Signal Route",
         "tags": [
           "Internal"
         ]
