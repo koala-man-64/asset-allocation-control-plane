@@ -3592,7 +3592,8 @@
           "category": {
             "enum": [
               "trading_policy",
-              "allocation"
+              "allocation",
+              "onboarding"
             ],
             "title": "Category",
             "type": "string"
@@ -3790,6 +3791,325 @@
           }
         },
         "title": "BrokerAccountListResponse",
+        "type": "object"
+      },
+      "BrokerAccountOnboardingCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "accountNumberMasked": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountnumbermasked"
+          },
+          "allowedExecutionPostures": {
+            "items": {
+              "enum": [
+                "monitor_only",
+                "paper",
+                "sandbox",
+                "live"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedexecutionpostures",
+            "type": "array"
+          },
+          "baseCurrency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Basecurrency",
+            "type": "string"
+          },
+          "blockedExecutionPostureReasons": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Blockedexecutionposturereasons",
+            "type": "object"
+          },
+          "canOnboard": {
+            "default": true,
+            "title": "Canonboard",
+            "type": "boolean"
+          },
+          "candidateId": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Candidateid",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "environment": {
+            "enum": [
+              "paper",
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "existingAccountId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existingaccountid"
+          },
+          "provider": {
+            "enum": [
+              "alpaca",
+              "schwab",
+              "etrade"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "state": {
+            "default": "available",
+            "enum": [
+              "available",
+              "already_configured",
+              "disabled",
+              "blocked",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "stateReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statereason"
+          },
+          "suggestedAccountId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Suggestedaccountid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidateId",
+          "provider",
+          "environment",
+          "suggestedAccountId",
+          "displayName"
+        ],
+        "title": "BrokerAccountOnboardingCandidate",
+        "type": "object"
+      },
+      "BrokerAccountOnboardingCandidateListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerAccountOnboardingCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "discoveryStatus": {
+            "default": "completed",
+            "enum": [
+              "completed",
+              "provider_unavailable",
+              "not_connected",
+              "failed"
+            ],
+            "title": "Discoverystatus",
+            "type": "string"
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generatedat"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "BrokerAccountOnboardingCandidateListResponse",
+        "type": "object"
+      },
+      "BrokerAccountOnboardingRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "candidateId": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Candidateid",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "environment": {
+            "enum": [
+              "paper",
+              "sandbox",
+              "live"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "executionPosture": {
+            "default": "monitor_only",
+            "enum": [
+              "monitor_only",
+              "paper",
+              "sandbox",
+              "live"
+            ],
+            "title": "Executionposture",
+            "type": "string"
+          },
+          "initialRefresh": {
+            "default": true,
+            "title": "Initialrefresh",
+            "type": "boolean"
+          },
+          "provider": {
+            "enum": [
+              "alpaca",
+              "schwab",
+              "etrade"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "readiness": {
+            "default": "review",
+            "enum": [
+              "ready",
+              "review",
+              "blocked"
+            ],
+            "title": "Readiness",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidateId",
+          "provider",
+          "environment",
+          "displayName",
+          "reason"
+        ],
+        "title": "BrokerAccountOnboardingRequest",
+        "type": "object"
+      },
+      "BrokerAccountOnboardingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/BrokerAccountSummary"
+          },
+          "audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerAccountConfigurationAuditRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "configuration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerAccountConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created": {
+            "default": true,
+            "title": "Created",
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generatedat"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "reenabled": {
+            "default": false,
+            "title": "Reenabled",
+            "type": "boolean"
+          },
+          "refreshAction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrokerAccountActionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account"
+        ],
+        "title": "BrokerAccountOnboardingResponse",
         "type": "object"
       },
       "BrokerAccountSummary": {
@@ -23914,6 +24234,100 @@
           }
         },
         "summary": "List Broker Accounts",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/onboarding": {
+      "post": {
+        "operationId": "onboard_broker_account_api_broker_accounts_onboarding_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrokerAccountOnboardingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountOnboardingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Onboard Broker Account",
+        "tags": [
+          "Broker Accounts"
+        ]
+      }
+    },
+    "/api/broker-accounts/onboarding/candidates": {
+      "get": {
+        "operationId": "list_broker_account_onboarding_candidates_api_broker_accounts_onboarding_candidates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "pattern": "^(alpaca|etrade|schwab)$",
+              "title": "Provider",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "pattern": "^(paper|sandbox|live)$",
+              "title": "Environment",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountOnboardingCandidateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Broker Account Onboarding Candidates",
         "tags": [
           "Broker Accounts"
         ]
